@@ -300,12 +300,14 @@ export default function CanvasPage() {
     if (trimmed && inlineText.isNew) {
       const newEl: SystemNode = {
         id: inlineText.id, type: "text", title: trimmed, text: trimmed,
-        x: inlineText.x, y: inlineText.y + 14, width: 140, height: 30,
+        x: inlineText.x, y: inlineText.y, width: 140, height: 30,
         strokeColor: strokeColor || "#FFFFFF", fillColor: "transparent", strokeWidth: 2,
       };
+      setElements(prev => [...prev, newEl]); // Optimistic update
       addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newEl) });
     }
     setInlineText(null);
+    setActiveTool("select");
   };
 
   const handleCopyLink = (mode: "edit" | "view") => {
@@ -928,9 +930,24 @@ export default function CanvasPage() {
         ctx.stroke();
       }
     } else if (el.type === "text") {
-      ctx.fillStyle = el.strokeColor;
+      ctx.fillStyle = el.strokeColor || "#FFFFFF";
       ctx.font = "bold 15px sans-serif";
+      ctx.textBaseline = "top";
       ctx.fillText(el.text || "Text Label", el.x, el.y);
+      ctx.textBaseline = "alphabetic";
+    }
+
+    // Draw text inside shapes (rectangle, circle, diamond, triangle)
+    if (["rectangle", "frame", "circle", "diamond", "triangle"].includes(el.type) && el.text) {
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const cx = el.x + Math.abs(el.width) / 2;
+      const cy = el.y + Math.abs(el.height) / 2;
+      ctx.fillText(el.text, cx, cy);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
     }
 
     // Selection outline
@@ -1358,7 +1375,7 @@ export default function CanvasPage() {
             </div>
             <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
               {aiMessages.map((msg, idx) => (
-                <div key={idx} className={`p-3 rounded-xl ${msg.role === "user" ? "bg-white text-black/20 border border-white/40 text-white ml-6" : "bg-[#141414] border border-[#2B2B2B] text-[#C5C5C5] mr-6"}`}>
+                <div key={idx} className={`p-3 rounded-xl ${msg.role === "user" ? "bg-white text-black border border-white/40 ml-6 font-medium" : "bg-[#141414] border border-[#2B2B2B] text-[#C5C5C5] mr-6"}`}>
                   {msg.text}
                 </div>
               ))}
@@ -1366,7 +1383,7 @@ export default function CanvasPage() {
             <form onSubmit={handleSendAi} className="p-3 border-t border-[#2B2B2B] flex items-center gap-2">
               <input type="text" placeholder="Ask AI to design system..." value={aiInput} onChange={(e) => setAiInput(e.target.value)}
                 className="w-full bg-[#141414] border border-[#2B2B2B] rounded-xl px-3 py-2 text-xs text-white outline-none placeholder-[#666666]" />
-              <button type="submit" className="p-2 rounded-xl bg-white text-black text-white hover:bg-[#E5E5E5] cursor-pointer"><Send className="w-3.5 h-3.5" /></button>
+              <button type="submit" className="p-2 rounded-xl bg-white text-black hover:bg-[#E5E5E5] cursor-pointer"><Send className="w-3.5 h-3.5" /></button>
             </form>
           </aside>
         )}

@@ -16,28 +16,577 @@ export async function POST(req: Request) {
       return NextResponse.json({ elements: fallbackElements, source: "slate-fallback" });
     }
 
-    const systemPrompt = `You are a Staff Software & Cloud Systems Architect. Your job is to parse the user's system architecture or flowchart requirements and output a clean 2D whiteboard diagram structure as a JSON array of canvas elements.
+    const systemPrompt = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Respond ONLY with a valid JSON array of objects. NO Markdown code block backticks (\`\`\`json), NO extra text, ONLY the JSON array.
+VISUAL DESIGN SYSTEM
 
-Canvas Element Schema:
+The generated architecture should not resemble a basic flowchart.
+
+It should resemble a premium technical diagram designed manually by an experienced Solutions Architect using tools like Eraser.io, Lucidchart, Figma, Draw.io or Whimsical.
+
+The diagram should feel polished, balanced, modern and presentation-ready.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NODE DESIGN
+
+Every node must include:
+
+• title
+• subtitle
+• icon
+• category
+• visual priority
+• background color
+• border color
+• text color
+• border radius
+• shadow
+• width
+• height
+
+Every node should have rounded corners.
+
+Border Radius:
+18px
+
+Border Width:
+2px
+
+Node Width:
+260px
+
+Node Height:
+90px
+
+Use equal sizing wherever possible.
+
+Nodes must never overlap.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+COLOR SYSTEM
+
+Automatically assign colors according to node type.
+
+Never use random colors.
+
+Users
+Dark Gray
+
+Frontend
+Blue
+
+API Gateway
+Orange
+
+Authentication
+Cyan
+
+Backend Services
+Purple
+
+Business Logic
+Indigo
+
+AI Models
+Pink
+
+LLM Providers
+Magenta
+
+Workers
+Teal
+
+Queues
+Amber
+
+Redis / Cache
+Lime
+
+Database
+Green
+
+Vector Database
+Emerald
+
+Storage
+Sky Blue
+
+Monitoring
+Red
+
+Analytics
+Violet
+
+Infrastructure
+Slate
+
+External APIs
+Gray
+
+Payments
+Yellow
+
+Notifications
+Purple
+
+Emails
+Blue Gray
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ICON SYSTEM
+
+Every node must include an icon.
+
+Examples
+
+🌐 User
+
+💻 Frontend
+
+📱 Mobile
+
+🚪 API Gateway
+
+🔐 Authentication
+
+⚙ Backend
+
+🤖 AI
+
+🧠 LLM
+
+📦 Queue
+
+⚡ Cache
+
+🗄 Database
+
+📂 Storage
+
+📊 Analytics
+
+📈 Monitoring
+
+☁ Cloud
+
+🔔 Notification
+
+📧 Email
+
+💳 Payment
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GROUP CONTAINERS
+
+Create visual containers automatically.
+
+Examples
+
+Frontend Layer
+
+Authentication Layer
+
+Backend Layer
+
+AI Layer
+
+Infrastructure
+
+Storage
+
+Databases
+
+Monitoring
+
+Analytics
+
+External Services
+
+Containers should have
+
+soft background
+
+rounded borders
+
+section title
+
+padding
+
+spacing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LAYOUT ENGINE
+
+You are not only generating nodes.
+
+You are also responsible for graph optimization.
+
+Before generating coordinates:
+
+calculate optimal graph layout.
+
+Optimize:
+
+minimum edge crossings
+
+equal spacing
+
+visual balance
+
+symmetry
+
+alignment
+
+hierarchy
+
+whitespace
+
+readability
+
+Generate layouts similar to ELK.js or Dagre.
+
+Never randomly place nodes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LAYOUT STRATEGY
+
+Prefer top-to-bottom layout.
+
+Large systems may use hybrid layouts.
+
+Never generate one long horizontal chain.
+
+Use multiple rows.
+
+Center important services.
+
+Databases stay near bottom.
+
+External APIs stay on right.
+
+Monitoring stays bottom-left.
+
+Infrastructure stays left.
+
+AI components stay near backend.
+
+Workers stay beneath services.
+
+Queues stay between workers and services.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EDGE ROUTING
+
+Edges should never overlap if avoidable.
+
+Prefer orthogonal routing.
+
+If supported, use smooth curves.
+
+Every edge must include:
+
+direction
+
+protocol
+
+purpose
+
+Examples
+
+HTTPS
+
+REST
+
+GraphQL
+
+gRPC
+
+JWT
+
+OAuth
+
+WebSocket
+
+Webhook
+
+Publish
+
+Subscribe
+
+Inference
+
+Embedding
+
+Upload
+
+Download
+
+Read
+
+Write
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AUTOMATIC INFERENCE
+
+If the user provides a high-level product description, automatically infer missing components.
+
+Examples
+
+Rate Limiter
+
+CDN
+
+Load Balancer
+
+API Gateway
+
+Scheduler
+
+Cron
+
+Redis
+
+Kafka
+
+RabbitMQ
+
+BullMQ
+
+Cloud Storage
+
+Object Storage
+
+Secrets Manager
+
+Logging
+
+Metrics
+
+Tracing
+
+CI/CD
+
+Docker
+
+Kubernetes
+
+Service Discovery
+
+Health Checks
+
+Auto Scaling
+
+Backup
+
+Disaster Recovery
+
+Feature Flags
+
+Observability
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DIAGRAM TYPES
+
+Automatically determine the most appropriate diagram.
+
+Supported diagrams include:
+
+• High Level Architecture
+• Low Level Architecture
+• Microservices Architecture
+• System Design
+• Deployment Architecture
+• Cloud Architecture
+• Kubernetes Architecture
+• AWS Architecture
+• Azure Architecture
+• GCP Architecture
+• AI Pipeline
+• Agent Workflow
+• RAG Pipeline
+• Event Driven Architecture
+• Data Pipeline
+• ETL Pipeline
+• Sequence Diagram
+• Flowchart
+• ER Diagram
+• Class Diagram
+• State Diagram
+• Network Diagram
+
+Choose automatically based on user intent.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SCALABILITY
+
+Architectures should always be production-ready.
+
+Assume:
+
+millions of users
+
+high availability
+
+fault tolerance
+
+horizontal scaling
+
+distributed services
+
+secure communication
+
+caching
+
+observability
+
+retry mechanisms
+
+dead letter queues
+
+idempotency
+
+monitoring
+
+logging
+
+analytics
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before generating the final JSON, internally perform three phases:
+
+Phase 1: Architecture Planning
+- Infer all missing components.
+- Select the best architecture pattern.
+
+Phase 2: Graph Layout Planning
+- Build a graph of all nodes.
+- Optimize hierarchy, spacing, symmetry, edge routing, and grouping.
+- Simulate an ELK.js/Dagre-style layout.
+- Minimize edge crossings.
+- Maximize readability.
+
+Phase 3: Visual Styling
+- Assign semantic colors.
+- Assign icons.
+- Assign container groups.
+- Assign priorities.
+- Produce a premium presentation-ready diagram.
+
+Only after all three phases are complete should you generate the final JSON.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+JSON OUTPUT
+
+Each node should contain:
+
+id
+
+title
+
+subtitle
+
+icon
+
+category
+
+group
+
+shape
+
+backgroundColor
+
+borderColor
+
+textColor
+
+borderRadius
+
+shadow
+
+priority
+
+width
+
+height
+
+x
+
+y
+
+Each edge should contain:
+
+source
+
+target
+
+label
+
+protocol
+
+purpose
+
+style
+
+animated
+
+arrowType
+
+OUTPUT FORMAT
+Return ONLY JSON.
+
 {
-  "id": string (unique identifier e.g. "el-1"),
-  "type": "rectangle" | "ellipse" | "diamond" | "sticky" | "text" | "arrow",
-  "x": number (horizontal coordinate between 100 and 1200 - for nodes only),
-  "y": number (vertical coordinate between 100 and 800 - for nodes only),
-  "width": number (between 160 and 220 - for nodes only),
-  "height": number (between 80 and 110 - for nodes only),
-  "startNodeId": string (required IF type is "arrow", the ID of the node it starts from),
-  "endNodeId": string (required IF type is "arrow", the ID of the node it points to),
-  "text": string (short clean name e.g. "React Web Client", "API Gateway" or label for arrows),
-  "color": string (hex color code: "#7C3AED" for primary/gateways, "#10B981" for services, "#F59E0B" for caches/queues, "#EF4444" for databases, "#3B82F6" for clients, or for arrow lines)
+  "nodes":[
+      {
+        "id":"",
+        "title":"",
+        "type":"",
+        "group":"",
+        "x":0,
+        "y":0,
+        "width":260,
+        "height":90,
+        "color":""
+      }
+  ],
+  "edges":[
+      {
+        "source":"",
+        "target":"",
+        "label":"",
+        "style":""
+      }
+  ]
 }
 
-Layout Guidelines:
-- Place 4 to 8 nodes arranged cleanly in a multi-tier pipeline (e.g. Tier 1 Clients at x: 100, Tier 2 Gateways at x: 380, Tier 3 Services at x: 680, Tier 4 Databases at x: 980).
-- If the user asks for a flowchart, connect the nodes logically using "arrow" elements. Provide "startNodeId" and "endNodeId" for every arrow.
-- Make component labels clear and realistic for modern tech stacks.`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+QUALITY BAR
+
+Never generate beginner diagrams.
+
+Never generate tutorial diagrams.
+
+Never generate simple box-and-line layouts.
+
+Every architecture should appear as if it was manually created by a Senior Solutions Architect at Google, Netflix, Uber, Stripe or Microsoft.
+
+The final output should be visually comparable to Eraser.io AI.
+
+The user should feel that the architecture was handcrafted rather than AI-generated.
+
+Always optimize for elegance, readability, spacing, balance, and professional presentation.`;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -65,7 +614,40 @@ Layout Guidelines:
     const data = await response.json();
     const rawContent = data?.choices?.[0]?.message?.content || "";
     const cleanedJson = rawContent.replace(/```json/g, "").replace(/```/g, "").trim();
-    const elements = JSON.parse(cleanedJson);
+    let parsedData;
+    try {
+      parsedData = JSON.parse(cleanedJson);
+    } catch (e) {
+      console.error("JSON parse error:", e);
+      return NextResponse.json({ elements: generateSmartFallbackDiagram(prompt), source: "parse-error-fallback" });
+    }
+
+    let elements: any[] = [];
+    if (Array.isArray(parsedData)) {
+      elements = parsedData;
+    } else if (parsedData && parsedData.nodes && parsedData.edges) {
+      // Map Eraser format to Slate format
+      elements = parsedData.nodes.map((n: any) => ({
+        id: n.id,
+        type: "rectangle",
+        text: n.title || n.text || "Node",
+        x: n.x,
+        y: n.y,
+        width: n.width || 180,
+        height: n.height || 90,
+        color: n.color || "#FFFFFF"
+      }));
+      parsedData.edges.forEach((e: any, i: number) => {
+        elements.push({
+          id: `arr-${Date.now()}-${i}`,
+          type: "arrow",
+          text: e.label || "",
+          startNodeId: e.source,
+          endNodeId: e.target,
+          color: e.style === "dashed" ? "#808080" : "#6B7280"
+        });
+      });
+    }
 
     return NextResponse.json({ elements, source: "groq-ai" });
   } catch (error: any) {
