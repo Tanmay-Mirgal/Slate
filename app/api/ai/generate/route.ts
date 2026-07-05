@@ -169,6 +169,8 @@ The result should be visually indistinguishable from Eraser.io.
 OUTPUT FORMAT
 Return ONLY JSON. NEVER output x/y coordinates. Output semantic structure only.
 
+CRITICAL INSTRUCTION: For EVERY node, you MUST use "type": "icon" and you MUST provide a "lucideIcon" field containing the EXACT case-sensitive name of a Lucide icon that represents the component (e.g. "Server", "Database", "Cloud", "User", "Globe", "Smartphone", "Zap", "Monitor", "Code", "Image", "Mail", "Shield", "Settings", "Box", "Layers"). Do not use any other node type.
+
 {
   "diagramType": "HLD",
   "groups": [
@@ -185,7 +187,8 @@ Return ONLY JSON. NEVER output x/y coordinates. Output semantic structure only.
       "title": "Auth API",
       "subtitle": "Handles login",
       "groupId": "group1",
-      "type": "server",
+      "type": "icon",
+      "lucideIcon": "Shield",
       "importance": "critical",
       "technologies": ["Node.js", "Express"]
     }

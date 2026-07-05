@@ -49,7 +49,9 @@ import {
   Globe,
   Zap,
   Command,
-Cloud, Network, Terminal, Pencil} from "lucide-react";
+Cloud, Network, Terminal, Pencil, Code, Smile, Monitor, ChevronRight, ChevronLeft, Grid } from "lucide-react";
+import * as LucideReactIcons from "lucide-react";
+import { icons as LucideCoreIcons } from "lucide";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -156,6 +158,25 @@ function drawOrthogonalArrow(
   ctx.stroke();
 }
 
+const AVAILABLE_ICONS = [
+  "User", "Users", "Server", "Database", "Cloud", "HardDrive", "Cpu", 
+  "Globe", "Network", "Terminal", "Zap", "Monitor", "Smartphone", 
+  "Tablet", "Laptop", "Wifi", "Bluetooth", "Lock", "Unlock", "Key", 
+  "Shield", "ShieldAlert", "Settings", "Sliders", "Activity", "Box", 
+  "Layers", "Layout", "Search", "Mail", "MessageSquare", "Phone", 
+  "Folder", "File", "FileText", "Image", "Check", "X", "Plus", "Minus", 
+  "ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "ChevronRight", 
+  "ChevronLeft", "Home", "Star", "Heart", "Bell", "Calendar", "Clock", 
+  "MapPin", "Navigation", "Target", "Link", "Paperclip", "Share2", 
+  "Download", "Upload", "Trash2", "Edit3", "Copy", "Save", "Eye", 
+  "EyeOff", "ZoomIn", "ZoomOut", "RefreshCw", "Menu", "MoreHorizontal", 
+  "MoreVertical", "Grid", "List", "Type", "Hash", "Briefcase", 
+  "ShoppingCart", "CreditCard", "Award", "Flag", "Map", "Truck", 
+  "Package", "Smile", "Code", "Github", "Gitlab", "Trello", "Slack", 
+  "Twitter", "Linkedin", "Youtube", "Figma", "Framer", "Codepen",
+  "Chrome", "Command", "Webhook", "Workflow", "Boxes", "Container", "Component"
+];
+
 export default function CanvasPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -190,7 +211,9 @@ export default function CanvasPage() {
   const [activeTool, setActiveTool] = React.useState<Tool>("select");
   const [zoom, setZoom] = React.useState<number>(100);
   const [isAiChatOpen, setIsAiChatOpen] = React.useState<boolean>(false);
-  const [isLibraryOpen, setIsLibraryOpen] = React.useState<boolean>(false);
+  const [isInsertMenuOpen, setIsInsertMenuOpen] = React.useState<boolean>(false);
+  const [insertCategory, setInsertCategory] = React.useState<"main" | "icons" | "shapes" | "diagrams">("main");
+  const [iconSearchQuery, setIconSearchQuery] = React.useState("");
   const [isShareModalOpen, setIsShareModalOpen] = React.useState<boolean>(false);
   const [isCommandOpen, setIsCommandOpen] = React.useState<boolean>(false);
   const [copiedType, setCopiedType] = React.useState<"edit" | "view" | null>(null);
@@ -358,16 +381,36 @@ export default function CanvasPage() {
         const nodeElements = data.elements.filter((el: any) => el.type !== "arrow");
         const arrowElements = data.elements.filter((el: any) => el.type === "arrow");
 
+                let offsetX = 0;
+        let offsetY = 0;
+        if (elements.length > 0) {
+          let maxX = -Infinity;
+          let minY = Infinity;
+          elements.forEach(el => {
+            if (el.x !== undefined && el.width !== undefined && el.type !== "arrow") {
+              maxX = Math.max(maxX, el.x + Math.abs(el.width));
+              minY = Math.min(minY, el.y);
+            }
+          });
+          if (maxX !== -Infinity) {
+            const incomingMinX = Math.min(...nodeElements.map((el: any) => el.x || 0));
+            const incomingMinY = Math.min(...nodeElements.map((el: any) => el.y || 0));
+            offsetX = maxX + 300 - incomingMinX; // 300px distance (approx 20cm equivalent in visual space)
+            offsetY = (minY === Infinity ? 0 : minY) - incomingMinY;
+          }
+        }
+
         const newNodes: SystemNode[] = nodeElements.map((el: any, i: number) => ({
           id: el.id || `node-${Date.now()}-${i}`,
           type: el.type === "ellipse" ? "circle" : el.type === "diamond" ? "rectangle" : el.type === "sticky" ? "frame" : (el.type || "rectangle"),
-          nodeType: (el.text || "").toLowerCase().includes("db") || (el.text || "").toLowerCase().includes("database") ? "database"
+          nodeType: el.nodeType || ((el.text || "").toLowerCase().includes("db") || (el.text || "").toLowerCase().includes("database") ? "database"
             : (el.text || "").toLowerCase().includes("api") || (el.text || "").toLowerCase().includes("gateway") ? "gateway"
-            : "server",
+            : "server"),
+          lucideIcon: el.lucideIcon,
           title: el.text || "Component Node",
           text: el.text || "Component Node",
-          x: snapToGrid(el.x || 100 + (i % 4) * 240),
-          y: snapToGrid(el.y || 150 + Math.floor(i / 4) * 160),
+          x: snapToGrid((el.x || 100 + (i % 4) * 240) + offsetX),
+          y: snapToGrid((el.y || 150 + Math.floor(i / 4) * 160) + offsetY),
           width: el.width || 180,
           height: el.height || 90,
           strokeColor: el.color || "#FFFFFF",
@@ -818,6 +861,72 @@ export default function CanvasPage() {
   const renderElement = (ctx: CanvasRenderingContext2D, el: SystemNode, isSelected: boolean) => {
     ctx.save();
 
+
+    // Lucide Raw Icon
+    if (el.nodeType === "icon" && el.lucideIcon) {
+      const iconData = (LucideCoreIcons as any)[el.lucideIcon];
+      if (iconData) {
+        ctx.fillStyle = el.fillColor && el.fillColor !== "transparent" ? el.fillColor : "rgba(255, 255, 255, 0.05)";
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, el.width, el.height, 16);
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? "#FFFFFF" : (el.strokeColor || "#2B2B2B");
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
+        ctx.stroke();
+        
+        ctx.save();
+        const iconSize = Math.min(el.width, el.height) * 0.5;
+        ctx.translate(el.x + el.width/2 - iconSize/2, el.y + el.height/2 - iconSize/2);
+        ctx.scale(iconSize/24, iconSize/24);
+        ctx.strokeStyle = el.strokeColor || "#FFFFFF";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        try {
+          iconData.forEach(([tag, attrs]: any) => {
+            if (tag === 'path') {
+              const p = new Path2D(attrs.d);
+              ctx.stroke(p);
+            } else if (tag === 'circle') {
+              ctx.beginPath();
+              ctx.arc(attrs.cx, attrs.cy, attrs.r, 0, 2*Math.PI);
+              ctx.stroke();
+            } else if (tag === 'rect') {
+              ctx.strokeRect(attrs.x, attrs.y, attrs.width, attrs.height);
+            } else if (tag === 'line') {
+              ctx.beginPath();
+              ctx.moveTo(attrs.x1, attrs.y1);
+              ctx.lineTo(attrs.x2, attrs.y2);
+              ctx.stroke();
+            } else if (tag === 'polyline' || tag === 'polygon') {
+              const pts = attrs.points.split(' ').map((p:string) => p.split(',').map(Number));
+              ctx.beginPath();
+              ctx.moveTo(pts[0][0], pts[0][1]);
+              for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+              if (tag === 'polygon') ctx.closePath();
+              ctx.stroke();
+            }
+          });
+        } catch(e) {}
+        ctx.restore();
+      }
+      
+      if (isSelected) {
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(el.x - 4, el.y - 4, el.width + 8, el.height + 8);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(el.x + el.width - 4, el.y + el.height - 4, 8, 8);
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(el.x + el.width - 4, el.y + el.height - 4, 8, 8);
+      }
+      ctx.restore();
+      return;
+    }
+
     // Magnetic/connected arrow
     if (el.type === "arrow" && el.startNodeId && el.endNodeId) {
       const startNode = elements.find((e) => e.id === el.startNodeId);
@@ -1247,7 +1356,7 @@ export default function CanvasPage() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0A0A0A] text-white font-sans overflow-hidden select-none">
-      <CommandPalette open={isCommandOpen} onOpenChange={setIsCommandOpen} onNewSlate={() => setIsLibraryOpen(true)} />{/* MAIN BODY */}
+      <CommandPalette open={isCommandOpen} onOpenChange={setIsCommandOpen} onNewSlate={() => setIsInsertMenuOpen(true)} />{/* MAIN BODY */}
       <div className="flex-1 flex overflow-hidden relative">
 
         {/* FLOATING UI SHELL */}
@@ -1372,33 +1481,54 @@ export default function CanvasPage() {
         {viewMode !== "document" && !isUiHidden && (
           <aside className={`absolute left-4 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-1.5 py-4 px-2 rounded-[24px] bg-[#141414]/80 backdrop-blur-xl border border-white/10 shadow-[0_20px_40px_rgba(0,0,0,0.4)] ${isReadOnly ? "opacity-50 pointer-events-none" : ""}`}>
             
-            <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
+            <Dialog open={isInsertMenuOpen} onOpenChange={(open) => {
+              setIsInsertMenuOpen(open);
+              if (!open) setTimeout(() => { setInsertCategory("main"); setIconSearchQuery(""); }, 200);
+            }}>
               <DialogTrigger className="p-2 rounded-xl text-[#808080] hover:text-white hover:bg-[#202020] transition-colors cursor-pointer group">
                 <Plus className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
               </DialogTrigger>
-              <DialogContent className="bg-[#101010]/95 backdrop-blur-2xl border border-white/10 text-white max-w-lg rounded-2xl p-6 shadow-2xl">
-                <DialogHeader className="mb-4">
-                  <DialogTitle className="text-lg font-bold flex items-center gap-2"><Layers className="w-5 h-5 text-white" />Architecture Component Library</DialogTitle>
-                  <DialogDescription className="text-xs text-[#808080]">Click any component to insert directly onto your canvas.</DialogDescription>
-                </DialogHeader>
-                <div className="grid grid-cols-2 gap-3 mb-2">
-                  {[
-                    { nodeType: "database" as const, title: "PostgreSQL Database", subtitle: "Primary Relational DB", Icon: Database, color: "text-white", bg: "bg-white text-black/10" },
-                    { nodeType: "gateway" as const, title: "API Gateway", subtitle: "REST & GraphQL Router", Icon: Zap, color: "text-indigo-400", bg: "bg-indigo-500/10" },
-                    { nodeType: "server" as const, title: "Microservice Cluster", subtitle: "Node.js Server Instances", Icon: Server, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-                    { nodeType: "balancer" as const, title: "Load Balancer", subtitle: "Nginx / ALB Distribution", Icon: Cpu, color: "text-amber-400", bg: "bg-amber-500/10" },
-                    { nodeType: "cache" as const, title: "Redis Cache", subtitle: "In-Memory Session Store", Icon: HardDrive, color: "text-rose-400", bg: "bg-rose-500/10" },
-                    { nodeType: "client" as const, title: "Client Frontend", subtitle: "React / Mobile App", Icon: Globe, color: "text-sky-400", bg: "bg-sky-500/10" },
-                    { nodeType: "storage" as const, title: "Object Storage", subtitle: "S3 Bucket / Blob", Icon: Cloud, color: "text-cyan-400", bg: "bg-cyan-500/10" },
-                    { nodeType: "queue" as const, title: "Message Queue", subtitle: "Kafka / RabbitMQ", Icon: Network, color: "text-pink-400", bg: "bg-pink-500/10" },
-                    { nodeType: "serverless" as const, title: "Serverless", subtitle: "AWS Lambda / Cloudflare", Icon: Terminal, color: "text-orange-400", bg: "bg-orange-500/10" },
-                  ].map(({ nodeType, title, subtitle, Icon, color, bg }) => (
-                    <button key={nodeType} onClick={() => handleAddComponentNode(nodeType, title, subtitle)}
-                      className="p-3.5 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/20 text-left transition-all cursor-pointer flex items-center gap-3 group">
-                      <div className={`p-2 rounded-lg ${bg} ${color} group-hover:scale-110 transition-transform`}><Icon className="w-5 h-5" /></div>
-                      <div><h4 className="text-xs font-bold text-white">{title.split(" ")[0]}</h4><p className="text-[10px] text-[#808080]">{subtitle}</p></div>
-                    </button>
-                  ))}
+              <DialogContent className="bg-[#1A1A1A] border border-white/10 text-white max-w-[400px] rounded-[16px] p-0 shadow-2xl overflow-hidden">
+                <div className="flex flex-col h-[500px]">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
+                    <Search className="w-4 h-4 text-[#808080]" />
+                    <input 
+                      type="text" 
+                      autoFocus
+                      placeholder="Search icons..." 
+                      value={iconSearchQuery}
+                      onChange={(e) => setIconSearchQuery(e.target.value)}
+                      className="bg-transparent border-none outline-none text-sm text-white w-full placeholder:text-[#808080]"
+                    />
+                  </div>
+                  <div className="p-4 overflow-y-auto grid grid-cols-4 gap-2 content-start flex-1">
+                    {AVAILABLE_ICONS.filter(i => i.toLowerCase().includes(iconSearchQuery.toLowerCase())).map(iconName => {
+                      const IconComp = (LucideReactIcons as any)[iconName];
+                      if (!IconComp) return null;
+                      return (
+                        <button key={iconName} 
+                          onClick={() => {
+                            const newEl: SystemNode = {
+                              id: `icon-${Date.now()}`, type: "node", title: iconName, subtitle: "Icon",
+                              x: -pan.x + 100, y: -pan.y + 100, width: 80, height: 80,
+                              strokeColor: "#FFFFFF", fillColor: "transparent", strokeWidth: 1.5,
+                              nodeType: "icon", lucideIcon: iconName
+                            };
+                            addElementMutation({ id: id as any, element: JSON.stringify(newEl) });
+                            setIsInsertMenuOpen(false);
+                          }}
+                          className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl hover:bg-white/10 transition-all cursor-pointer group"
+                          title={iconName}
+                        >
+                          <IconComp className="w-6 h-6 text-[#A0A0A0] group-hover:text-white transition-colors" strokeWidth={1.5} />
+                          <span className="text-[9px] text-[#606060] group-hover:text-white truncate w-full text-center">{iconName}</span>
+                        </button>
+                      )
+                    })}
+                    {AVAILABLE_ICONS.filter(i => i.toLowerCase().includes(iconSearchQuery.toLowerCase())).length === 0 && (
+                      <div className="col-span-4 text-center py-10 text-xs text-[#808080]">No icons found</div>
+                    )}
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
