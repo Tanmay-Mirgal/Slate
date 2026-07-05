@@ -16,24 +16,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ elements: fallbackElements, source: "slate-fallback" });
     }
 
-    const systemPrompt = `You are a Staff Software & Cloud Systems Architect. Your job is to parse the user's system architecture requirements and output a clean 2D whiteboard diagram structure as a JSON array of canvas elements.
+    const systemPrompt = `You are a Staff Software & Cloud Systems Architect. Your job is to parse the user's system architecture or flowchart requirements and output a clean 2D whiteboard diagram structure as a JSON array of canvas elements.
 
 Respond ONLY with a valid JSON array of objects. NO Markdown code block backticks (\`\`\`json), NO extra text, ONLY the JSON array.
 
 Canvas Element Schema:
 {
   "id": string (unique identifier e.g. "el-1"),
-  "type": "rectangle" | "ellipse" | "diamond" | "sticky" | "text",
-  "x": number (horizontal coordinate between 100 and 1200),
-  "y": number (vertical coordinate between 100 and 800),
-  "width": number (between 160 and 220),
-  "height": number (between 80 and 110),
-  "text": string (short clean name e.g. "React Web Client", "API Gateway", "Auth Microservice", "PostgreSQL Master DB", "Redis Cache", "Kafka Event Bus"),
-  "color": string (hex color code: "#7C3AED" for primary/gateways, "#10B981" for services, "#F59E0B" for caches/queues, "#EF4444" for databases, "#3B82F6" for clients)
+  "type": "rectangle" | "ellipse" | "diamond" | "sticky" | "text" | "arrow",
+  "x": number (horizontal coordinate between 100 and 1200 - for nodes only),
+  "y": number (vertical coordinate between 100 and 800 - for nodes only),
+  "width": number (between 160 and 220 - for nodes only),
+  "height": number (between 80 and 110 - for nodes only),
+  "startNodeId": string (required IF type is "arrow", the ID of the node it starts from),
+  "endNodeId": string (required IF type is "arrow", the ID of the node it points to),
+  "text": string (short clean name e.g. "React Web Client", "API Gateway" or label for arrows),
+  "color": string (hex color code: "#7C3AED" for primary/gateways, "#10B981" for services, "#F59E0B" for caches/queues, "#EF4444" for databases, "#3B82F6" for clients, or for arrow lines)
 }
 
 Layout Guidelines:
 - Place 4 to 8 nodes arranged cleanly in a multi-tier pipeline (e.g. Tier 1 Clients at x: 100, Tier 2 Gateways at x: 380, Tier 3 Services at x: 680, Tier 4 Databases at x: 980).
+- If the user asks for a flowchart, connect the nodes logically using "arrow" elements. Provide "startNodeId" and "endNodeId" for every arrow.
 - Make component labels clear and realistic for modern tech stacks.`;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -81,5 +84,8 @@ function generateSmartFallbackDiagram(prompt: string) {
     { id: "el-5", type: "ellipse", x: 920, y: 120, width: 170, height: 90, text: "Redis Session Cache", color: "#F59E0B" },
     { id: "el-6", type: "ellipse", x: 920, y: 280, width: 170, height: 90, text: "PostgreSQL Master DB", color: "#EF4444" },
     { id: "el-7", type: "sticky", x: 380, y: 350, width: 160, height: 100, text: `⚡ Generated for: ${prompt}`, color: "#7C3AED" },
+    { id: "el-arr-1", type: "arrow", startNodeId: "el-1", endNodeId: "el-2", color: "#808080" },
+    { id: "el-arr-2", type: "arrow", startNodeId: "el-2", endNodeId: "el-3", color: "#808080" },
+    { id: "el-arr-3", type: "arrow", startNodeId: "el-2", endNodeId: "el-4", color: "#808080" },
   ];
 }

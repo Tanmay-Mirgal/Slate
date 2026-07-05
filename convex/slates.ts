@@ -326,6 +326,70 @@ export const removeElement = mutation({
   },
 });
 
+// Atomically update a single element by ID
+export const updateElement = mutation({
+  args: {
+    id: v.id("slates"),
+    elementId: v.string(),
+    updates: v.string(), // JSON string of partial updates
+  },
+  handler: async (ctx, args) => {
+    const slate = await ctx.db.get(args.id);
+    if (!slate || !slate.elements) return args.id;
+
+    try {
+      const currentEls = JSON.parse(slate.elements);
+      const updates = JSON.parse(args.updates);
+      const index = currentEls.findIndex((el: any) => el.id === args.elementId);
+      
+      if (index !== -1) {
+        currentEls[index] = { ...currentEls[index], ...updates };
+        await ctx.db.patch(args.id, {
+          elements: JSON.stringify(currentEls),
+          lastEdited: Date.now(),
+        });
+      }
+    } catch (e) {}
+
+    return args.id;
+  },
+});
+
+// Atomically update multiple elements at once (e.g., during group drag)
+export const updateMultipleElements = mutation({
+  args: {
+    id: v.id("slates"),
+    updatesList: v.string(), // JSON string of array of { id, updates }
+  },
+  handler: async (ctx, args) => {
+    const slate = await ctx.db.get(args.id);
+    if (!slate || !slate.elements) return args.id;
+
+    try {
+      const currentEls = JSON.parse(slate.elements);
+      const updatesList = JSON.parse(args.updatesList); // [{ id, updates: {} }]
+      
+      let changed = false;
+      updatesList.forEach((updateItem: any) => {
+        const index = currentEls.findIndex((el: any) => el.id === updateItem.id);
+        if (index !== -1) {
+          currentEls[index] = { ...currentEls[index], ...updateItem.updates };
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        await ctx.db.patch(args.id, {
+          elements: JSON.stringify(currentEls),
+          lastEdited: Date.now(),
+        });
+      }
+    } catch (e) {}
+
+    return args.id;
+  },
+});
+
 // Update document markdown text
 export const updateDocument = mutation({
   args: {
