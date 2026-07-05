@@ -193,8 +193,8 @@ export default function CanvasPage() {
 
         for (const node of newNodes) {
           await addElementMutation({
-            slateId: id as Id<"slates">,
-            elementJson: JSON.stringify(node),
+            id: id as Id<"slates">,
+            element: JSON.stringify(node),
           });
         }
 
