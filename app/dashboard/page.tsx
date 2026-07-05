@@ -49,9 +49,11 @@ export default function DashboardPage() {
 
   // Convex Queries & Mutations
   const slates = useQuery(api.slates.list);
+  const userPlanInfo = useQuery(api.slates.getUserPlan);
   const createSlate = useMutation(api.slates.create);
   const removeSlate = useMutation(api.slates.remove);
   const renameSlate = useMutation(api.slates.rename);
+  const upgradePlanMutation = useMutation(api.slates.upgradePlan);
 
   // UI State
   const [activeTab, setActiveTab] = React.useState<DashboardTab>("recent");
@@ -74,10 +76,17 @@ export default function DashboardPage() {
     { name: "HardDrive", icon: HardDrive },
   ];
 
-  // Handle New Slate Creation
+  // Handle New Slate Creation (with Plan Limit Check)
   const handleCreateSlate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
+
+    if (userPlanInfo?.plan === "FREE" && (slates?.length || 0) >= 3) {
+      alert("⚠️ Starter Plan Limit Reached (3/3 Slates)!\n\nPlease upgrade to PRO or MAX with Razorpay for unlimited slates.");
+      setIsCreateOpen(false);
+      setActiveTab("settings");
+      return;
+    }
 
     setIsCreating(true);
     try {
@@ -88,8 +97,14 @@ export default function DashboardPage() {
       setIsCreateOpen(false);
       setNewTitle("");
       router.push(`/canvas/${id}`);
-    } catch (error) {
-      console.error("Failed to create slate:", error);
+    } catch (error: any) {
+      if (error?.message?.includes("FREE_LIMIT_REACHED")) {
+        alert("⚠️ Starter Plan Limit Reached (3/3 Slates)!\n\nPlease upgrade to PRO or MAX via Razorpay for unlimited slates.");
+        setIsCreateOpen(false);
+        setActiveTab("settings");
+      } else {
+        console.error("Failed to create slate:", error);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -105,6 +120,56 @@ export default function DashboardPage() {
     } catch (e) {
       console.error("Failed renaming slate", e);
     }
+  };
+
+  // Handle Razorpay Payment
+  const handleRazorpayPayment = async (planName: string, amountInINR: number) => {
+    const res = await new Promise<boolean>((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+
+    if (!res) {
+      alert("Razorpay SDK failed to load. Please check your internet connection.");
+      return;
+    }
+
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_slateWorkspace123",
+      amount: amountInINR * 100,
+      currency: "INR",
+      name: "SLATE Workspace",
+      description: `Upgrade to SLATE ${planName} Plan`,
+      image: "/logo.png",
+      handler: async function (response: any) {
+        try {
+          await upgradePlanMutation({
+            plan: planName,
+            paymentId: response.razorpay_payment_id || "pay_razorpay_success",
+          });
+          alert(`🎉 Payment Successful!\nPayment ID: ${response.razorpay_payment_id}\nYour account is now upgraded to ${planName} Plan!`);
+        } catch (e) {
+          console.error("Failed persisting upgrade", e);
+        }
+      },
+      prefill: {
+        name: user?.fullName || "Developer",
+        email: user?.primaryEmailAddress?.emailAddress || "dev@slate.app",
+      },
+      theme: {
+        color: "#7C3AED",
+      },
+    };
+
+    const paymentObject = new (window as any).Razorpay(options);
+    paymentObject.open();
   };
 
   // Filter slates based on searchQuery & activeTab
@@ -391,19 +456,92 @@ export default function DashboardPage() {
             </Button>
           </div>
 
-          {/* SLATES GRID SECTION */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080]">
-                {activeTab === "recent" && "Continue Working"}
-                {activeTab === "shared" && "Shared Architecture Boards"}
-                {activeTab === "favorites" && "Pinned Boards"}
-                {activeTab === "templates" && "Ready-to-use Architecture Templates"}
-              </h3>
-              <span className="text-xs text-[#808080] font-mono">
-                {filteredSlates.length} {filteredSlates.length === 1 ? "board" : "boards"}
-              </span>
+          {/* SLATES GRID OR SETTINGS BILLING SECTION */}
+          {activeTab === "settings" ? (
+            <div className="space-y-6">
+              <div className="p-6 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-[#7C3AED]" />
+                  Subscription Plans & Razorpay Billing
+                </h3>
+                <p className="text-xs text-[#808080]">
+                  Manage your subscription tier and upgrade instantly via Razorpay payment gateway.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 text-left">
+                  {/* PLAN 1: FREE */}
+                  <div className="p-5 rounded-xl border border-[#2B2B2B] bg-[#101010] space-y-4 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">FREE Starter</span>
+                      <div className="text-xl font-bold text-white">₹0 <span className="text-xs text-[#808080]">/ month</span></div>
+                      <div className="space-y-1.5 pt-2 text-xs text-[#C5C5C5]">
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Max 3 Active Slates</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Basic Canvas Tools</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> 100 MB Cloud Storage</div>
+                      </div>
+                    </div>
+                    <Button disabled variant="outline" className="w-full rounded-xl border-[#2B2B2B] bg-[#141414] text-[#808080] text-xs h-9">
+                      Current Active Plan
+                    </Button>
+                  </div>
+
+                  {/* PLAN 2: PRO */}
+                  <div className="p-5 rounded-xl border-2 border-[#7C3AED] bg-[#101010] space-y-4 flex flex-col justify-between shadow-lg relative">
+                    <div className="absolute -top-2.5 right-3 px-2 py-0.5 rounded-full bg-[#7C3AED] text-white text-[9px] font-bold uppercase">Popular</div>
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">PRO Team</span>
+                      <div className="text-xl font-bold text-white">₹499 <span className="text-xs text-[#808080]">/ month</span></div>
+                      <div className="space-y-1.5 pt-2 text-xs text-[#C5C5C5]">
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> Unlimited Slates</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> Notion Markdown Editor</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> Realtime Presence Cursors</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> Raycast Command Palette</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> 10 GB Cloud Storage</div>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => handleRazorpayPayment("PRO", 499)}
+                      className="w-full rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-xs font-semibold h-9 cursor-pointer"
+                    >
+                      Pay with Razorpay (₹499)
+                    </Button>
+                  </div>
+
+                  {/* PLAN 3: MAX */}
+                  <div className="p-5 rounded-xl border border-[#2B2B2B] bg-[#101010] space-y-4 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">MAX Unlimited</span>
+                      <div className="text-xl font-bold text-white">₹1,499 <span className="text-xs text-[#808080]">/ month</span></div>
+                      <div className="space-y-1.5 pt-2 text-xs text-[#C5C5C5]">
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Everything in PRO</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> Unlimited Slate AI Assistant</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> SAML SSO & Priority SLA</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-emerald-400" /> 100 GB Cloud Storage</div>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => handleRazorpayPayment("MAX", 1499)}
+                      className="w-full rounded-xl border border-[#2B2B2B] bg-[#141414] hover:bg-[#1A1A1A] text-white text-xs font-semibold h-9 cursor-pointer"
+                    >
+                      Pay with Razorpay (₹1,499)
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080]">
+                  {activeTab === "recent" && "Continue Working"}
+                  {activeTab === "shared" && "Shared Architecture Boards"}
+                  {activeTab === "favorites" && "Pinned Boards"}
+                  {activeTab === "templates" && "Ready-to-use Architecture Templates"}
+                </h3>
+                <span className="text-xs text-[#808080] font-mono">
+                  {filteredSlates.length} {filteredSlates.length === 1 ? "board" : "boards"}
+                </span>
+              </div>
 
             {/* Empty State */}
             {filteredSlates.length === 0 ? (
@@ -496,7 +634,7 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
+          )}
         </div>
       </main>
 

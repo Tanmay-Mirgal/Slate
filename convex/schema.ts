@@ -8,6 +8,8 @@ export default defineSchema({
     firstName: v.union(v.string(), v.null()),
     lastName: v.union(v.string(), v.null()),
     imageUrl: v.union(v.string(), v.null()),
+    plan: v.optional(v.string()),
+    paymentId: v.optional(v.string()),
   })
   .index("by_clerkId", ["clerkId"]),
 

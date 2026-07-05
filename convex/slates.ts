@@ -35,7 +35,7 @@ export const list = query({
   },
 });
 
-// Create a new slate
+// Create a new slate (enforces Free Plan 3-slate limit)
 export const create = mutation({
   args: {
     title: v.string(),
@@ -49,6 +49,26 @@ export const create = mutation({
 
     const clerkId = identity.subject;
 
+    // Check user plan limits
+    const userRecord = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
+      .unique();
+
+    const plan = userRecord?.plan || "FREE";
+
+    if (plan === "FREE") {
+      const existingSlates = await ctx.db
+        .query("slates")
+        .withIndex("by_userId", (q) => q.eq("userId", clerkId))
+        .filter((q) => q.eq(q.field("isArchived"), false))
+        .collect();
+
+      if (existingSlates.length >= 3) {
+        throw new Error("FREE_LIMIT_REACHED: Starter plan limit reached (3/3 slates). Upgrade to PRO or MAX via Razorpay for unlimited slates!");
+      }
+    }
+
     const slateId = await ctx.db.insert("slates", {
       title: args.title,
       userId: clerkId,
@@ -59,6 +79,76 @@ export const create = mutation({
     });
 
     return slateId;
+  },
+});
+
+// Upgrade user plan after successful Razorpay payment
+export const upgradePlan = mutation({
+  args: {
+    plan: v.string(),
+    paymentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthenticated");
+    }
+
+    const clerkId = identity.subject;
+
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
+      .unique();
+
+    if (existingUser) {
+      await ctx.db.patch(existingUser._id, {
+        plan: args.plan,
+        paymentId: args.paymentId,
+      });
+    } else {
+      await ctx.db.insert("users", {
+        clerkId,
+        email: identity.email || "",
+        firstName: identity.givenName || null,
+        lastName: identity.familyName || null,
+        imageUrl: identity.pictureUrl || null,
+        plan: args.plan,
+        paymentId: args.paymentId,
+      });
+    }
+
+    return { success: true, plan: args.plan };
+  },
+});
+
+// Get user subscription plan and applied feature limits
+export const getUserPlan = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { plan: "FREE", maxSlates: 3, storageMb: 100, isPro: false, isMax: false };
+    }
+
+    const clerkId = identity.subject;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
+      .unique();
+
+    const plan = user?.plan || "FREE";
+    const isPro = plan === "PRO" || plan === "MAX";
+    const isMax = plan === "MAX";
+
+    return {
+      plan,
+      paymentId: user?.paymentId,
+      maxSlates: isPro ? 9999 : 3,
+      storageMb: isMax ? 102400 : isPro ? 10240 : 100,
+      isPro,
+      isMax,
+    };
   },
 });
 
