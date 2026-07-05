@@ -181,6 +181,7 @@ export default function CanvasPage() {
   const removeElementMutation = useMutation(api.slates.removeElement);
   const updateElementMutation = useMutation(api.slates.updateElement);
   const updateMultipleElementsMutation = useMutation(api.slates.updateMultipleElements);
+  const updateElementsMutation = useMutation(api.slates.updateElements);
   const updateDocumentMutation = useMutation(api.slates.updateDocument);
   const updatePresenceMutation = useMutation(api.slates.updatePresence);
 
@@ -634,6 +635,8 @@ export default function CanvasPage() {
 
   // ─── Mouse Up ────────────────────────────────────────────────────────────────
   const handleCanvasMouseUp = async () => {
+    let madeChanges = false;
+
     if (isPanning) {
       setIsPanning(false);
       setDragStart(null);
@@ -641,6 +644,7 @@ export default function CanvasPage() {
     }
     // Finalize resize → sync to Convex
     if (isResizing && resizingId) {
+      madeChanges = true;
       const el = elements.find((e) => e.id === resizingId);
       if (el) {
         await updateElementMutation({
@@ -723,6 +727,73 @@ export default function CanvasPage() {
         });
       }
     }
+  };
+
+
+  const handleExportPNG = () => {
+    if (elements.length === 0) return;
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    elements.forEach(el => {
+      if (el.width !== undefined && el.height !== undefined && el.type !== "pencil") {
+        const x1 = Math.min(el.x, el.x + el.width);
+        const y1 = Math.min(el.y, el.y + el.height);
+        const x2 = Math.max(el.x, el.x + el.width);
+        const y2 = Math.max(el.y, el.y + el.height);
+        minX = Math.min(minX, x1);
+        minY = Math.min(minY, y1);
+        maxX = Math.max(maxX, x2);
+        maxY = Math.max(maxY, y2);
+      }
+      if (el.points) {
+        el.points.forEach(p => {
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x);
+          maxY = Math.max(maxY, p.y);
+        });
+      }
+    });
+
+    if (minX === Infinity) return;
+
+    const padding = 40;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+    
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    const offCanvas = document.createElement("canvas");
+    offCanvas.width = width;
+    offCanvas.height = height;
+    const ctx = offCanvas.getContext("2d");
+    if (!ctx) return;
+
+    // Draw background
+    ctx.fillStyle = "#0D0D0D";
+    ctx.fillRect(0, 0, width, height);
+
+    // Apply translation to crop to drawn area
+    ctx.save();
+    ctx.translate(-minX, -minY);
+
+    // Draw elements
+    elements.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, false));
+    elements.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, false));
+
+    ctx.restore();
+
+    // Export and download
+    const dataUrl = offCanvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `${slate?.title || "Architecture_Diagram"}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -945,7 +1016,34 @@ export default function CanvasPage() {
       ctx.textBaseline = "middle";
       const cx = el.x + Math.abs(el.width) / 2;
       const cy = el.y + Math.abs(el.height) / 2;
-      ctx.fillText(el.text, cx, cy);
+      const maxWidth = Math.abs(el.width) - 20; // 10px padding on each side
+      const lineHeight = 18;
+      
+      const words = el.text.split(' ');
+      let line = '';
+      const lines = [];
+      
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = ctx.measureText(testLine);
+        const testWidth = metrics.width;
+        if (testWidth > maxWidth && n > 0) {
+          lines.push(line);
+          line = words[n] + ' ';
+        } else {
+          line = testLine;
+        }
+      }
+      lines.push(line);
+      
+      const totalHeight = lines.length * lineHeight;
+      let startY = cy - (totalHeight / 2) + (lineHeight / 2);
+      
+      lines.forEach(l => {
+        ctx.fillText(l.trim(), cx, startY);
+        startY += lineHeight;
+      });
+      
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
     }
@@ -1071,10 +1169,42 @@ export default function CanvasPage() {
     ctx.restore();
   }, [elements, currentElement, selectedIds, activePresence, zoom, pan, viewMode, magnetTarget, selectionNet]);
 
+
+  // ─── Undo / Redo History ───────────────────────────────────────────────────
+  const commitToHistory = React.useCallback((currentElements: SystemNode[]) => {
+    setHistory(prev => [...prev.slice(-49), currentElements]);
+    setFuture([]);
+  }, []);
+
   // Keyboard shortcuts
+
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      // Undo / Redo
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Redo
+          if (future.length > 0) {
+            const next = future[future.length - 1];
+            setHistory(h => [...h, elements]);
+            setFuture(f => f.slice(0, -1));
+            updateElementsMutation({ id: id as Id<"slates">, elements: JSON.stringify(next) });
+          }
+        } else {
+          // Undo
+          if (history.length > 0) {
+            const prev = history[history.length - 1];
+            setFuture(f => [...f, elements]);
+            setHistory(h => h.slice(0, -1));
+            updateElementsMutation({ id: id as Id<"slates">, elements: JSON.stringify(prev) });
+          }
+        }
+        return;
+      }
+
       if (e.key === "v") setActiveTool("select");
       if (e.key === "r") setActiveTool("rectangle");
       if (e.key === "o") setActiveTool("circle");
@@ -1082,7 +1212,9 @@ export default function CanvasPage() {
       if (e.key === "t") setActiveTool("text");
       if (e.key === "e") setActiveTool("eraser");
       if (e.key === "l") setActiveTool("line");
+      
       if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size > 0 && !isReadOnly) {
+        commitToHistory(elements);
         selectedIds.forEach((sid) => {
           removeElementMutation({ id: id as Id<"slates">, elementId: sid });
         });
@@ -1098,7 +1230,7 @@ export default function CanvasPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedIds, isReadOnly, id]);
+  }, [selectedIds, isReadOnly, id, history, future, elements, commitToHistory, updateElementsMutation]);
 
   const getCursor = () => {
     if (isReadOnly) return "default";
@@ -1149,6 +1281,14 @@ export default function CanvasPage() {
 
             {/* TOP RIGHT: Global Actions */}
             <div className="absolute top-4 right-4 z-40 flex items-center gap-2 bg-[#141414]/80 backdrop-blur-xl border border-white/10 rounded-2xl px-2 py-1.5 shadow-2xl">
+              <button onClick={handleExportPNG} title="Export Diagram to PNG"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs font-bold text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all cursor-pointer">
+                <ImageIcon className="w-3.5 h-3.5" />
+                Export
+              </button>
+
+              <div className="w-px h-5 bg-white/10 mx-1" />
+
               <button onClick={() => setIsCommandOpen(true)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-white/10 text-xs font-medium text-[#C5C5C5] hover:text-white transition-all cursor-pointer">
                 <Search className="w-3.5 h-3.5" />
