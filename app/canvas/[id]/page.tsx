@@ -19,7 +19,7 @@ import {
   Minus,
   Eraser,
   Type,
-  Image as ImageIcon,
+  ImageIcon,
   Frame,
   MessageSquare,
   Search,
@@ -44,9 +44,7 @@ import {
   Eye,
   Edit3,
   Copy,
-  Users,
-  ShieldCheck,
-  Lock
+  Users
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -92,15 +90,15 @@ export default function CanvasPage() {
   const router = useRouter();
   const id = params.id as string;
 
-  // URL Access Mode: ?mode=edit vs ?mode=view
+  // Access Mode: ?mode=edit vs ?mode=view
   const accessMode = searchParams.get("mode") || "edit";
   const isReadOnly = accessMode === "view";
 
-  // Clerk User Info
+  // User Info
   const { user } = useUser();
-  const guestIdRef = React.useRef(`guest-${Math.floor(Math.random() * 10000)}`);
+  const guestIdRef = React.useRef(`user-${Math.floor(1000 + Math.random() * 9000)}`);
   const myUserId = user?.id || guestIdRef.current;
-  const myUserName = user?.fullName || user?.firstName || "Teammate";
+  const myUserName = user?.fullName || user?.firstName || `Teammate ${guestIdRef.current.slice(-4)}`;
   const myUserAvatar = user?.imageUrl || "";
 
   // Convex Queries & Mutations
@@ -110,12 +108,13 @@ export default function CanvasPage() {
     id ? { slateId: id as Id<"slates"> } : "skip"
   );
   
+  const addElementMutation = useMutation(api.slates.addElement);
+  const removeElementMutation = useMutation(api.slates.removeElement);
   const updateElementsMutation = useMutation(api.slates.updateElements);
   const updateDocumentMutation = useMutation(api.slates.updateDocument);
   const updatePresenceMutation = useMutation(api.slates.updatePresence);
-  const toggleShareMutation = useMutation(api.slates.toggleShare);
 
-  // Layout View Mode State
+  // Layout & Tools State
   const [viewMode, setViewMode] = React.useState<ViewMode>("both");
   const [activeTool, setActiveTool] = React.useState<Tool>("select");
   const [zoom, setZoom] = React.useState<number>(100);
@@ -124,25 +123,65 @@ export default function CanvasPage() {
   const [isShareModalOpen, setIsShareModalOpen] = React.useState<boolean>(false);
   const [copiedType, setCopiedType] = React.useState<"edit" | "view" | null>(null);
 
-  // Document Markdown State
+  // Document Text State
   const [docText, setDocText] = React.useState<string>(
     "# System Architecture & Low Level Design\n\n## 1. Overview\nThis slate contains the low-level design diagrams and component mappings for your application.\n\n## 2. Components\n- **Client UI**: Next.js 16 App Router\n- **Backend**: Convex Cloud Realtime Functions\n- **Authentication**: Clerk OAuth Provider\n- **Database**: Convex Document DB\n"
   );
-  const [isDocSaving, setIsDocSaving] = React.useState(false);
 
   // Canvas Elements State
   const [elements, setElements] = React.useState<SystemNode[]>([]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
-  const [isCanvasSaving, setIsCanvasSaving] = React.useState(false);
-  const [hasLoadedInitial, setHasLoadedInitial] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
 
-  // Drawing state
+  // Active Drawing state
   const [isDrawing, setIsDrawing] = React.useState(false);
   const [currentElement, setCurrentElement] = React.useState<SystemNode | null>(null);
   const [strokeColor, setStrokeColor] = React.useState("#a855f7");
   const [fillColor, setFillColor] = React.useState("#18181b");
 
-  // AI Chat Messages State
+  // Inline Canvas Text Input State
+  const [inlineText, setInlineText] = React.useState<{
+    id: string;
+    x: number;
+    y: number;
+    text: string;
+    isNew: boolean;
+  } | null>(null);
+
+  const commitInlineText = () => {
+    if (!inlineText) return;
+    const trimmed = inlineText.text.trim();
+    if (trimmed) {
+      if (inlineText.isNew) {
+        const newTextEl: SystemNode = {
+          id: inlineText.id,
+          type: "text",
+          title: trimmed,
+          text: trimmed,
+          x: inlineText.x,
+          y: inlineText.y + 14,
+          width: 140,
+          height: 30,
+          strokeColor: strokeColor || "#a855f7",
+          fillColor: "transparent",
+          strokeWidth: 2,
+        };
+        addElementMutation({
+          id: id as Id<"slates">,
+          element: JSON.stringify(newTextEl),
+        });
+      } else {
+        const updated = elements.map((el) =>
+          el.id === inlineText.id ? { ...el, text: trimmed, title: trimmed } : el
+        );
+        setElements(updated);
+        saveElementsToConvex(updated);
+      }
+    }
+    setInlineText(null);
+  };
+
+  // AI Chat State
   const [aiInput, setAiInput] = React.useState("");
   const [aiMessages, setAiMessages] = React.useState<{ role: "user" | "assistant"; text: string }[]>([
     { role: "assistant", text: "Hello! I am Slate AI. How can I help you design your system architecture today?" }
@@ -151,58 +190,29 @@ export default function CanvasPage() {
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const lastPresenceTimeRef = React.useRef<number>(0);
 
-  // Sync Initial Slate Data from Convex
+  // REACTIVE MULTIPLAYER SYNC: Merge incoming Convex database elements with local elements
   React.useEffect(() => {
-    if (slate && !hasLoadedInitial) {
-      if (slate.documentText) setDocText(slate.documentText);
-      if (slate.elements) {
-        try {
-          setElements(JSON.parse(slate.elements));
-        } catch (e) {
-          console.error("Error parsing elements", e);
-        }
-      }
-      setHasLoadedInitial(true);
-    }
-  }, [slate, hasLoadedInitial]);
-
-  // Reactive Sync: Update local state if another user updates Convex elements
-  React.useEffect(() => {
-    if (slate?.elements && hasLoadedInitial && !isCanvasSaving) {
+    if (slate?.elements) {
       try {
-        const parsed = JSON.parse(slate.elements);
-        if (JSON.stringify(parsed) !== JSON.stringify(elements)) {
-          setElements(parsed);
-        }
-      } catch (e) {}
-    }
-    if (slate?.documentText && hasLoadedInitial && !isDocSaving) {
-      if (slate.documentText !== docText) {
-        setDocText(slate.documentText);
+        const remoteEls: SystemNode[] = JSON.parse(slate.elements);
+        setElements(remoteEls);
+      } catch (e) {
+        console.error("Error parsing slate elements", e);
       }
     }
-  }, [slate]);
+  }, [slate?.elements]);
 
-  // Save Canvas Elements to Convex
-  const saveElementsToConvex = async (els: SystemNode[]) => {
-    if (!id || isReadOnly) return;
-    setIsCanvasSaving(true);
-    try {
-      await updateElementsMutation({
-        id: id as Id<"slates">,
-        elements: JSON.stringify(els),
-      });
-    } catch (e) {
-      console.error("Failed saving elements", e);
-    } finally {
-      setTimeout(() => setIsCanvasSaving(false), 500);
+  // Sync document text from Convex
+  React.useEffect(() => {
+    if (slate?.documentText && slate.documentText !== docText) {
+      setDocText(slate.documentText);
     }
-  };
+  }, [slate?.documentText]);
 
-  // Save Document Text to Convex
+  // Save Document Text to Convex Cloud
   const saveDocToConvex = async (text: string) => {
     if (!id || isReadOnly) return;
-    setIsDocSaving(true);
+    setIsSaving(true);
     try {
       await updateDocumentMutation({
         id: id as Id<"slates">,
@@ -211,16 +221,15 @@ export default function CanvasPage() {
     } catch (e) {
       console.error("Failed saving document", e);
     } finally {
-      setTimeout(() => setIsDocSaving(false), 500);
+      setTimeout(() => setIsSaving(false), 300);
     }
   };
 
-  // Broadcast Live Multiplayer Cursor Position
-  const broadcastPresence = (x: number, y: number) => {
+  // Broadcast Live Presence (Cursor Position & Active Drawing Shape)
+  const broadcastPresence = (x: number, y: number, currentDrawing?: SystemNode | null) => {
     if (!id || !myUserId) return;
     const now = Date.now();
-    // Throttle to every 100ms
-    if (now - lastPresenceTimeRef.current > 100) {
+    if (now - lastPresenceTimeRef.current > 70) {
       lastPresenceTimeRef.current = now;
       updatePresenceMutation({
         slateId: id as Id<"slates">,
@@ -229,11 +238,12 @@ export default function CanvasPage() {
         userAvatar: myUserAvatar,
         cursorX: x,
         cursorY: y,
+        drawingElement: currentDrawing ? JSON.stringify(currentDrawing) : undefined,
       });
     }
   };
 
-  // Copy Share Link Helper
+  // Copy Link Helper
   const handleCopyLink = (mode: "edit" | "view") => {
     const origin = window.location.origin;
     const shareUrl = `${origin}/canvas/${id}?mode=${mode}`;
@@ -242,18 +252,18 @@ export default function CanvasPage() {
     setTimeout(() => setCopiedType(null), 2000);
   };
 
-  // Add Architecture Component Node
-  const handleAddComponentNode = (nodeType: SystemNode["nodeType"], title: string, subtitle: string) => {
+  // Add Component Node via Atomic Convex Mutation
+  const handleAddComponentNode = async (nodeType: SystemNode["nodeType"], title: string, subtitle: string) => {
     if (isReadOnly) return;
 
     const newNode: SystemNode = {
-      id: `node-${Date.now()}`,
+      id: `node-${Date.now()}-${Math.random()}`,
       type: "node",
       nodeType,
       title,
       subtitle,
-      x: 200 + Math.random() * 100,
-      y: 200 + Math.random() * 100,
+      x: 200 + Math.random() * 80,
+      y: 200 + Math.random() * 80,
       width: 180,
       height: 90,
       strokeColor: "#a855f7",
@@ -261,123 +271,150 @@ export default function CanvasPage() {
       strokeWidth: 2,
     };
 
-    const updated = [...elements, newNode];
-    setElements(updated);
-    saveElementsToConvex(updated);
-    setIsLibraryOpen(false);
-    setSelectedId(newNode.id);
+    setIsSaving(true);
+    try {
+      await addElementMutation({
+        id: id as Id<"slates">,
+        element: JSON.stringify(newNode),
+      });
+    } catch (e) {
+      console.error("Failed adding component", e);
+    } finally {
+      setIsSaving(false);
+      setIsLibraryOpen(false);
+      setSelectedId(newNode.id);
+    }
   };
 
-  // Render Canvas Nodes & Live Multiplayer Cursors
+  // Helper to Render a Single Element
+  const renderSingleElement = (ctx: CanvasRenderingContext2D, el: SystemNode, isSelected: boolean) => {
+    ctx.save();
+
+    if (el.type === "node") {
+      ctx.fillStyle = el.fillColor || "#121217";
+      ctx.strokeStyle = isSelected ? "#a855f7" : "#27272a";
+      ctx.lineWidth = isSelected ? 2.5 : 1.5;
+
+      const radius = 12;
+      ctx.beginPath();
+      ctx.roundRect(el.x, el.y, el.width, el.height, radius);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#a855f7";
+      ctx.beginPath();
+      ctx.roundRect(el.x, el.y, el.width, 4, [radius, radius, 0, 0]);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 13px sans-serif";
+      ctx.fillText(el.title, el.x + 16, el.y + 36);
+
+      if (el.subtitle) {
+        ctx.fillStyle = "#a1a1aa";
+        ctx.font = "11px sans-serif";
+        ctx.fillText(el.subtitle, el.x + 16, el.y + 58);
+      }
+
+    } else if (el.type === "rectangle") {
+      ctx.fillStyle = el.fillColor;
+      ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+      ctx.lineWidth = el.strokeWidth;
+      if (el.fillColor !== "transparent") ctx.fillRect(el.x, el.y, el.width, el.height);
+      ctx.strokeRect(el.x, el.y, el.width, el.height);
+
+    } else if (el.type === "circle") {
+      ctx.fillStyle = el.fillColor;
+      ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+      ctx.lineWidth = el.strokeWidth;
+      ctx.beginPath();
+      const rx = Math.abs(el.width) / 2;
+      const ry = Math.abs(el.height) / 2;
+      ctx.ellipse(el.x + rx, el.y + ry, rx, ry, 0, 0, 2 * Math.PI);
+      if (el.fillColor !== "transparent") ctx.fill();
+      ctx.stroke();
+
+    } else if (el.type === "arrow") {
+      ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+      ctx.lineWidth = el.strokeWidth;
+      const fromX = el.x;
+      const fromY = el.y;
+      const toX = el.x + el.width;
+      const toY = el.y + el.height;
+
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+
+      const headlen = 14;
+      const angle = Math.atan2(toY - fromY, toX - fromX);
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+      ctx.stroke();
+
+    } else if (el.type === "line") {
+      ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+      ctx.lineWidth = el.strokeWidth;
+      ctx.beginPath();
+      ctx.moveTo(el.x, el.y);
+      ctx.lineTo(el.x + el.width, el.y + el.height);
+      ctx.stroke();
+
+    } else if (el.type === "pencil" && el.points) {
+      ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+      ctx.lineWidth = el.strokeWidth;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      if (el.points.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(el.points[0].x, el.points[0].y);
+        for (let i = 1; i < el.points.length; i++) {
+          ctx.lineTo(el.points[i].x, el.points[i].y);
+        }
+        ctx.stroke();
+      }
+    } else if (el.type === "text") {
+      ctx.fillStyle = el.strokeColor;
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText(el.text || "Text Label", el.x, el.y);
+    }
+
+    if (isSelected) {
+      ctx.strokeStyle = "#a855f7";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(el.x - 4, el.y - 4, el.width + 8, el.height + 8);
+      ctx.setLineDash([]);
+    }
+
+    ctx.restore();
+  };
+
+  // Render Canvas Scene & Remote Real-Time Users
   const renderAllNodes = (ctx: CanvasRenderingContext2D, els: SystemNode[]) => {
-    // 1. Render Shapes & Architecture Nodes
+    // 1. Render permanent elements from database
     els.forEach((el) => {
-      ctx.save();
-      const isSelected = el.id === selectedId;
-
-      if (el.type === "node") {
-        ctx.fillStyle = el.fillColor || "#121217";
-        ctx.strokeStyle = isSelected ? "#a855f7" : "#27272a";
-        ctx.lineWidth = isSelected ? 2.5 : 1.5;
-
-        const radius = 12;
-        ctx.beginPath();
-        ctx.roundRect(el.x, el.y, el.width, el.height, radius);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = "#a855f7";
-        ctx.beginPath();
-        ctx.roundRect(el.x, el.y, el.width, 4, [radius, radius, 0, 0]);
-        ctx.fill();
-
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 13px sans-serif";
-        ctx.fillText(el.title, el.x + 16, el.y + 36);
-
-        if (el.subtitle) {
-          ctx.fillStyle = "#a1a1aa";
-          ctx.font = "11px sans-serif";
-          ctx.fillText(el.subtitle, el.x + 16, el.y + 58);
-        }
-
-      } else if (el.type === "rectangle") {
-        ctx.fillStyle = el.fillColor;
-        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
-        ctx.lineWidth = el.strokeWidth;
-        if (el.fillColor !== "transparent") ctx.fillRect(el.x, el.y, el.width, el.height);
-        ctx.strokeRect(el.x, el.y, el.width, el.height);
-
-      } else if (el.type === "circle") {
-        ctx.fillStyle = el.fillColor;
-        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
-        ctx.lineWidth = el.strokeWidth;
-        ctx.beginPath();
-        const rx = Math.abs(el.width) / 2;
-        const ry = Math.abs(el.height) / 2;
-        ctx.ellipse(el.x + rx, el.y + ry, rx, ry, 0, 0, 2 * Math.PI);
-        if (el.fillColor !== "transparent") ctx.fill();
-        ctx.stroke();
-
-      } else if (el.type === "arrow") {
-        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
-        ctx.lineWidth = el.strokeWidth;
-        const fromX = el.x;
-        const fromY = el.y;
-        const toX = el.x + el.width;
-        const toY = el.y + el.height;
-
-        ctx.beginPath();
-        ctx.moveTo(fromX, fromY);
-        ctx.lineTo(toX, toY);
-        ctx.stroke();
-
-        const headlen = 14;
-        const angle = Math.atan2(toY - fromY, toX - fromX);
-        ctx.beginPath();
-        ctx.moveTo(toX, toY);
-        ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
-        ctx.moveTo(toX, toY);
-        ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
-        ctx.stroke();
-
-      } else if (el.type === "line") {
-        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
-        ctx.lineWidth = el.strokeWidth;
-        ctx.beginPath();
-        ctx.moveTo(el.x, el.y);
-        ctx.lineTo(el.x + el.width, el.y + el.height);
-        ctx.stroke();
-
-      } else if (el.type === "pencil" && el.points) {
-        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
-        ctx.lineWidth = el.strokeWidth;
-        if (el.points.length > 0) {
-          ctx.beginPath();
-          ctx.moveTo(el.points[0].x, el.points[0].y);
-          for (let i = 1; i < el.points.length; i++) {
-            ctx.lineTo(el.points[i].x, el.points[i].y);
-          }
-          ctx.stroke();
-        }
-      } else if (el.type === "text") {
-        ctx.fillStyle = el.strokeColor;
-        ctx.font = "bold 15px sans-serif";
-        ctx.fillText(el.text || "Text Label", el.x, el.y);
-      }
-
-      if (isSelected) {
-        ctx.strokeStyle = "#a855f7";
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 4]);
-        ctx.strokeRect(el.x - 4, el.y - 4, el.width + 8, el.height + 8);
-        ctx.setLineDash([]);
-      }
-
-      ctx.restore();
+      renderSingleElement(ctx, el, el.id === selectedId);
     });
 
-    // 2. Render Live Multiplayer Cursors (Teammates)
+    // 2. Render remote live drawing strokes from active teammates!
+    if (activePresence && activePresence.length > 0) {
+      activePresence.forEach((p) => {
+        if (p.userId === myUserId) return;
+        if (p.drawingElement) {
+          try {
+            const remoteEl: SystemNode = JSON.parse(p.drawingElement);
+            renderSingleElement(ctx, remoteEl, false);
+          } catch (e) {}
+        }
+      });
+    }
+
+    // 3. Render Teammates' Live Cursors
     if (activePresence && activePresence.length > 0) {
       const teammateColors = ["#ec4899", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
 
@@ -387,7 +424,7 @@ export default function CanvasPage() {
         ctx.save();
         const cursorColor = teammateColors[idx % teammateColors.length];
 
-        // Cursor Pointer Arrow
+        // Cursor Arrow Pointer
         ctx.fillStyle = cursorColor;
         ctx.beginPath();
         ctx.moveTo(p.cursorX, p.cursorY);
@@ -397,7 +434,7 @@ export default function CanvasPage() {
         ctx.closePath();
         ctx.fill();
 
-        // User Name Pill Tag
+        // User Name Tag Badge
         ctx.fillStyle = cursorColor;
         const tagX = p.cursorX + 12;
         const tagY = p.cursorY + 18;
@@ -419,7 +456,7 @@ export default function CanvasPage() {
     }
   };
 
-  // Canvas Mouse Interaction
+  // Canvas Mouse Interactions
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isReadOnly) return;
 
@@ -429,12 +466,17 @@ export default function CanvasPage() {
     const x = (e.clientX - rect.left) / (zoom / 100);
     const y = (e.clientY - rect.top) / (zoom / 100);
 
+    // Eraser Tool via Atomic Mutation
     if (activeTool === "eraser") {
-      const remaining = elements.filter((el) => {
-        return !(x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height);
+      const targetEl = [...elements].reverse().find((el) => {
+        return x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height;
       });
-      setElements(remaining);
-      saveElementsToConvex(remaining);
+      if (targetEl) {
+        removeElementMutation({
+          id: id as Id<"slates">,
+          elementId: targetEl.id,
+        });
+      }
       return;
     }
 
@@ -447,12 +489,13 @@ export default function CanvasPage() {
     }
 
     setIsDrawing(true);
-    const newId = `shape-${Date.now()}`;
+    const newId = `shape-${Date.now()}-${Math.random()}`;
 
     if (activeTool === "pencil") {
-      setCurrentElement({
+      const initPencil: SystemNode = {
         id: newId,
         type: "pencil",
+        title: "",
         x,
         y,
         width: 0,
@@ -460,31 +503,23 @@ export default function CanvasPage() {
         points: [{ x, y }],
         strokeColor,
         fillColor: "transparent",
-        strokeWidth: 2,
-      });
+        strokeWidth: 3,
+      };
+      setCurrentElement(initPencil);
+      broadcastPresence(x, y, initPencil);
     } else if (activeTool === "text") {
-      const textVal = prompt("Enter text:", "Architecture Note");
-      if (textVal) {
-        const newText: SystemNode = {
-          id: newId,
-          type: "text",
-          title: textVal,
-          x,
-          y,
-          width: 120,
-          height: 30,
-          text: textVal,
-          strokeColor,
-          fillColor: "transparent",
-          strokeWidth: 2,
-        };
-        const updated = [...elements, newText];
-        setElements(updated);
-        saveElementsToConvex(updated);
-      }
+      const newId = `text-${Date.now()}-${Math.random()}`;
+      setInlineText({
+        id: newId,
+        x,
+        y,
+        text: "",
+        isNew: true,
+      });
       setIsDrawing(false);
+      return;
     } else {
-      setCurrentElement({
+      const initShape: SystemNode = {
         id: newId,
         type: activeTool,
         title: "",
@@ -495,7 +530,9 @@ export default function CanvasPage() {
         strokeColor,
         fillColor,
         strokeWidth: 2,
-      });
+      };
+      setCurrentElement(initShape);
+      broadcastPresence(x, y, initShape);
     }
   };
 
@@ -506,37 +543,61 @@ export default function CanvasPage() {
     const x = (e.clientX - rect.left) / (zoom / 100);
     const y = (e.clientY - rect.top) / (zoom / 100);
 
-    // Broadcast cursor to multiplayer teammates
-    broadcastPresence(x, y);
+    let updatedDrawing: SystemNode | null = currentElement;
 
-    if (isReadOnly || !isDrawing || !currentElement) return;
-
-    if (currentElement.type === "pencil") {
-      setCurrentElement({
-        ...currentElement,
-        points: [...(currentElement.points || []), { x, y }],
-      });
-    } else {
-      setCurrentElement({
-        ...currentElement,
-        width: x - currentElement.x,
-        height: y - currentElement.y,
-      });
+    if (!isReadOnly && isDrawing && currentElement) {
+      if (currentElement.type === "pencil") {
+        updatedDrawing = {
+          ...currentElement,
+          points: [...(currentElement.points || []), { x, y }],
+        };
+      } else {
+        updatedDrawing = {
+          ...currentElement,
+          width: x - currentElement.x,
+          height: y - currentElement.y,
+        };
+      }
+      setCurrentElement(updatedDrawing);
     }
+
+    // Broadcast cursor AND active drawing stroke in real-time!
+    broadcastPresence(x, y, updatedDrawing);
   };
 
-  const handleCanvasMouseUp = () => {
+  const handleCanvasMouseUp = async () => {
     if (isReadOnly) return;
     if (isDrawing && currentElement) {
-      const updated = [...elements, currentElement];
-      setElements(updated);
-      saveElementsToConvex(updated);
+      const finalEl = { ...currentElement };
       setCurrentElement(null);
       setIsDrawing(false);
+
+      // ATOMIC ADD TO CONVEX: Appends without wiping other users' drawings!
+      try {
+        await addElementMutation({
+          id: id as Id<"slates">,
+          element: JSON.stringify(finalEl),
+        });
+      } catch (e) {
+        console.error("Failed committing element", e);
+      }
+
+      // Clear drawing presence stroke
+      if (id && myUserId) {
+        updatePresenceMutation({
+          slateId: id as Id<"slates">,
+          userId: myUserId,
+          userName: myUserName,
+          userAvatar: myUserAvatar,
+          cursorX: 0,
+          cursorY: 0,
+          drawingElement: undefined,
+        });
+      }
     }
   };
 
-  // Render Loop
+  // Main Canvas Render Loop
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -615,10 +676,10 @@ export default function CanvasPage() {
             {/* Save Status Badge */}
             {!isReadOnly && (
               <div className="text-[11px] font-semibold text-neutral-500 flex items-center gap-1.5 ml-1 border-l border-neutral-800 pl-3">
-                {isCanvasSaving || isDocSaving ? (
+                {isSaving ? (
                   <span className="text-purple-400 flex items-center gap-1">
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    Saving...
+                    Syncing...
                   </span>
                 ) : (
                   <span className="text-emerald-400 flex items-center gap-1">
@@ -695,11 +756,9 @@ export default function CanvasPage() {
 
             {/* SHARE DIALOG WITH PERMISSIONS */}
             <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
-              <DialogTrigger asChild>
-                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/10 border border-purple-500/30 text-xs font-bold text-purple-400 hover:bg-purple-600 hover:text-white transition-all cursor-pointer shadow-md">
-                  <Share2 className="w-3.5 h-3.5" />
-                  Share
-                </button>
+              <DialogTrigger className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/10 border border-purple-500/30 text-xs font-bold text-purple-400 hover:bg-purple-600 hover:text-white transition-all cursor-pointer shadow-md">
+                <Share2 className="w-3.5 h-3.5" />
+                Share
               </DialogTrigger>
               <DialogContent className="bg-neutral-950 border-neutral-900 text-white max-w-md">
                 <DialogHeader className="mb-3">
@@ -793,16 +852,14 @@ export default function CanvasPage() {
         {/* MAIN BODY AREA */}
         <div className="flex-1 flex overflow-hidden relative">
 
-          {/* LEFT VERTICAL FLOATING TOOLBAR DOCK (Disabled if Read-Only) */}
+          {/* LEFT VERTICAL FLOATING TOOLBAR DOCK */}
           {viewMode !== "document" && (
             <aside className={`absolute top-6 left-6 z-30 flex flex-col gap-1 p-1.5 rounded-2xl bg-[#101014] border border-neutral-800/80 shadow-2xl backdrop-blur-md ${
               isReadOnly ? "opacity-50 pointer-events-none" : ""
             }`}>
               <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
-                <DialogTrigger asChild>
-                  <button className="p-2.5 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer group">
-                    <Plus className="w-4.5 h-4.5 text-purple-400 group-hover:scale-110 transition-transform" />
-                  </button>
+                <DialogTrigger className="p-2.5 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer group">
+                  <Plus className="w-4.5 h-4.5 text-purple-400 group-hover:scale-110 transition-transform" />
                 </DialogTrigger>
                 <DialogContent className="bg-neutral-950 border-neutral-900 text-white max-w-lg">
                   <DialogHeader className="mb-4">
@@ -1012,12 +1069,41 @@ export default function CanvasPage() {
             <div className={`h-full relative overflow-hidden bg-[#09090b] ${
               viewMode === "both" ? "w-1/2" : "w-full"
             }`}>
+              {inlineText && (
+                <input
+                  autoFocus
+                  value={inlineText.text}
+                  placeholder="Type text..."
+                  onChange={(e) => setInlineText({ ...inlineText, text: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitInlineText();
+                    if (e.key === "Escape") setInlineText(null);
+                  }}
+                  onBlur={commitInlineText}
+                  className="absolute z-40 bg-[#121217]/95 text-white font-bold border border-purple-500 rounded-lg px-2.5 py-1.5 text-sm outline-none shadow-2xl backdrop-blur-md"
+                  style={{
+                    left: `${inlineText.x * (zoom / 100)}px`,
+                    top: `${inlineText.y * (zoom / 100)}px`,
+                    minWidth: "140px",
+                  }}
+                />
+              )}
+
               <canvas
                 ref={canvasRef}
                 onMouseDown={handleCanvasMouseDown}
                 onMouseMove={handleCanvasMouseMove}
                 onMouseUp={handleCanvasMouseUp}
-                className={`w-full h-full block ${isReadOnly ? "cursor-default" : "cursor-crosshair"}`}
+                className="w-full h-full block"
+                style={{
+                  cursor: isReadOnly
+                    ? "default"
+                    : activeTool === "eraser"
+                    ? `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="%23ef4444" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>') 4 18, auto`
+                    : activeTool === "select"
+                    ? "default"
+                    : "crosshair",
+                }}
               />
             </div>
           )}

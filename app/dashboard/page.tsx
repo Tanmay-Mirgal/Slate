@@ -271,11 +271,9 @@ export default function DashboardPage() {
 
             {/* Quick Actions */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger asChild>
-                <Button className="flex items-center gap-1.5 px-4.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-sm font-bold text-white shadow-md hover:shadow-purple-600/20 hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer">
-                  <Plus className="w-4 h-4" />
-                  New Slate
-                </Button>
+              <DialogTrigger className="flex items-center gap-1.5 px-4.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-sm font-bold text-white shadow-md hover:shadow-purple-600/20 hover:opacity-95 active:scale-[0.98] transition-all cursor-pointer">
+                <Plus className="w-4 h-4" />
+                New Slate
               </DialogTrigger>
               <DialogContent className={`${theme === "dark" ? "bg-neutral-950 border-neutral-900 text-white" : "bg-white border-neutral-200 text-neutral-900"}`}>
                 <form onSubmit={handleCreateSlate}>

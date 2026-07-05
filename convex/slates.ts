@@ -1,24 +1,37 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Get all slates for the logged-in user
+// Get all slates for the logged-in user (including shared slates)
 export const list = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      return [];
+      const publicShared = await ctx.db
+        .query("slates")
+        .filter((q) => q.and(q.eq(q.field("isArchived"), false), q.eq(q.field("isShared"), true)))
+        .collect();
+      return publicShared.sort((a, b) => b.lastEdited - a.lastEdited);
     }
 
     const clerkId = identity.subject;
 
-    const slates = await ctx.db
+    const mySlates = await ctx.db
       .query("slates")
       .withIndex("by_userId", (q) => q.eq("userId", clerkId))
       .filter((q) => q.eq(q.field("isArchived"), false))
       .collect();
 
-    // Sort by lastEdited descending
-    return slates.sort((a, b) => b.lastEdited - a.lastEdited);
+    const sharedSlates = await ctx.db
+      .query("slates")
+      .filter((q) => q.and(q.eq(q.field("isArchived"), false), q.eq(q.field("isShared"), true)))
+      .collect();
+
+    const map = new Map();
+    mySlates.forEach((s) => map.set(s._id, s));
+    sharedSlates.forEach((s) => map.set(s._id, s));
+
+    const allSlates = Array.from(map.values());
+    return allSlates.sort((a, b) => b.lastEdited - a.lastEdited);
   },
 });
 
@@ -40,7 +53,7 @@ export const create = mutation({
       title: args.title,
       userId: clerkId,
       isArchived: false,
-      isShared: false,
+      isShared: true,
       lastEdited: Date.now(),
       thumbnailIcon: args.thumbnailIcon,
     });
@@ -135,18 +148,8 @@ export const toggleShare = mutation({
 export const getById = query({
   args: { id: v.id("slates") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
     const slate = await ctx.db.get(args.id);
     if (!slate || slate.isArchived) {
-      return null;
-    }
-
-    // Allow access if owner or shared
-    if (slate.userId !== identity.subject && !slate.isShared) {
       return null;
     }
 
@@ -161,11 +164,6 @@ export const updateElements = mutation({
     elements: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Unauthenticated");
-    }
-
     const existing = await ctx.db.get(args.id);
     if (!existing) {
       throw new Error("Slate not found");
@@ -180,6 +178,64 @@ export const updateElements = mutation({
   },
 });
 
+// Atomically add a single element to a slate without overwriting existing elements
+export const addElement = mutation({
+  args: {
+    id: v.id("slates"),
+    element: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const slate = await ctx.db.get(args.id);
+    if (!slate) return args.id;
+
+    let currentEls: any[] = [];
+    if (slate.elements) {
+      try {
+        currentEls = JSON.parse(slate.elements);
+      } catch (e) {}
+    }
+
+    try {
+      const newEl = JSON.parse(args.element);
+      const exists = currentEls.some((el: any) => el.id === newEl.id);
+      if (!exists) {
+        currentEls.push(newEl);
+        await ctx.db.patch(args.id, {
+          elements: JSON.stringify(currentEls),
+          lastEdited: Date.now(),
+        });
+      }
+    } catch (e) {
+      console.error("Failed adding element", e);
+    }
+
+    return args.id;
+  },
+});
+
+// Atomically remove a single element by ID
+export const removeElement = mutation({
+  args: {
+    id: v.id("slates"),
+    elementId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const slate = await ctx.db.get(args.id);
+    if (!slate || !slate.elements) return args.id;
+
+    try {
+      const currentEls = JSON.parse(slate.elements);
+      const filtered = currentEls.filter((el: any) => el.id !== args.elementId);
+      await ctx.db.patch(args.id, {
+        elements: JSON.stringify(filtered),
+        lastEdited: Date.now(),
+      });
+    } catch (e) {}
+
+    return args.id;
+  },
+});
+
 // Update document markdown text
 export const updateDocument = mutation({
   args: {
@@ -187,11 +243,6 @@ export const updateDocument = mutation({
     documentText: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Unauthenticated");
-    }
-
     const existing = await ctx.db.get(args.id);
     if (!existing) {
       throw new Error("Slate not found");
@@ -215,6 +266,7 @@ export const updatePresence = mutation({
     userAvatar: v.optional(v.string()),
     cursorX: v.number(),
     cursorY: v.number(),
+    drawingElement: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -231,6 +283,7 @@ export const updatePresence = mutation({
         userAvatar: args.userAvatar,
         cursorX: args.cursorX,
         cursorY: args.cursorY,
+        drawingElement: args.drawingElement,
         lastSeen: now,
       });
     } else {
@@ -241,6 +294,7 @@ export const updatePresence = mutation({
         userAvatar: args.userAvatar,
         cursorX: args.cursorX,
         cursorY: args.cursorY,
+        drawingElement: args.drawingElement,
         lastSeen: now,
       });
     }

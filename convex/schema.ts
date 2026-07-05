@@ -30,6 +30,7 @@ export default defineSchema({
     userAvatar: v.optional(v.string()),
     cursorX: v.number(),
     cursorY: v.number(),
+    drawingElement: v.optional(v.string()),
     lastSeen: v.number(),
   })
   .index("by_slateId", ["slateId"]),
