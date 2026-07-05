@@ -76,7 +76,19 @@ export default function DashboardPage() {
     { name: "HardDrive", icon: HardDrive },
   ];
 
+
+  // Helper to pick a random illustration 1-5 that isn't the same as the last one
+  const getRandomIcon = () => {
+    const lastIcon = slates?.[0]?.thumbnailIcon || "1";
+    let next = Math.floor(Math.random() * 5) + 1;
+    while (next.toString() === lastIcon) {
+      next = Math.floor(Math.random() * 5) + 1;
+    }
+    return next.toString();
+  };
+
   // Handle New Slate Creation (with Plan Limit Check)
+
   const handleCreateSlate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -92,7 +104,7 @@ export default function DashboardPage() {
     try {
       const id = await createSlate({
         title: newTitle.trim(),
-        thumbnailIcon: selectedIcon,
+        thumbnailIcon: getRandomIcon(),
       });
       setIsCreateOpen(false);
       setNewTitle("");
@@ -164,7 +176,7 @@ export default function DashboardPage() {
         email: user?.primaryEmailAddress?.emailAddress || "dev@slate.app",
       },
       theme: {
-        color: "#7C3AED",
+        color: "#ffffff",
       },
     };
 
@@ -183,7 +195,7 @@ export default function DashboardPage() {
     try {
       const id = await createSlate({
         title: isAi ? "AI Architecture Slate" : "Untitled Slate",
-        thumbnailIcon: isAi ? "Cpu" : "Database",
+        thumbnailIcon: getRandomIcon(),
       });
       router.push(`/canvas/${id}${isAi ? "?ai=true" : ""}`);
     } catch (e) {
@@ -192,7 +204,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-[#0A0A0A] text-white font-sans selection:bg-[#7C3AED]/30 select-none overflow-hidden">
+    <div className="flex h-screen w-screen bg-[#0A0A0A] text-black font-sans selection:bg-[#ffffff]/30 select-none overflow-hidden">
       
       {/* Raycast Command Palette Modal */}
       <CommandPalette
@@ -324,7 +336,7 @@ export default function DashboardPage() {
               <span className="text-[#808080] font-mono">1.2 GB / 10 GB</span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-[#1A1A1A] overflow-hidden">
-              <div className="h-full bg-[#7C3AED] rounded-full w-12" />
+              <div className="h-full bg-[#ffffff] rounded-full w-12" />
             </div>
           </div>
         </div>
@@ -366,20 +378,20 @@ export default function DashboardPage() {
                 placeholder="Filter boards..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-1.5 rounded-xl border border-[#2B2B2B] bg-[#141414] text-xs text-white placeholder-[#666666] outline-none w-56 focus:border-[#7C3AED] transition-colors font-sans"
+                className="pl-9 pr-4 py-1.5 rounded-xl border border-[#2B2B2B] bg-[#141414] text-xs text-white placeholder-[#666666] outline-none w-56 focus:border-[#ffffff] transition-colors font-sans"
               />
             </div>
 
             {/* CREATE NEW SLATE DIALOG */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger className="h-10 px-4 rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-xs font-semibold flex items-center gap-2 shadow-sm transition-all cursor-pointer">
+              <DialogTrigger className="h-10 px-4 rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold flex items-center gap-2 shadow-sm transition-all cursor-pointer">
                 <Plus className="w-4 h-4" />
                 New Slate
               </DialogTrigger>
               <DialogContent className="bg-[#101010] border border-[#2B2B2B] text-white max-w-md rounded-2xl p-6">
                 <DialogHeader className="mb-4">
                   <DialogTitle className="text-lg font-bold flex items-center gap-2">
-                    <FolderPlus className="w-5 h-5 text-[#7C3AED]" />
+                    <FolderPlus className="w-5 h-5 text-[#ffffff]" />
                     Create Architecture Slate
                   </DialogTitle>
                   <DialogDescription className="text-xs text-[#808080]">
@@ -396,33 +408,11 @@ export default function DashboardPage() {
                       placeholder="e.g. Microservice Architecture LLD"
                       value={newTitle}
                       onChange={(e) => setNewTitle(e.target.value)}
-                      className="w-full h-11 rounded-xl border border-[#2B2B2B] bg-[#141414] px-3.5 text-xs text-white placeholder-[#666666] outline-none focus:border-[#7C3AED] transition-colors font-sans"
+                      className="w-full h-11 rounded-xl border border-[#2B2B2B] bg-[#141414] px-3.5 text-xs text-white placeholder-[#666666] outline-none focus:border-[#ffffff] transition-colors font-sans"
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[#C5C5C5]">Thumbnail Icon</label>
-                    <div className="grid grid-cols-5 gap-2">
-                      {icons.map((item) => {
-                        const IconComp = item.icon;
-                        const isSel = selectedIcon === item.name;
-                        return (
-                          <button
-                            type="button"
-                            key={item.name}
-                            onClick={() => setSelectedIcon(item.name)}
-                            className={`p-3 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
-                              isSel
-                                ? "border-[#7C3AED] bg-[#7C3AED]/20 text-[#7C3AED]"
-                                : "border-[#2B2B2B] bg-[#141414] text-[#808080] hover:text-white hover:bg-[#1A1A1A]"
-                            }`}
-                          >
-                            <IconComp className="w-5 h-5" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  
 
                   <div className="pt-3 flex items-center justify-end gap-2">
                     <Button
@@ -436,7 +426,7 @@ export default function DashboardPage() {
                     <Button
                       type="submit"
                       disabled={isCreating}
-                      className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-xs font-semibold h-10 px-5 cursor-pointer"
+                      className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold h-10 px-5 cursor-pointer"
                     >
                       {isCreating ? "Creating..." : "Create Slate"}
                     </Button>
@@ -463,7 +453,7 @@ export default function DashboardPage() {
             </div>
             <Button
               onClick={() => setIsCreateOpen(true)}
-              className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-xs font-semibold h-10 px-4 flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold h-10 px-4 flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Plus className="w-4 h-4" />
               New Board
@@ -475,7 +465,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div className="p-6 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-4">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-[#7C3AED]" />
+                  <ShieldCheck className="w-5 h-5 text-[#ffffff]" />
                   Subscription Plans & Razorpay Billing
                 </h3>
                 <p className="text-xs text-[#808080]">
@@ -500,22 +490,22 @@ export default function DashboardPage() {
                   </div>
 
                   {/* PLAN 2: PRO */}
-                  <div className="p-5 rounded-xl border-2 border-[#7C3AED] bg-[#101010] space-y-4 flex flex-col justify-between shadow-lg relative">
-                    <div className="absolute -top-2.5 right-3 px-2 py-0.5 rounded-full bg-[#7C3AED] text-white text-[9px] font-bold uppercase">Popular</div>
+                  <div className="p-5 rounded-xl border-2 border-[#ffffff] bg-[#101010] space-y-4 flex flex-col justify-between shadow-lg relative">
+                    <div className="absolute -top-2.5 right-3 px-2 py-0.5 rounded-full bg-[#ffffff] text-black text-[9px] font-bold uppercase">Popular</div>
                     <div className="space-y-2">
                       <span className="text-xs font-bold text-white uppercase tracking-wider">PRO Team</span>
                       <div className="text-xl font-bold text-white">₹499 <span className="text-xs text-[#808080]">/ month</span></div>
                       <div className="space-y-1.5 pt-2 text-xs text-[#C5C5C5]">
-                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> Unlimited Slates</div>
-                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> Notion Markdown Editor</div>
-                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> Realtime Presence Cursors</div>
-                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> Raycast Command Palette</div>
-                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#7C3AED]" /> 10 GB Cloud Storage</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#ffffff]" /> Unlimited Slates</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#ffffff]" /> Notion Markdown Editor</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#ffffff]" /> Realtime Presence Cursors</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#ffffff]" /> Raycast Command Palette</div>
+                        <div className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#ffffff]" /> 10 GB Cloud Storage</div>
                       </div>
                     </div>
                     <Button
                       onClick={() => handleRazorpayPayment("PRO", 499)}
-                      className="w-full rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-xs font-semibold h-9 cursor-pointer"
+                      className="w-full rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold h-9 cursor-pointer"
                     >
                       Pay with Razorpay (₹499)
                     </Button>
@@ -560,7 +550,7 @@ export default function DashboardPage() {
             {/* Empty State */}
             {filteredSlates.length === 0 ? (
               <div className="p-16 text-center rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-4">
-                <div className="p-4 rounded-2xl bg-[#1A1A1A] text-[#7C3AED] w-fit mx-auto">
+                <div className="p-4 rounded-2xl bg-[#1A1A1A] text-[#ffffff] w-fit mx-auto">
                   <Layout className="w-8 h-8" />
                 </div>
                 <div className="space-y-1">
@@ -571,7 +561,7 @@ export default function DashboardPage() {
                 </div>
                 <Button
                   onClick={() => setIsCreateOpen(true)}
-                  className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-xs font-semibold h-10 px-4 cursor-pointer"
+                  className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold h-10 px-4 cursor-pointer"
                 >
                   Create New Slate
                 </Button>
@@ -584,23 +574,17 @@ export default function DashboardPage() {
                     key={slate._id}
                     className="group rounded-2xl border border-[#2B2B2B] bg-[#141414] hover:bg-[#1A1A1A] hover:border-[#333333] transition-all cursor-pointer flex flex-col justify-between overflow-hidden relative shadow-sm"
                   >
-                    {/* Top Thumbnail Canvas Preview */}
-                    <Link href={`/canvas/${slate._id}`} className="p-5 h-36 bg-[#0D0D0D] border-b border-[#2B2B2B] flex items-center justify-center relative group-hover:bg-[#101010] transition-colors">
-                      <div className="p-3 rounded-2xl bg-[#141414] border border-[#2B2B2B] text-[#7C3AED] group-hover:scale-110 transition-transform">
-                        {slate.thumbnailIcon === "Server" ? (
-                          <Server className="w-7 h-7" />
-                        ) : slate.thumbnailIcon === "Cpu" ? (
-                          <Cpu className="w-7 h-7" />
-                        ) : slate.thumbnailIcon === "Globe" ? (
-                          <Globe className="w-7 h-7" />
-                        ) : (
-                          <Database className="w-7 h-7" />
-                        )}
-                      </div>
+                    {/* Top Thumbnail Canvas Preview - Random Illustration */}
+                    <Link href={`/canvas/${slate._id}`} className="h-52 border-b border-[#2B2B2B] flex items-center justify-center relative overflow-hidden bg-white group-hover:brightness-95 transition-all">
+                      <Image
+                        src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.png` : `/illustration_${(slate._id.charCodeAt(0) % 5) + 1}.png`}
+                        alt="Slate Illustration"
+                        fill
+                        className="object-cover opacity-90 group-hover:scale-105 transition-transform duration-500 mix-blend-multiply"
+                      />
                       
-                      {/* Shared Badge */}
                       {slate.isShared && (
-                        <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-[#7C3AED]/20 border border-[#7C3AED]/40 text-[#7C3AED] text-[10px] font-bold">
+                        <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-black/80 border border-white/20 text-white text-[10px] font-bold tracking-wide">
                           Shared
                         </div>
                       )}
@@ -609,7 +593,7 @@ export default function DashboardPage() {
                     {/* Bottom Metadata Bar */}
                     <div className="p-4 flex items-center justify-between">
                       <Link href={`/canvas/${slate._id}`} className="space-y-0.5 overflow-hidden pr-2">
-                        <h4 className="text-xs font-bold text-white truncate group-hover:text-[#7C3AED] transition-colors">
+                        <h4 className="text-xs font-bold text-white truncate group-hover:text-[#ffffff] transition-colors">
                           {slate.title}
                         </h4>
                         <p className="text-[11px] text-[#808080] font-mono">
@@ -665,7 +649,7 @@ export default function DashboardPage() {
                 required
                 value={renameTitleText}
                 onChange={(e) => setRenameTitleText(e.target.value)}
-                className="w-full h-11 rounded-xl border border-[#2B2B2B] bg-[#141414] px-3.5 text-xs text-white outline-none focus:border-[#7C3AED] font-sans"
+                className="w-full h-11 rounded-xl border border-[#2B2B2B] bg-[#141414] px-3.5 text-xs text-white outline-none focus:border-[#ffffff] font-sans"
               />
               <div className="flex items-center justify-end gap-2">
                 <Button
@@ -678,7 +662,7 @@ export default function DashboardPage() {
                 </Button>
                 <Button
                   type="submit"
-                  className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-xs font-semibold h-10 px-4 cursor-pointer"
+                  className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold h-10 px-4 cursor-pointer"
                 >
                   Save Title
                 </Button>

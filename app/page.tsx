@@ -88,7 +88,7 @@ export default function LandingPage() {
         email: user?.primaryEmailAddress?.emailAddress || "dev@slate.app",
       },
       theme: {
-        color: "#7C3AED",
+        color: "#ffffff",
       },
     };
 
@@ -97,7 +97,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white font-sans selection:bg-[#7C3AED]/30 select-none">
+    <div className="min-h-screen bg-[#0A0A0A] text-black font-sans selection:bg-[#ffffff]/30 select-none">
       
       {/* Global Raycast Command Palette */}
       <CommandPalette
@@ -153,12 +153,12 @@ export default function LandingPage() {
           {(!isLoaded || !isSignedIn) ? (
             <>
               <Link href="/auth?mode=sign-in">
-                <Button size="sm" className="rounded-xl bg-transparent border border-[#3A3A3A] hover:border-[#7C3AED] hover:bg-[#7C3AED]/10 text-[#C5C5C5] hover:text-white font-semibold text-xs h-9 px-4 cursor-pointer transition-all">
+                <Button size="sm" className="rounded-xl bg-transparent border border-[#3A3A3A] hover:border-[#ffffff] hover:bg-[#ffffff]/10 text-[#C5C5C5] hover:text-black font-semibold text-xs h-9 px-4 cursor-pointer transition-all">
                   Log In
                 </Button>
               </Link>
               <Link href="/auth?mode=sign-up">
-                <Button size="sm" className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-xs h-9 px-4 cursor-pointer shadow-sm">
+                <Button size="sm" className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black font-semibold text-xs h-9 px-4 cursor-pointer shadow-sm">
                   Sign Up
                 </Button>
               </Link>
@@ -166,14 +166,14 @@ export default function LandingPage() {
           ) : (
             <>
               <Link href="/dashboard">
-                <Button size="sm" className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-xs h-9 px-4 cursor-pointer flex items-center gap-1.5 shadow-sm">
+                <Button size="sm" className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black font-semibold text-xs h-9 px-4 cursor-pointer flex items-center gap-1.5 shadow-sm">
                   Go to Dashboard
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Button>
               </Link>
               <UserButton afterSignOutUrl="/">
                 <UserButton.MenuItems>
-                  <UserButton.Link label="Dashboard" labelIcon={<Layout className="w-4 h-4 text-[#7C3AED]" />} href="/dashboard" />
+                  <UserButton.Link label="Dashboard" labelIcon={<Layout className="w-4 h-4 text-[#ffffff]" />} href="/dashboard" />
                 </UserButton.MenuItems>
               </UserButton>
             </>
@@ -186,7 +186,7 @@ export default function LandingPage() {
         
         {/* Simple Pill Tag */}
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#2B2B2B] bg-[#141414] text-xs font-medium text-[#C5C5C5] mb-6">
-          <Sparkles className="w-3.5 h-3.5 text-[#7C3AED]" />
+          <Sparkles className="w-3.5 h-3.5 text-[#ffffff]" />
           <span>The Visual Workspace for Modern Teams</span>
         </div>
 
@@ -204,14 +204,14 @@ export default function LandingPage() {
         <div className="flex items-center gap-3 mb-16">
           {(!isLoaded || !isSignedIn) ? (
             <Link href="/auth?mode=sign-up">
-              <Button className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2 shadow-md">
+              <Button className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2 shadow-md">
                 Start Free Workspace
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
           ) : (
             <Link href="/dashboard">
-              <Button className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2">
+              <Button className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2">
                 Open Dashboard
                 <ArrowRight className="w-4 h-4" />
               </Button>
@@ -246,10 +246,10 @@ export default function LandingPage() {
 
             {/* Architecture Diagrams Showcase */}
             <div className="relative z-10 flex items-center gap-8">
-              <div className="w-48 p-4 rounded-xl border border-[#7C3AED] bg-[#141414] shadow-xl space-y-2">
-                <div className="w-full h-1 bg-[#7C3AED] rounded-full" />
+              <div className="w-48 p-4 rounded-xl border border-[#ffffff] bg-[#141414] shadow-xl space-y-2">
+                <div className="w-full h-1 bg-[#ffffff] rounded-full" />
                 <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <Database className="w-4 h-4 text-[#7C3AED]" />
+                  <Database className="w-4 h-4 text-[#ffffff]" />
                   PostgreSQL Database
                 </div>
                 <div className="text-[10px] text-[#808080]">Primary Storage Cluster</div>
@@ -268,7 +268,7 @@ export default function LandingPage() {
             </div>
 
             {/* Live Cursor */}
-            <div className="absolute top-20 right-36 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7C3AED] text-white text-xs font-bold shadow-xl">
+            <div className="absolute top-20 right-36 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ffffff] text-black text-xs font-bold shadow-xl">
               <MousePointer className="w-3.5 h-3.5" />
               <span>Teammate</span>
             </div>
@@ -291,7 +291,7 @@ export default function LandingPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           
           <div className="p-5 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-3">
-            <div className="p-2.5 rounded-xl bg-[#1A1A1A] w-fit text-[#7C3AED]">
+            <div className="p-2.5 rounded-xl bg-[#1A1A1A] w-fit text-[#ffffff]">
               <Layout className="w-5 h-5" />
             </div>
             <h3 className="text-sm font-bold text-white">Infinite Whiteboard</h3>
@@ -301,7 +301,7 @@ export default function LandingPage() {
           </div>
 
           <div className="p-5 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-3">
-            <div className="p-2.5 rounded-xl bg-[#1A1A1A] w-fit text-[#7C3AED]">
+            <div className="p-2.5 rounded-xl bg-[#1A1A1A] w-fit text-[#ffffff]">
               <FileText className="w-5 h-5" />
             </div>
             <h3 className="text-sm font-bold text-white">Markdown Documentation</h3>
@@ -311,7 +311,7 @@ export default function LandingPage() {
           </div>
 
           <div className="p-5 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-3">
-            <div className="p-2.5 rounded-xl bg-[#1A1A1A] w-fit text-[#7C3AED]">
+            <div className="p-2.5 rounded-xl bg-[#1A1A1A] w-fit text-[#ffffff]">
               <Users className="w-5 h-5" />
             </div>
             <h3 className="text-sm font-bold text-white">Realtime Presence</h3>
@@ -321,7 +321,7 @@ export default function LandingPage() {
           </div>
 
           <div className="p-5 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-3">
-            <div className="p-2.5 rounded-xl bg-[#1A1A1A] w-fit text-[#7C3AED]">
+            <div className="p-2.5 rounded-xl bg-[#1A1A1A] w-fit text-[#ffffff]">
               <Command className="w-5 h-5" />
             </div>
             <h3 className="text-sm font-bold text-white">Raycast Command Palette</h3>
@@ -365,8 +365,8 @@ export default function LandingPage() {
             </div>
 
             {/* PLAN 2: PRO (₹499) */}
-            <div className="p-6 rounded-2xl border-2 border-[#7C3AED] bg-[#141414] space-y-5 relative shadow-2xl flex flex-col justify-between">
-              <div className="absolute -top-3 right-4 px-2.5 py-0.5 rounded-full bg-[#7C3AED] text-white text-[10px] font-bold uppercase tracking-wider">
+            <div className="p-6 rounded-2xl border-2 border-[#ffffff] bg-[#141414] space-y-5 relative shadow-2xl flex flex-col justify-between">
+              <div className="absolute -top-3 right-4 px-2.5 py-0.5 rounded-full bg-[#ffffff] text-black text-[10px] font-bold uppercase tracking-wider">
                 Popular
               </div>
               <div className="space-y-3">
@@ -374,16 +374,16 @@ export default function LandingPage() {
                 <div className="text-2xl font-bold text-white">₹499 <span className="text-xs text-[#808080] font-normal">/ month ($9)</span></div>
                 <p className="text-xs text-[#808080]">For professional engineering teams.</p>
                 <div className="space-y-2 pt-3 border-t border-[#2B2B2B] text-xs text-[#C5C5C5]">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#7C3AED]" /> Unlimited Infinite Slates</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#7C3AED]" /> Notion Markdown Split Editor</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#7C3AED]" /> Realtime Multiplayer Cursors</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#7C3AED]" /> Raycast Command Palette</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#7C3AED]" /> 10 GB Cloud Storage</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> Unlimited Infinite Slates</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> Notion Markdown Split Editor</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> Realtime Multiplayer Cursors</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> Raycast Command Palette</div>
+                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> 10 GB Cloud Storage</div>
                 </div>
               </div>
               <Button
                 onClick={() => handleRazorpayPayment("PRO", 499)}
-                className="w-full rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-xs font-semibold h-10 cursor-pointer shadow-md"
+                className="w-full rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold h-10 cursor-pointer shadow-md"
               >
                 Pay with Razorpay (₹499)
               </Button>
