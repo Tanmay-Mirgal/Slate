@@ -145,9 +145,9 @@ export default function DashboardPage() {
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_slateWorkspace123",
       amount: amountInINR * 100,
       currency: "INR",
-      name: "SLATE Workspace",
+      name: "SLATE",
       description: `Upgrade to SLATE ${planName} Plan`,
-      image: "/logo.png",
+      image: typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png",
       handler: async function (response: any) {
         try {
           await upgradePlanMutation({
@@ -179,6 +179,18 @@ export default function DashboardPage() {
     return matchesSearch;
   });
 
+  const handleCreateNewSlateFromCommand = async (isAi = false) => {
+    try {
+      const id = await createSlate({
+        title: isAi ? "AI Architecture Slate" : "Untitled Slate",
+        thumbnailIcon: isAi ? "Cpu" : "Database",
+      });
+      router.push(`/canvas/${id}${isAi ? "?ai=true" : ""}`);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <div className="flex h-screen w-screen bg-[#0A0A0A] text-white font-sans selection:bg-[#7C3AED]/30 select-none overflow-hidden">
       
@@ -186,7 +198,9 @@ export default function DashboardPage() {
       <CommandPalette
         open={isCommandOpen}
         onOpenChange={setIsCommandOpen}
-        onNewSlate={() => setIsCreateOpen(true)}
+        onNewSlate={() => handleCreateNewSlateFromCommand(false)}
+        onGoDashboard={() => setActiveTab("recent")}
+        onAiGenerate={() => handleCreateNewSlateFromCommand(true)}
       />
 
       {/* LEFT SIDEBAR (#101010) */}

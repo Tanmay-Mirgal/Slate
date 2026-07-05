@@ -6,9 +6,9 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   SignInButton,
+  SignUpButton,
   UserButton,
-  useUser,
-  Show
+  useUser
 } from "@clerk/nextjs";
 
 import {
@@ -27,13 +27,33 @@ import {
   Search
 } from "lucide-react";
 
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/CommandPalette";
 
 export default function LandingPage() {
   const router = useRouter();
-  const { isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [isCommandOpen, setIsCommandOpen] = React.useState(false);
+  const createSlateMutation = useMutation(api.slates.create);
+
+  const handleCreateNewSlate = async (isAi = false) => {
+    if (!isSignedIn) {
+      router.push("/auth?mode=sign-in");
+      return;
+    }
+    try {
+      const id = await createSlateMutation({
+        title: isAi ? "AI Architecture Slate" : "Untitled Slate",
+        thumbnailIcon: isAi ? "Cpu" : "Database",
+      });
+      router.push(`/canvas/${id}${isAi ? "?ai=true" : ""}`);
+    } catch (e) {
+      console.error(e);
+      router.push("/dashboard");
+    }
+  };
 
   const handleRazorpayPayment = async (planName: string, amountInINR: number) => {
     const res = await new Promise<boolean>((resolve) => {
@@ -57,9 +77,9 @@ export default function LandingPage() {
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_slateWorkspace123",
       amount: amountInINR * 100,
       currency: "INR",
-      name: "SLATE Workspace",
+      name: "SLATE",
       description: `Upgrade to SLATE ${planName} Plan`,
-      image: "/logo.png",
+      image: typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png",
       handler: function (response: any) {
         alert(`🎉 Payment Successful!\nPayment ID: ${response.razorpay_payment_id}\nYour account is upgraded to ${planName} Plan!`);
       },
@@ -83,14 +103,16 @@ export default function LandingPage() {
       <CommandPalette
         open={isCommandOpen}
         onOpenChange={setIsCommandOpen}
-        onNewSlate={() => router.push(isSignedIn ? "/dashboard" : "/sign-in")}
+        onNewSlate={() => handleCreateNewSlate(false)}
+        onGoDashboard={() => router.push(isSignedIn ? "/dashboard" : "/auth?mode=sign-in")}
+        onAiGenerate={() => handleCreateNewSlate(true)}
       />
 
-      {/* SLEEK SAAS NAVIGATION HEADER */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-[#2B2B2B] bg-[#0A0A0A]/90 backdrop-blur-md px-6 flex items-center justify-between">
+      {/* SLEEK SAAS NAVIGATION HEADER (WIDE SEARCH & BALANCED SPACING) */}
+      <header className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-[#2B2B2B] bg-[#0A0A0A]/95 backdrop-blur-md px-8 flex items-center justify-between">
         
-        {/* Brand Logo & Name */}
-        <div className="flex items-center gap-8">
+        {/* Left: Brand Logo & Navigation Links */}
+        <div className="flex items-center gap-10">
           <Link href="/" className="flex items-center gap-2.5 group">
             <Image
               src="/logo.png"
@@ -104,47 +126,58 @@ export default function LandingPage() {
             </span>
           </Link>
 
-          {/* Simple Navigation Links */}
-          <nav className="hidden md:flex items-center gap-6 text-xs font-medium text-[#C5C5C5]">
+          <nav className="hidden lg:flex items-center gap-8 text-xs font-semibold text-[#C5C5C5]">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+            <a href="#features" className="hover:text-white transition-colors">Documentation</a>
+            <a href="#pricing" className="hover:text-white transition-colors">Enterprise</a>
           </nav>
         </div>
 
-        {/* Right Auth Buttons */}
+        {/* Center: Extra Wide Search Bar Button (Eliminates Emptiness) */}
+        <button
+          onClick={() => setIsCommandOpen(true)}
+          className="hidden sm:flex items-center justify-between w-72 md:w-96 px-4 py-2 rounded-xl border border-[#2B2B2B] bg-[#141414] text-xs font-medium text-[#808080] hover:text-white hover:border-[#333333] transition-all cursor-pointer shadow-sm"
+        >
+          <div className="flex items-center gap-2.5">
+            <Search className="w-4 h-4 text-[#808080]" />
+            <span className="text-xs text-[#808080] truncate">Search slates, architecture or commands...</span>
+          </div>
+          <kbd className="px-1.5 py-0.5 rounded border border-[#2B2B2B] bg-[#1A1A1A] text-[10px] font-mono text-[#C5C5C5]">
+            Ctrl K
+          </kbd>
+        </button>
+
+        {/* Right: Auth Action Buttons (Guaranteed Rendering when Logged Out) */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsCommandOpen(true)}
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#2B2B2B] bg-[#141414] text-xs font-medium text-[#808080] hover:text-white transition-all cursor-pointer"
-          >
-            <Search className="w-3.5 h-3.5" />
-            <kbd className="px-1.5 py-0.5 rounded border border-[#2B2B2B] bg-[#1A1A1A] text-[10px] font-mono text-[#C5C5C5]">
-              Ctrl K
-            </kbd>
-          </button>
-
-          <Show when={!isSignedIn}>
-            <SignInButton mode="modal">
-              <Button variant="ghost" size="sm" className="text-xs font-semibold text-[#C5C5C5] hover:text-white cursor-pointer">
-                Log In
-              </Button>
-            </SignInButton>
-            <SignInButton mode="modal">
-              <Button size="sm" className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-xs h-9 px-4 cursor-pointer">
-                Get Started
-              </Button>
-            </SignInButton>
-          </Show>
-
-          <Show when={isSignedIn}>
-            <Link href="/dashboard">
-              <Button size="sm" className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-xs h-9 px-4 cursor-pointer flex items-center gap-1.5">
-                Go to Dashboard
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            </Link>
-            <UserButton afterSignOutUrl="/" />
-          </Show>
+          {(!isLoaded || !isSignedIn) ? (
+            <>
+              <Link href="/auth?mode=sign-in">
+                <Button size="sm" className="rounded-xl bg-transparent border border-[#3A3A3A] hover:border-[#7C3AED] hover:bg-[#7C3AED]/10 text-[#C5C5C5] hover:text-white font-semibold text-xs h-9 px-4 cursor-pointer transition-all">
+                  Log In
+                </Button>
+              </Link>
+              <Link href="/auth?mode=sign-up">
+                <Button size="sm" className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-xs h-9 px-4 cursor-pointer shadow-sm">
+                  Sign Up
+                </Button>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/dashboard">
+                <Button size="sm" className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-xs h-9 px-4 cursor-pointer flex items-center gap-1.5 shadow-sm">
+                  Go to Dashboard
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </Link>
+              <UserButton afterSignOutUrl="/">
+                <UserButton.MenuItems>
+                  <UserButton.Link label="Dashboard" labelIcon={<Layout className="w-4 h-4 text-[#7C3AED]" />} href="/dashboard" />
+                </UserButton.MenuItems>
+              </UserButton>
+            </>
+          )}
         </div>
       </header>
 
@@ -169,23 +202,21 @@ export default function LandingPage() {
 
         {/* CTA Buttons */}
         <div className="flex items-center gap-3 mb-16">
-          <Show when={!isSignedIn}>
-            <SignInButton mode="modal">
-              <Button className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2">
+          {(!isLoaded || !isSignedIn) ? (
+            <Link href="/auth?mode=sign-up">
+              <Button className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2 shadow-md">
                 Start Free Workspace
                 <ArrowRight className="w-4 h-4" />
               </Button>
-            </SignInButton>
-          </Show>
-
-          <Show when={isSignedIn}>
+            </Link>
+          ) : (
             <Link href="/dashboard">
               <Button className="rounded-xl bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2">
                 Open Dashboard
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
-          </Show>
+          )}
 
           <Link href="/dashboard">
             <Button variant="outline" className="rounded-xl border-[#2B2B2B] bg-[#141414] hover:bg-[#1A1A1A] text-[#C5C5C5] hover:text-white font-semibold text-sm h-11 px-5 cursor-pointer">

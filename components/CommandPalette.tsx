@@ -27,15 +27,21 @@ interface CommandItem {
   action: () => void;
 }
 
+interface CommandPaletteProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onNewSlate?: () => void;
+  onGoDashboard?: () => void;
+  onAiGenerate?: () => void;
+}
+
 export function CommandPalette({
   open,
   onOpenChange,
   onNewSlate,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onNewSlate?: () => void;
-}) {
+  onGoDashboard,
+  onAiGenerate,
+}: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [selectedIndex, setSelectedIndex] = React.useState(0);
@@ -53,47 +59,35 @@ export function CommandPalette({
       },
     },
     {
-      id: "cmd-ai-generate",
-      category: "Actions",
-      title: "Generate System Architecture with AI",
-      subtitle: "Ask Slate AI to map out databases & microservices",
-      icon: Sparkles,
-      action: () => {
-        onOpenChange(false);
-        router.push("/dashboard");
-      },
-    },
-    {
-      id: "cmd-nav-home",
-      category: "Navigation",
-      title: "Go to Home / Landing",
-      subtitle: "View features, templates & documentation",
-      icon: Home,
-      action: () => {
-        onOpenChange(false);
-        router.push("/");
-      },
-    },
-    {
       id: "cmd-nav-dashboard",
       category: "Navigation",
       title: "Go to Dashboard",
-      subtitle: "View all your whiteboards, recent slates & team activity",
+      subtitle: "View all your architecture whiteboards & workspace",
       icon: Layout,
       action: () => {
         onOpenChange(false);
-        router.push("/dashboard");
+        if (onGoDashboard) {
+          onGoDashboard();
+        } else {
+          router.push("/dashboard");
+        }
       },
     },
     {
-      id: "cmd-settings-workspace",
-      category: "Settings",
-      title: "Workspace Settings",
-      subtitle: "Manage team members, permissions & billing",
-      icon: Settings,
+      id: "cmd-ai-generate",
+      category: "Actions",
+      title: "Generate System Architecture with AI",
+      subtitle: "Ask Slate AI to map out microservices, databases & APIs",
+      icon: Sparkles,
       action: () => {
         onOpenChange(false);
-        router.push("/dashboard");
+        if (onAiGenerate) {
+          onAiGenerate();
+        } else if (onNewSlate) {
+          onNewSlate();
+        } else {
+          router.push("/dashboard");
+        }
       },
     },
   ];

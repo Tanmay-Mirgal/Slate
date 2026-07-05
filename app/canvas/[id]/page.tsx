@@ -145,8 +145,72 @@ export default function CanvasPage() {
   // AI Chat State
   const [aiInput, setAiInput] = React.useState("");
   const [aiMessages, setAiMessages] = React.useState<{ role: "user" | "assistant"; text: string }[]>([
-    { role: "assistant", text: "Hello! I am Slate AI. How can I help you design your system architecture today?" }
+    { role: "assistant", text: "Hello! I am Slate AI powered by Groq. Type a system description (e.g., 'E-commerce microservices with PostgreSQL & Redis') to generate architecture nodes directly on your canvas!" }
   ]);
+
+  // Auto open AI Drawer if ?ai=true URL param present
+  React.useEffect(() => {
+    if (searchParams.get("ai") === "true") {
+      setIsAiChatOpen(true);
+    }
+  }, [searchParams]);
+
+  // AI Diagram Generation Handler (Calls Groq API Route)
+  const handleSendAi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiInput.trim()) return;
+
+    const userPrompt = aiInput.trim();
+    setAiInput("");
+    setAiMessages((prev) => [...prev, { role: "user", text: userPrompt }]);
+
+    try {
+      setAiMessages((prev) => [...prev, { role: "assistant", text: "⚡ Generating architectural nodes for your canvas using Slate Groq AI..." }]);
+
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: userPrompt }),
+      });
+
+      const data = await res.json();
+
+      if (data?.elements && Array.isArray(data.elements)) {
+        const newNodes: SystemNode[] = data.elements.map((el: any, i: number) => ({
+          id: el.id || `node-${Date.now()}-${i}`,
+          type: el.type === "ellipse" ? "circle" : el.type === "sticky" ? "frame" : (el.type || "rectangle"),
+          nodeType: (el.text || "").toLowerCase().includes("db") || (el.text || "").toLowerCase().includes("database") ? "database" : (el.text || "").toLowerCase().includes("api") || (el.text || "").toLowerCase().includes("gateway") ? "gateway" : "server",
+          title: el.text || "Component Node",
+          text: el.text || "Component Node",
+          x: el.x || 100 + (i % 4) * 240,
+          y: el.y || 150 + Math.floor(i / 4) * 160,
+          width: el.width || 180,
+          height: el.height || 90,
+          strokeColor: el.color || "#7C3AED",
+          fillColor: "#141414",
+          strokeWidth: 2,
+        }));
+
+        for (const node of newNodes) {
+          await addElementMutation({
+            slateId: id as Id<"slates">,
+            elementJson: JSON.stringify(node),
+          });
+        }
+
+        setAiMessages((prev) => [
+          ...prev,
+          { role: "assistant", text: `🎉 Successfully generated ${newNodes.length} architecture nodes on your whiteboard canvas!` }
+        ]);
+      }
+    } catch (err) {
+      console.error("AI diagram generation error", err);
+      setAiMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: "❌ Failed generating AI diagram. Please check your GROQ_API_KEY." }
+      ]);
+    }
+  };
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const lastPresenceTimeRef = React.useRef<number>(0);
@@ -600,25 +664,7 @@ export default function CanvasPage() {
     ctx.restore();
   }, [elements, currentElement, selectedId, activePresence, zoom, viewMode]);
 
-  // AI Chat Submit Handler
-  const handleSendAi = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiInput.trim()) return;
 
-    const userMsg = { role: "user" as const, text: aiInput };
-    setAiMessages((prev) => [...prev, userMsg]);
-    setAiInput("");
-
-    setTimeout(() => {
-      setAiMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: "I've analyzed your system architecture nodes. Would you like me to generate a Redis Cache node or add a Load Balancer?",
-        },
-      ]);
-    }, 800);
-  };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0A0A0A] text-white font-sans overflow-hidden select-none">
