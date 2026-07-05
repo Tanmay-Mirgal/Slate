@@ -18,6 +18,7 @@ export default defineSchema({
     isShared: v.boolean(),
     lastEdited: v.number(),
     thumbnailIcon: v.string(),
+    elements: v.optional(v.string()),
   })
   .index("by_userId", ["userId"]),
 });

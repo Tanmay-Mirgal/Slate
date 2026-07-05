@@ -462,10 +462,12 @@ export default function DashboardPage() {
                         
                         {/* Hover Overlay Button to go inside Canvas */}
                         <div className="absolute inset-0 bg-neutral-950/70 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
-                          <Button className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-neutral-200 transition-colors flex items-center gap-1.5 shadow-md cursor-pointer">
-                            Open Canvas
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Button>
+                          <Link href={`/canvas/${slate._id}`}>
+                            <Button className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-neutral-200 transition-colors flex items-center gap-1.5 shadow-md cursor-pointer">
+                              Open Canvas
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Button>
+                          </Link>
                         </div>
                       </div>
 
@@ -473,7 +475,9 @@ export default function DashboardPage() {
                       <CardHeader className="p-4 pb-2">
                         <div className="flex items-start justify-between gap-1.5">
                           <CardTitle className="text-sm font-bold truncate leading-tight group-hover:text-purple-400 transition-colors">
-                            {slate.title}
+                            <Link href={`/canvas/${slate._id}`}>
+                              {slate.title}
+                            </Link>
                           </CardTitle>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -573,17 +577,21 @@ export default function DashboardPage() {
                       }`}>
                         <span className="text-4xl filter drop-shadow-md select-none">{slate.thumbnailIcon}</span>
                         <div className="absolute inset-0 bg-neutral-950/70 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
-                          <Button className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-neutral-200 transition-colors flex items-center gap-1.5 shadow-md cursor-pointer">
-                            Open Canvas
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Button>
+                          <Link href={`/canvas/${slate._id}`}>
+                            <Button className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-neutral-200 transition-colors flex items-center gap-1.5 shadow-md cursor-pointer">
+                              Open Canvas
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Button>
+                          </Link>
                         </div>
                       </div>
 
                       <CardHeader className="p-4 pb-2">
                         <div className="flex items-start justify-between gap-1.5">
                           <CardTitle className="text-sm font-bold truncate leading-tight group-hover:text-purple-400 transition-colors">
-                            {slate.title}
+                            <Link href={`/canvas/${slate._id}`}>
+                              {slate.title}
+                            </Link>
                           </CardTitle>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -673,17 +681,21 @@ export default function DashboardPage() {
                       }`}>
                         <span className="text-4xl filter drop-shadow-md select-none">{slate.thumbnailIcon}</span>
                         <div className="absolute inset-0 bg-neutral-950/70 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
-                          <Button className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-neutral-200 transition-colors flex items-center gap-1.5 shadow-md cursor-pointer">
-                            Open Canvas
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Button>
+                          <Link href={`/canvas/${slate._id}`}>
+                            <Button className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-neutral-200 transition-colors flex items-center gap-1.5 shadow-md cursor-pointer">
+                              Open Canvas
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Button>
+                          </Link>
                         </div>
                       </div>
 
                       <CardHeader className="p-4 pb-2">
                         <div className="flex items-start justify-between gap-1.5">
                           <CardTitle className="text-sm font-bold truncate leading-tight group-hover:text-purple-400 transition-colors">
-                            {slate.title}
+                            <Link href={`/canvas/${slate._id}`}>
+                              {slate.title}
+                            </Link>
                           </CardTitle>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

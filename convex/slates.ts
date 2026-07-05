@@ -130,3 +130,52 @@ export const toggleShare = mutation({
     return args.id;
   },
 });
+
+// Get a single slate by ID
+export const getById = query({
+  args: { id: v.id("slates") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const slate = await ctx.db.get(args.id);
+    if (!slate || slate.isArchived) {
+      return null;
+    }
+
+    // Allow access if owner or shared
+    if (slate.userId !== identity.subject && !slate.isShared) {
+      return null;
+    }
+
+    return slate;
+  },
+});
+
+// Update canvas elements
+export const updateElements = mutation({
+  args: {
+    id: v.id("slates"),
+    elements: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthenticated");
+    }
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Slate not found");
+    }
+
+    await ctx.db.patch(args.id, {
+      elements: args.elements,
+      lastEdited: Date.now(),
+    });
+
+    return args.id;
+  },
+});
