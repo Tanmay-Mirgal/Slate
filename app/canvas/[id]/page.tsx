@@ -3,660 +3,619 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
+import { useUser } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 
 import {
-  ChevronLeft,
+  Plus,
+  Sparkles,
   MousePointer,
-  Hand,
-  Pencil,
   Square,
   Circle as CircleIcon,
-  Minus,
   ArrowUpRight,
-  Type,
-  StickyNote,
+  Minus,
   Eraser,
-  Undo2,
-  Redo2,
-  Trash2,
-  Download,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  Grid,
+  Type,
+  Image as ImageIcon,
+  Frame,
+  MessageSquare,
+  Search,
+  Share2,
+  Bot,
+  ChevronDown,
+  MoreHorizontal,
+  Database,
+  Server,
+  Cpu,
+  Layers,
+  HardDrive,
+  Globe,
+  Zap,
   Check,
   Loader2,
-  Save,
-  Palette,
-  Sparkles
+  X,
+  Send,
+  FileText,
+  Layout,
+  Maximize2,
+  Eye,
+  Edit3,
+  Copy,
+  Users,
+  ShieldCheck,
+  Lock
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
+export type ViewMode = "document" | "both" | "canvas";
 
 export type Tool = 
   | "select" 
-  | "hand" 
   | "pencil" 
   | "rectangle" 
   | "circle" 
   | "line" 
   | "arrow" 
   | "text" 
-  | "sticky" 
-  | "eraser";
+  | "eraser" 
+  | "frame" 
+  | "comment" 
+  | "node";
 
-export interface CanvasElement {
+export interface SystemNode {
   id: string;
   type: Tool;
+  nodeType?: "database" | "server" | "gateway" | "balancer" | "cache" | "storage" | "client" | "auth";
+  title: string;
+  subtitle?: string;
   x: number;
   y: number;
-  width?: number;
-  height?: number;
+  width: number;
+  height: number;
   points?: { x: number; y: number }[];
   strokeColor: string;
   fillColor: string;
   strokeWidth: number;
   text?: string;
-  fontSize?: number;
 }
 
 export default function CanvasPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const id = params.id as string;
 
-  // Query slate details from Convex
+  // URL Access Mode: ?mode=edit vs ?mode=view
+  const accessMode = searchParams.get("mode") || "edit";
+  const isReadOnly = accessMode === "view";
+
+  // Clerk User Info
+  const { user } = useUser();
+  const guestIdRef = React.useRef(`guest-${Math.floor(Math.random() * 10000)}`);
+  const myUserId = user?.id || guestIdRef.current;
+  const myUserName = user?.fullName || user?.firstName || "Teammate";
+  const myUserAvatar = user?.imageUrl || "";
+
+  // Convex Queries & Mutations
   const slate = useQuery(api.slates.getById, { id: id as Id<"slates"> });
+  const activePresence = useQuery(
+    api.slates.getPresence, 
+    id ? { slateId: id as Id<"slates"> } : "skip"
+  );
+  
   const updateElementsMutation = useMutation(api.slates.updateElements);
+  const updateDocumentMutation = useMutation(api.slates.updateDocument);
+  const updatePresenceMutation = useMutation(api.slates.updatePresence);
+  const toggleShareMutation = useMutation(api.slates.toggleShare);
 
-  // Tools & Properties State
-  const [activeTool, setActiveTool] = React.useState<Tool>("pencil");
-  const [strokeColor, setStrokeColor] = React.useState("#a855f7"); // Purple default
-  const [fillColor, setFillColor] = React.useState("transparent");
-  const [strokeWidth, setStrokeWidth] = React.useState(3);
-  const [fontSize, setFontSize] = React.useState(20);
+  // Layout View Mode State
+  const [viewMode, setViewMode] = React.useState<ViewMode>("both");
+  const [activeTool, setActiveTool] = React.useState<Tool>("select");
+  const [zoom, setZoom] = React.useState<number>(100);
+  const [isAiChatOpen, setIsAiChatOpen] = React.useState<boolean>(false);
+  const [isLibraryOpen, setIsLibraryOpen] = React.useState<boolean>(false);
+  const [isShareModalOpen, setIsShareModalOpen] = React.useState<boolean>(false);
+  const [copiedType, setCopiedType] = React.useState<"edit" | "view" | null>(null);
 
-  // Elements & History State
-  const [elements, setElements] = React.useState<CanvasElement[]>([]);
+  // Document Markdown State
+  const [docText, setDocText] = React.useState<string>(
+    "# System Architecture & Low Level Design\n\n## 1. Overview\nThis slate contains the low-level design diagrams and component mappings for your application.\n\n## 2. Components\n- **Client UI**: Next.js 16 App Router\n- **Backend**: Convex Cloud Realtime Functions\n- **Authentication**: Clerk OAuth Provider\n- **Database**: Convex Document DB\n"
+  );
+  const [isDocSaving, setIsDocSaving] = React.useState(false);
+
+  // Canvas Elements State
+  const [elements, setElements] = React.useState<SystemNode[]>([]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
-  const [history, setHistory] = React.useState<CanvasElement[][]>([]);
-  const [historyIndex, setHistoryIndex] = React.useState<number>(-1);
-  const [isSaving, setIsSaving] = React.useState(false);
+  const [isCanvasSaving, setIsCanvasSaving] = React.useState(false);
   const [hasLoadedInitial, setHasLoadedInitial] = React.useState(false);
-
-  // Canvas Pan & Zoom State
-  const [zoom, setZoom] = React.useState(1);
-  const [pan, setPan] = React.useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = React.useState(false);
-  const [startPan, setStartPan] = React.useState({ x: 0, y: 0 });
-  const [gridStyle, setGridStyle] = React.useState<"dots" | "grid" | "plain">("dots");
 
   // Drawing state
   const [isDrawing, setIsDrawing] = React.useState(false);
-  const [currentElement, setCurrentElement] = React.useState<CanvasElement | null>(null);
+  const [currentElement, setCurrentElement] = React.useState<SystemNode | null>(null);
+  const [strokeColor, setStrokeColor] = React.useState("#a855f7");
+  const [fillColor, setFillColor] = React.useState("#18181b");
 
-  // Text Editing inline state
-  const [editingTextId, setEditingTextId] = React.useState<string | null>(null);
-  const [editingTextValue, setEditingTextValue] = React.useState("");
+  // AI Chat Messages State
+  const [aiInput, setAiInput] = React.useState("");
+  const [aiMessages, setAiMessages] = React.useState<{ role: "user" | "assistant"; text: string }[]>([
+    { role: "assistant", text: "Hello! I am Slate AI. How can I help you design your system architecture today?" }
+  ]);
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const lastPresenceTimeRef = React.useRef<number>(0);
 
-  // Load initial elements from Convex slate object
+  // Sync Initial Slate Data from Convex
   React.useEffect(() => {
     if (slate && !hasLoadedInitial) {
+      if (slate.documentText) setDocText(slate.documentText);
       if (slate.elements) {
         try {
-          const parsed = JSON.parse(slate.elements);
-          setElements(parsed);
-          setHistory([parsed]);
-          setHistoryIndex(0);
+          setElements(JSON.parse(slate.elements));
         } catch (e) {
-          console.error("Failed to parse slate elements", e);
+          console.error("Error parsing elements", e);
         }
       }
       setHasLoadedInitial(true);
     }
   }, [slate, hasLoadedInitial]);
 
-  // Push to history helper
-  const pushHistory = (newElements: CanvasElement[]) => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(newElements);
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-    setElements(newElements);
-    saveToConvex(newElements);
-  };
+  // Reactive Sync: Update local state if another user updates Convex elements
+  React.useEffect(() => {
+    if (slate?.elements && hasLoadedInitial && !isCanvasSaving) {
+      try {
+        const parsed = JSON.parse(slate.elements);
+        if (JSON.stringify(parsed) !== JSON.stringify(elements)) {
+          setElements(parsed);
+        }
+      } catch (e) {}
+    }
+    if (slate?.documentText && hasLoadedInitial && !isDocSaving) {
+      if (slate.documentText !== docText) {
+        setDocText(slate.documentText);
+      }
+    }
+  }, [slate]);
 
-  // Debounced/Direct Save to Convex
-  const saveToConvex = async (elsToSave: CanvasElement[]) => {
-    if (!id) return;
-    setIsSaving(true);
+  // Save Canvas Elements to Convex
+  const saveElementsToConvex = async (els: SystemNode[]) => {
+    if (!id || isReadOnly) return;
+    setIsCanvasSaving(true);
     try {
       await updateElementsMutation({
         id: id as Id<"slates">,
-        elements: JSON.stringify(elsToSave),
+        elements: JSON.stringify(els),
       });
     } catch (e) {
-      console.error("Failed to save elements:", e);
+      console.error("Failed saving elements", e);
     } finally {
-      setTimeout(() => setIsSaving(false), 600);
+      setTimeout(() => setIsCanvasSaving(false), 500);
     }
   };
 
-  // Undo / Redo
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      const prev = history[historyIndex - 1];
-      setHistoryIndex(historyIndex - 1);
-      setElements(prev);
-      saveToConvex(prev);
+  // Save Document Text to Convex
+  const saveDocToConvex = async (text: string) => {
+    if (!id || isReadOnly) return;
+    setIsDocSaving(true);
+    try {
+      await updateDocumentMutation({
+        id: id as Id<"slates">,
+        documentText: text,
+      });
+    } catch (e) {
+      console.error("Failed saving document", e);
+    } finally {
+      setTimeout(() => setIsDocSaving(false), 500);
     }
   };
 
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      const next = history[historyIndex + 1];
-      setHistoryIndex(historyIndex + 1);
-      setElements(next);
-      saveToConvex(next);
+  // Broadcast Live Multiplayer Cursor Position
+  const broadcastPresence = (x: number, y: number) => {
+    if (!id || !myUserId) return;
+    const now = Date.now();
+    // Throttle to every 100ms
+    if (now - lastPresenceTimeRef.current > 100) {
+      lastPresenceTimeRef.current = now;
+      updatePresenceMutation({
+        slateId: id as Id<"slates">,
+        userId: myUserId,
+        userName: myUserName,
+        userAvatar: myUserAvatar,
+        cursorX: x,
+        cursorY: y,
+      });
     }
   };
 
-  // Clear Canvas
-  const handleClear = () => {
-    if (confirm("Are you sure you want to clear this canvas?")) {
-      pushHistory([]);
-    }
+  // Copy Share Link Helper
+  const handleCopyLink = (mode: "edit" | "view") => {
+    const origin = window.location.origin;
+    const shareUrl = `${origin}/canvas/${id}?mode=${mode}`;
+    navigator.clipboard.writeText(shareUrl);
+    setCopiedType(mode);
+    setTimeout(() => setCopiedType(null), 2000);
   };
 
-  // Export Canvas as PNG Image
-  const handleExportPNG = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // Add Architecture Component Node
+  const handleAddComponentNode = (nodeType: SystemNode["nodeType"], title: string, subtitle: string) => {
+    if (isReadOnly) return;
 
-    // Create a temporary canvas for export
-    const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = canvas.width;
-    exportCanvas.height = canvas.height;
-    const ctx = exportCanvas.getContext("2d");
-    if (!ctx) return;
-
-    // Draw background
-    ctx.fillStyle = "#09090b"; // Dark background
-    ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-
-    // Draw elements
-    ctx.save();
-    ctx.translate(pan.x, pan.y);
-    ctx.scale(zoom, zoom);
-    renderAllElements(ctx, elements);
-    ctx.restore();
-
-    // Trigger download
-    const dataUrl = exportCanvas.toDataURL("image/png");
-    const link = document.createElement("a");
-    link.download = `${slate?.title || "slate"}-canvas.png`;
-    link.href = dataUrl;
-    link.click();
-  };
-
-  // Screen to Canvas Coordinates helper
-  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.clientX - rect.left;
-    const clientY = e.clientY - rect.top;
-
-    return {
-      x: (clientX - pan.x) / zoom,
-      y: (clientY - pan.y) / zoom,
+    const newNode: SystemNode = {
+      id: `node-${Date.now()}`,
+      type: "node",
+      nodeType,
+      title,
+      subtitle,
+      x: 200 + Math.random() * 100,
+      y: 200 + Math.random() * 100,
+      width: 180,
+      height: 90,
+      strokeColor: "#a855f7",
+      fillColor: "#121217",
+      strokeWidth: 2,
     };
+
+    const updated = [...elements, newNode];
+    setElements(updated);
+    saveElementsToConvex(updated);
+    setIsLibraryOpen(false);
+    setSelectedId(newNode.id);
   };
 
-  // Render Engine
-  const renderAllElements = (ctx: CanvasRenderingContext2D, els: CanvasElement[]) => {
+  // Render Canvas Nodes & Live Multiplayer Cursors
+  const renderAllNodes = (ctx: CanvasRenderingContext2D, els: SystemNode[]) => {
+    // 1. Render Shapes & Architecture Nodes
     els.forEach((el) => {
-      ctx.strokeStyle = el.strokeColor;
-      ctx.fillStyle = el.fillColor;
-      ctx.lineWidth = el.strokeWidth;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-
-      // Highlight selected
+      ctx.save();
       const isSelected = el.id === selectedId;
 
-      ctx.save();
+      if (el.type === "node") {
+        ctx.fillStyle = el.fillColor || "#121217";
+        ctx.strokeStyle = isSelected ? "#a855f7" : "#27272a";
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
 
-      switch (el.type) {
-        case "pencil":
-          if (el.points && el.points.length > 0) {
-            ctx.beginPath();
-            ctx.moveTo(el.points[0].x, el.points[0].y);
-            for (let i = 1; i < el.points.length; i++) {
-              ctx.lineTo(el.points[i].x, el.points[i].y);
-            }
-            ctx.stroke();
+        const radius = 12;
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, el.width, el.height, radius);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "#a855f7";
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, el.width, 4, [radius, radius, 0, 0]);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillText(el.title, el.x + 16, el.y + 36);
+
+        if (el.subtitle) {
+          ctx.fillStyle = "#a1a1aa";
+          ctx.font = "11px sans-serif";
+          ctx.fillText(el.subtitle, el.x + 16, el.y + 58);
+        }
+
+      } else if (el.type === "rectangle") {
+        ctx.fillStyle = el.fillColor;
+        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+        ctx.lineWidth = el.strokeWidth;
+        if (el.fillColor !== "transparent") ctx.fillRect(el.x, el.y, el.width, el.height);
+        ctx.strokeRect(el.x, el.y, el.width, el.height);
+
+      } else if (el.type === "circle") {
+        ctx.fillStyle = el.fillColor;
+        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+        ctx.lineWidth = el.strokeWidth;
+        ctx.beginPath();
+        const rx = Math.abs(el.width) / 2;
+        const ry = Math.abs(el.height) / 2;
+        ctx.ellipse(el.x + rx, el.y + ry, rx, ry, 0, 0, 2 * Math.PI);
+        if (el.fillColor !== "transparent") ctx.fill();
+        ctx.stroke();
+
+      } else if (el.type === "arrow") {
+        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+        ctx.lineWidth = el.strokeWidth;
+        const fromX = el.x;
+        const fromY = el.y;
+        const toX = el.x + el.width;
+        const toY = el.y + el.height;
+
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.lineTo(toX, toY);
+        ctx.stroke();
+
+        const headlen = 14;
+        const angle = Math.atan2(toY - fromY, toX - fromX);
+        ctx.beginPath();
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+
+      } else if (el.type === "line") {
+        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+        ctx.lineWidth = el.strokeWidth;
+        ctx.beginPath();
+        ctx.moveTo(el.x, el.y);
+        ctx.lineTo(el.x + el.width, el.y + el.height);
+        ctx.stroke();
+
+      } else if (el.type === "pencil" && el.points) {
+        ctx.strokeStyle = isSelected ? "#a855f7" : el.strokeColor;
+        ctx.lineWidth = el.strokeWidth;
+        if (el.points.length > 0) {
+          ctx.beginPath();
+          ctx.moveTo(el.points[0].x, el.points[0].y);
+          for (let i = 1; i < el.points.length; i++) {
+            ctx.lineTo(el.points[i].x, el.points[i].y);
           }
-          break;
-
-        case "rectangle":
-          if (el.width !== undefined && el.height !== undefined) {
-            if (el.fillColor !== "transparent") {
-              ctx.fillRect(el.x, el.y, el.width, el.height);
-            }
-            ctx.strokeRect(el.x, el.y, el.width, el.height);
-          }
-          break;
-
-        case "circle":
-          if (el.width !== undefined && el.height !== undefined) {
-            const rx = Math.abs(el.width) / 2;
-            const ry = Math.abs(el.height) / 2;
-            const cx = el.x + el.width / 2;
-            const cy = el.y + el.height / 2;
-
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
-            if (el.fillColor !== "transparent") {
-              ctx.fill();
-            }
-            ctx.stroke();
-          }
-          break;
-
-        case "line":
-          if (el.width !== undefined && el.height !== undefined) {
-            ctx.beginPath();
-            ctx.moveTo(el.x, el.y);
-            ctx.lineTo(el.x + el.width, el.y + el.height);
-            ctx.stroke();
-          }
-          break;
-
-        case "arrow":
-          if (el.width !== undefined && el.height !== undefined) {
-            const fromX = el.x;
-            const fromY = el.y;
-            const toX = el.x + el.width;
-            const toY = el.y + el.height;
-
-            const headlen = 15; // length of head in pixels
-            const dx = toX - fromX;
-            const dy = toY - fromY;
-            const angle = Math.atan2(dy, dx);
-
-            // Draw line
-            ctx.beginPath();
-            ctx.moveTo(fromX, fromY);
-            ctx.lineTo(toX, toY);
-            ctx.stroke();
-
-            // Draw arrowhead
-            ctx.beginPath();
-            ctx.moveTo(toX, toY);
-            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
-            ctx.moveTo(toX, toY);
-            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
-            ctx.stroke();
-          }
-          break;
-
-        case "text":
-          ctx.font = `${el.fontSize || 20}px sans-serif`;
-          ctx.fillStyle = el.strokeColor;
-          ctx.fillText(el.text || "Type text...", el.x, el.y);
-          break;
-
-        case "sticky":
-          const w = el.width || 160;
-          const h = el.height || 140;
-
-          // Sticky Note Background
-          ctx.fillStyle = el.fillColor === "transparent" ? "#fef08a" : el.fillColor; // Default yellow
-          ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
-          ctx.shadowBlur = 10;
-          ctx.shadowOffsetY = 4;
-          ctx.fillRect(el.x, el.y, w, h);
-          ctx.shadowColor = "transparent";
-
-          // Sticky Note Border
-          ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
-          ctx.strokeRect(el.x, el.y, w, h);
-
-          // Sticky Note Text
-          ctx.fillStyle = "#18181b"; // Dark text
-          ctx.font = "bold 15px sans-serif";
-          
-          // Basic multi-line text wrapping for sticky note
-          const lines = (el.text || "Sticky Note").split("\n");
-          lines.forEach((line, idx) => {
-            ctx.fillText(line, el.x + 12, el.y + 28 + (idx * 20));
-          });
-          break;
-
-        default:
-          break;
+          ctx.stroke();
+        }
+      } else if (el.type === "text") {
+        ctx.fillStyle = el.strokeColor;
+        ctx.font = "bold 15px sans-serif";
+        ctx.fillText(el.text || "Text Label", el.x, el.y);
       }
 
-      // Draw Selection Bounding Box
       if (isSelected) {
         ctx.strokeStyle = "#a855f7";
         ctx.lineWidth = 1.5;
         ctx.setLineDash([4, 4]);
-
-        let minX = el.x;
-        let minY = el.y;
-        let maxX = el.x + (el.width || 0);
-        let maxY = el.y + (el.height || 0);
-
-        if (el.type === "pencil" && el.points) {
-          minX = Math.min(...el.points.map((p) => p.x));
-          minY = Math.min(...el.points.map((p) => p.y));
-          maxX = Math.max(...el.points.map((p) => p.x));
-          maxY = Math.max(...el.points.map((p) => p.y));
-        }
-
-        const padding = 6;
-        ctx.strokeRect(
-          minX - padding,
-          minY - padding,
-          maxX - minX + padding * 2,
-          maxY - minY + padding * 2
-        );
+        ctx.strokeRect(el.x - 4, el.y - 4, el.width + 8, el.height + 8);
         ctx.setLineDash([]);
       }
 
       ctx.restore();
     });
+
+    // 2. Render Live Multiplayer Cursors (Teammates)
+    if (activePresence && activePresence.length > 0) {
+      const teammateColors = ["#ec4899", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"];
+
+      activePresence.forEach((p, idx) => {
+        if (p.userId === myUserId) return; // Skip own cursor
+
+        ctx.save();
+        const cursorColor = teammateColors[idx % teammateColors.length];
+
+        // Cursor Pointer Arrow
+        ctx.fillStyle = cursorColor;
+        ctx.beginPath();
+        ctx.moveTo(p.cursorX, p.cursorY);
+        ctx.lineTo(p.cursorX + 14, p.cursorY + 14);
+        ctx.lineTo(p.cursorX + 6, p.cursorY + 16);
+        ctx.lineTo(p.cursorX, p.cursorY + 22);
+        ctx.closePath();
+        ctx.fill();
+
+        // User Name Pill Tag
+        ctx.fillStyle = cursorColor;
+        const tagX = p.cursorX + 12;
+        const tagY = p.cursorY + 18;
+        const tagText = p.userName || "Teammate";
+
+        ctx.font = "bold 11px sans-serif";
+        const textMetrics = ctx.measureText(tagText);
+        const tagWidth = textMetrics.width + 12;
+
+        ctx.beginPath();
+        ctx.roundRect(tagX, tagY, tagWidth, 20, 6);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(tagText, tagX + 6, tagY + 14);
+
+        ctx.restore();
+      });
+    }
   };
 
-  // Main Canvas Animation Render Loop
+  // Canvas Mouse Interaction
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isReadOnly) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / (zoom / 100);
+    const y = (e.clientY - rect.top) / (zoom / 100);
+
+    if (activeTool === "eraser") {
+      const remaining = elements.filter((el) => {
+        return !(x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height);
+      });
+      setElements(remaining);
+      saveElementsToConvex(remaining);
+      return;
+    }
+
+    if (activeTool === "select") {
+      const clicked = [...elements].reverse().find((el) => {
+        return x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height;
+      });
+      setSelectedId(clicked ? clicked.id : null);
+      return;
+    }
+
+    setIsDrawing(true);
+    const newId = `shape-${Date.now()}`;
+
+    if (activeTool === "pencil") {
+      setCurrentElement({
+        id: newId,
+        type: "pencil",
+        x,
+        y,
+        width: 0,
+        height: 0,
+        points: [{ x, y }],
+        strokeColor,
+        fillColor: "transparent",
+        strokeWidth: 2,
+      });
+    } else if (activeTool === "text") {
+      const textVal = prompt("Enter text:", "Architecture Note");
+      if (textVal) {
+        const newText: SystemNode = {
+          id: newId,
+          type: "text",
+          title: textVal,
+          x,
+          y,
+          width: 120,
+          height: 30,
+          text: textVal,
+          strokeColor,
+          fillColor: "transparent",
+          strokeWidth: 2,
+        };
+        const updated = [...elements, newText];
+        setElements(updated);
+        saveElementsToConvex(updated);
+      }
+      setIsDrawing(false);
+    } else {
+      setCurrentElement({
+        id: newId,
+        type: activeTool,
+        title: "",
+        x,
+        y,
+        width: 0,
+        height: 0,
+        strokeColor,
+        fillColor,
+        strokeWidth: 2,
+      });
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / (zoom / 100);
+    const y = (e.clientY - rect.top) / (zoom / 100);
+
+    // Broadcast cursor to multiplayer teammates
+    broadcastPresence(x, y);
+
+    if (isReadOnly || !isDrawing || !currentElement) return;
+
+    if (currentElement.type === "pencil") {
+      setCurrentElement({
+        ...currentElement,
+        points: [...(currentElement.points || []), { x, y }],
+      });
+    } else {
+      setCurrentElement({
+        ...currentElement,
+        width: x - currentElement.x,
+        height: y - currentElement.y,
+      });
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    if (isReadOnly) return;
+    if (isDrawing && currentElement) {
+      const updated = [...elements, currentElement];
+      setElements(updated);
+      saveElementsToConvex(updated);
+      setCurrentElement(null);
+      setIsDrawing(false);
+    }
+  };
+
+  // Render Loop
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Handle HiDPI screens
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = canvas.parentElement?.clientWidth || window.innerWidth;
+    canvas.height = canvas.parentElement?.clientHeight || window.innerHeight;
 
-    // Clear Screen
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply Transformation Matrix
     ctx.save();
-    ctx.translate(pan.x, pan.y);
-    ctx.scale(zoom, zoom);
+    ctx.scale(zoom / 100, zoom / 100);
 
-    // Combine static elements with currently active drawing element
     const allEls = currentElement ? [...elements, currentElement] : elements;
-    renderAllElements(ctx, allEls);
+    renderAllNodes(ctx, allEls);
 
     ctx.restore();
-  }, [elements, currentElement, selectedId, pan, zoom]);
+  }, [elements, currentElement, selectedId, activePresence, zoom, viewMode]);
 
-  // Window Resize Listener
-  React.useEffect(() => {
-    const handleResize = () => {
-      if (canvasRef.current) {
-        canvasRef.current.width = window.innerWidth;
-        canvasRef.current.height = window.innerHeight;
-      }
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  // AI Chat Submit Handler
+  const handleSendAi = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiInput.trim()) return;
 
-  // Mouse Handlers
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const coords = getCanvasCoords(e);
+    const userMsg = { role: "user" as const, text: aiInput };
+    setAiMessages((prev) => [...prev, userMsg]);
+    setAiInput("");
 
-    // Hand Tool / Middle Click Pan
-    if (activeTool === "hand" || e.button === 1) {
-      setIsPanning(true);
-      setStartPan({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-      return;
-    }
-
-    // Eraser Tool
-    if (activeTool === "eraser") {
-      const remaining = elements.filter((el) => {
-        // Simple hit test
-        const dist = Math.hypot(el.x - coords.x, el.y - coords.y);
-        return dist > 30;
-      });
-      if (remaining.length !== elements.length) {
-        pushHistory(remaining);
-      }
-      return;
-    }
-
-    // Select Tool Hit Test
-    if (activeTool === "select") {
-      const clickedEl = [...elements].reverse().find((el) => {
-        if (el.type === "rectangle" || el.type === "sticky" || el.type === "circle") {
-          return (
-            coords.x >= el.x &&
-            coords.x <= el.x + (el.width || 0) &&
-            coords.y >= el.y &&
-            coords.y <= el.y + (el.height || 0)
-          );
-        }
-        const dist = Math.hypot(el.x - coords.x, el.y - coords.y);
-        return dist < 40;
-      });
-
-      setSelectedId(clickedEl ? clickedEl.id : null);
-      return;
-    }
-
-    // Drawing Tools
-    setIsDrawing(true);
-    const newId = `el-${Date.now()}`;
-
-    if (activeTool === "pencil") {
-      setCurrentElement({
-        id: newId,
-        type: "pencil",
-        x: coords.x,
-        y: coords.y,
-        points: [{ x: coords.x, y: coords.y }],
-        strokeColor,
-        fillColor,
-        strokeWidth,
-      });
-    } else if (activeTool === "text") {
-      const textVal = prompt("Enter text:", "Sample Text");
-      if (textVal) {
-        const newTextEl: CanvasElement = {
-          id: newId,
-          type: "text",
-          x: coords.x,
-          y: coords.y,
-          text: textVal,
-          fontSize,
-          strokeColor,
-          fillColor: "transparent",
-          strokeWidth,
-        };
-        pushHistory([...elements, newTextEl]);
-      }
-      setIsDrawing(false);
-    } else if (activeTool === "sticky") {
-      const textVal = prompt("Enter sticky note text:", "Idea Note");
-      if (textVal) {
-        const newStickyEl: CanvasElement = {
-          id: newId,
-          type: "sticky",
-          x: coords.x,
-          y: coords.y,
-          width: 160,
-          height: 140,
-          text: textVal,
-          strokeColor: "#000000",
-          fillColor: fillColor === "transparent" ? "#fef08a" : fillColor,
-          strokeWidth: 1,
-        };
-        pushHistory([...elements, newStickyEl]);
-      }
-      setIsDrawing(false);
-    } else {
-      // Shapes: rectangle, circle, line, arrow
-      setCurrentElement({
-        id: newId,
-        type: activeTool,
-        x: coords.x,
-        y: coords.y,
-        width: 0,
-        height: 0,
-        strokeColor,
-        fillColor,
-        strokeWidth,
-      });
-    }
+    setTimeout(() => {
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: "I've analyzed your system architecture nodes. Would you like me to generate a Redis Cache node or add a Load Balancer?",
+        },
+      ]);
+    }, 800);
   };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    // Pan Mode
-    if (isPanning) {
-      setPan({
-        x: e.clientX - startPan.x,
-        y: e.clientY - startPan.y,
-      });
-      return;
-    }
-
-    if (!isDrawing || !currentElement) return;
-    const coords = getCanvasCoords(e);
-
-    if (currentElement.type === "pencil") {
-      setCurrentElement({
-        ...currentElement,
-        points: [...(currentElement.points || []), coords],
-      });
-    } else {
-      setCurrentElement({
-        ...currentElement,
-        width: coords.x - currentElement.x,
-        height: coords.y - currentElement.y,
-      });
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (isPanning) {
-      setIsPanning(false);
-      return;
-    }
-
-    if (isDrawing && currentElement) {
-      pushHistory([...elements, currentElement]);
-      setCurrentElement(null);
-      setIsDrawing(false);
-    }
-  };
-
-  // Keyboard Shortcuts
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "v") setActiveTool("select");
-      if (e.key === "h") setActiveTool("hand");
-      if (e.key === "p") setActiveTool("pencil");
-      if (e.key === "r") setActiveTool("rectangle");
-      if (e.key === "c") setActiveTool("circle");
-      if (e.key === "a") setActiveTool("arrow");
-      if (e.key === "l") setActiveTool("line");
-      if (e.key === "t") setActiveTool("text");
-      if (e.key === "n") setActiveTool("sticky");
-      if (e.key === "e") setActiveTool("eraser");
-
-      // Delete selected
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
-        const remaining = elements.filter((el) => el.id !== selectedId);
-        pushHistory(remaining);
-        setSelectedId(null);
-      }
-
-      // Undo/Redo Shortcuts
-      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
-        if (e.shiftKey) {
-          handleRedo();
-        } else {
-          handleUndo();
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedId, elements, historyIndex, history]);
-
-  // Color Swatches
-  const strokeColors = [
-    "#a855f7", // Purple
-    "#ffffff", // White
-    "#3b82f6", // Blue
-    "#10b981", // Emerald
-    "#f59e0b", // Amber
-    "#ef4444", // Red
-    "#ec4899", // Pink
-  ];
-
-  const fillColors = [
-    "transparent",
-    "#18181b", // Dark
-    "#fef08a", // Soft Yellow (Sticky)
-    "#bbf7d0", // Soft Green
-    "#bfdbfe", // Soft Blue
-    "#fbcfe8", // Soft Pink
-  ];
 
   return (
     <TooltipProvider>
-      <div className="relative w-screen h-screen overflow-hidden bg-[#08080a] text-neutral-100 select-none font-sans">
+      <div className="flex flex-col h-screen w-screen bg-[#09090b] text-neutral-100 font-sans overflow-hidden select-none">
         
-        {/* Background Grid Pattern */}
-        <div 
-          className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${
-            gridStyle === "plain" 
-              ? "opacity-0" 
-              : gridStyle === "grid"
-                ? "bg-[linear-gradient(to_right,#1f1f23_1px,transparent_1px),linear-gradient(to_bottom,#1f1f23_1px,transparent_1px)] bg-[size:2rem_2rem] opacity-40"
-                : "bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:24px_24px] opacity-70"
-          }`}
-        />
-
-        {/* HEADER CONTROL BAR */}
-        <header className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-none">
+        {/* TOP HEADER NAVIGATION BAR */}
+        <header className="h-14 border-b border-neutral-800 bg-[#0c0c0e] px-4 flex items-center justify-between shrink-0 z-40">
           
-          {/* Left Controls: Back & Title */}
-          <div className="flex items-center gap-3 pointer-events-auto">
-            <Link 
-              href="/dashboard"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-neutral-900/90 border border-neutral-800/80 backdrop-blur-md text-sm font-bold text-neutral-300 hover:text-white hover:bg-neutral-800 transition-all shadow-xl"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Dashboard
+          {/* Left Title & Access Mode Badge */}
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-2 group">
+              <Image
+                src="/logo.png"
+                alt="Slate Logo"
+                width={28}
+                height={28}
+                className="rounded-md shadow-md group-hover:scale-105 transition-transform"
+              />
+              <span className="font-bold text-sm tracking-tight text-white">
+                {slate?.title || "LLD Design"}
+              </span>
             </Link>
 
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-neutral-900/90 border border-neutral-800/80 backdrop-blur-md shadow-xl">
-              <span className="text-xl filter drop-shadow-sm">{slate?.thumbnailIcon || "📐"}</span>
-              <span className="text-sm font-extrabold text-white tracking-tight">
-                {slate?.title || "Loading Canvas..."}
-              </span>
-              
-              {/* Save Status Indicator */}
-              <div className="ml-2 pl-2 border-l border-neutral-800 flex items-center gap-1.5 text-[11px] font-semibold">
-                {isSaving ? (
+            {/* Read-Only vs Edit Mode Indicator */}
+            {isReadOnly ? (
+              <div className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold flex items-center gap-1">
+                <Eye className="w-3 h-3" />
+                View Only
+              </div>
+            ) : (
+              <div className="px-2.5 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-bold flex items-center gap-1">
+                <Edit3 className="w-3 h-3" />
+                Edit Access
+              </div>
+            )}
+
+            {/* Save Status Badge */}
+            {!isReadOnly && (
+              <div className="text-[11px] font-semibold text-neutral-500 flex items-center gap-1.5 ml-1 border-l border-neutral-800 pl-3">
+                {isCanvasSaving || isDocSaving ? (
                   <span className="text-purple-400 flex items-center gap-1">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Saving...
@@ -664,359 +623,448 @@ export default function CanvasPage() {
                 ) : (
                   <span className="text-emerald-400 flex items-center gap-1">
                     <Check className="w-3 h-3" />
-                    Saved
+                    Synced
                   </span>
                 )}
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Right Controls: History, Clear, Export */}
-          <div className="flex items-center gap-2 pointer-events-auto bg-neutral-900/90 border border-neutral-800/80 p-1.5 rounded-2xl backdrop-blur-md shadow-xl">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon-sm"
-                  onClick={handleUndo}
-                  disabled={historyIndex <= 0}
-                  className="text-neutral-400 hover:text-white cursor-pointer disabled:opacity-40"
-                >
-                  <Undo2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
-            </Tooltip>
+          {/* CENTER MODE SWITCHER: Document | Both | Canvas */}
+          <div className="flex items-center p-1 rounded-xl bg-neutral-950 border border-neutral-800">
+            <button
+              onClick={() => setViewMode("document")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                viewMode === "document" 
+                  ? "bg-neutral-800 text-white shadow-sm" 
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Document
+            </button>
+            <button
+              onClick={() => setViewMode("both")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                viewMode === "both" 
+                  ? "bg-neutral-800 text-white shadow-sm" 
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              <Layout className="w-3.5 h-3.5" />
+              Both
+            </button>
+            <button
+              onClick={() => setViewMode("canvas")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                viewMode === "canvas" 
+                  ? "bg-neutral-800 text-white shadow-sm" 
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              Canvas
+            </button>
+          </div>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon-sm"
-                  onClick={handleRedo}
-                  disabled={historyIndex >= history.length - 1}
-                  className="text-neutral-400 hover:text-white cursor-pointer disabled:opacity-40"
-                >
-                  <Redo2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Redo (Ctrl+Shift+Z)</TooltipContent>
-            </Tooltip>
+          {/* RIGHT ACTIONS: Teammates Avatars, Share Dialog, AI Chat */}
+          <div className="flex items-center gap-3">
+            
+            {/* ACTIVE MULTIPLAYER TEAMMATES BAR */}
+            <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 px-2.5 py-1 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1" />
+              <span className="text-[11px] font-bold text-neutral-300">
+                {activePresence ? activePresence.length : 1} Live
+              </span>
+              <div className="flex -space-x-1.5 ml-1">
+                {activePresence?.map((p, idx) => (
+                  <div
+                    key={p._id || idx}
+                    className="w-5 h-5 rounded-full bg-purple-600 border border-neutral-950 flex items-center justify-center text-[9px] font-bold text-white uppercase overflow-hidden"
+                    title={p.userName}
+                  >
+                    {p.userAvatar ? (
+                      <img src={p.userAvatar} alt={p.userName} className="w-full h-full object-cover" />
+                    ) : (
+                      p.userName?.charAt(0) || "U"
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
 
-            <div className="w-px h-5 bg-neutral-800 mx-1" />
+            {/* SHARE DIALOG WITH PERMISSIONS */}
+            <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
+              <DialogTrigger asChild>
+                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/10 border border-purple-500/30 text-xs font-bold text-purple-400 hover:bg-purple-600 hover:text-white transition-all cursor-pointer shadow-md">
+                  <Share2 className="w-3.5 h-3.5" />
+                  Share
+                </button>
+              </DialogTrigger>
+              <DialogContent className="bg-neutral-950 border-neutral-900 text-white max-w-md">
+                <DialogHeader className="mb-3">
+                  <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                    <Users className="w-5 h-5 text-purple-500" />
+                    Collaborate & Share Slate
+                  </DialogTitle>
+                  <DialogDescription className="text-neutral-400">
+                    Invite team members to view or edit this architecture canvas in real-time.
+                  </DialogDescription>
+                </DialogHeader>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon-sm"
-                  onClick={handleClear}
-                  className="text-neutral-400 hover:text-red-400 cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Clear Canvas</TooltipContent>
-            </Tooltip>
+                <div className="space-y-4 mb-4">
+                  {/* Edit Permission Link */}
+                  <div className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Edit3 className="w-3.5 h-3.5 text-purple-400" />
+                        Edit Access Link
+                      </span>
+                      <span className="text-[10px] text-purple-400 font-semibold">Can edit & draw</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={typeof window !== "undefined" ? `${window.location.origin}/canvas/${id}?mode=edit` : ""}
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-1.5 text-xs text-neutral-300 font-mono outline-none"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleCopyLink("edit")}
+                        className="rounded-xl bg-purple-600 text-white hover:bg-purple-700 cursor-pointer text-xs flex items-center gap-1 shrink-0"
+                      >
+                        {copiedType === "edit" ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedType === "edit" ? "Copied!" : "Copy"}
+                      </Button>
+                    </div>
+                  </div>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExportPNG}
-                  className="flex items-center gap-1.5 rounded-xl border-neutral-800 bg-purple-600/10 text-purple-400 hover:bg-purple-600 hover:text-white transition-all cursor-pointer font-bold text-xs"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Export PNG
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Export Canvas as PNG Image</TooltipContent>
-            </Tooltip>
+                  {/* View Only Permission Link */}
+                  <div className="p-3 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Eye className="w-3.5 h-3.5 text-amber-400" />
+                        View Only Link
+                      </span>
+                      <span className="text-[10px] text-amber-400 font-semibold">Read-only presentation</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={typeof window !== "undefined" ? `${window.location.origin}/canvas/${id}?mode=view` : ""}
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-1.5 text-xs text-neutral-300 font-mono outline-none"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleCopyLink("view")}
+                        className="rounded-xl bg-neutral-800 text-white hover:bg-neutral-700 cursor-pointer text-xs flex items-center gap-1 shrink-0"
+                      >
+                        {copiedType === "view" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedType === "view" ? "Copied!" : "Copy"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* AI CHAT BUTTON */}
+            <Button
+              onClick={() => setIsAiChatOpen(!isAiChatOpen)}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all cursor-pointer ${
+                isAiChatOpen 
+                  ? "bg-purple-700 shadow-lg shadow-purple-900/40" 
+                  : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 shadow-md shadow-purple-600/20"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              ✨ AI Chat
+            </Button>
+
+            {/* Zoom Percentage */}
+            <div className="flex items-center gap-1 text-xs font-bold text-neutral-400 border-l border-neutral-800 pl-3">
+              <span>{zoom}%</span>
+            </div>
           </div>
         </header>
 
-        {/* FLOATING TOP TOOLBAR */}
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-30 flex items-center gap-1.5 p-2 rounded-2xl bg-neutral-900/90 border border-neutral-800/80 shadow-2xl backdrop-blur-md">
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
+        {/* MAIN BODY AREA */}
+        <div className="flex-1 flex overflow-hidden relative">
+
+          {/* LEFT VERTICAL FLOATING TOOLBAR DOCK (Disabled if Read-Only) */}
+          {viewMode !== "document" && (
+            <aside className={`absolute top-6 left-6 z-30 flex flex-col gap-1 p-1.5 rounded-2xl bg-[#101014] border border-neutral-800/80 shadow-2xl backdrop-blur-md ${
+              isReadOnly ? "opacity-50 pointer-events-none" : ""
+            }`}>
+              <Dialog open={isLibraryOpen} onOpenChange={setIsLibraryOpen}>
+                <DialogTrigger asChild>
+                  <button className="p-2.5 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer group">
+                    <Plus className="w-4.5 h-4.5 text-purple-400 group-hover:scale-110 transition-transform" />
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="bg-neutral-950 border-neutral-900 text-white max-w-lg">
+                  <DialogHeader className="mb-4">
+                    <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-purple-500" />
+                      System Architecture Component Library
+                    </DialogTitle>
+                    <DialogDescription className="text-neutral-400">
+                      Click any architecture component to insert it directly onto your canvas.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <button
+                      onClick={() => handleAddComponentNode("database", "PostgreSQL Database", "Primary Relational DB")}
+                      className="p-3.5 rounded-2xl border border-neutral-800 bg-neutral-900/60 hover:border-purple-500/40 hover:bg-neutral-800/40 text-left transition-all cursor-pointer flex items-center gap-3 group"
+                    >
+                      <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 group-hover:scale-110 transition-transform">
+                        <Database className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white">Database Node</h4>
+                        <p className="text-[10px] text-neutral-400">Postgres / MongoDB</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleAddComponentNode("gateway", "API Gateway", "REST & GraphQL Router")}
+                      className="p-3.5 rounded-2xl border border-neutral-800 bg-neutral-900/60 hover:border-indigo-500/40 hover:bg-neutral-800/40 text-left transition-all cursor-pointer flex items-center gap-3 group"
+                    >
+                      <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 group-hover:scale-110 transition-transform">
+                        <Zap className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white">API Gateway</h4>
+                        <p className="text-[10px] text-neutral-400">Entry Route Handler</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleAddComponentNode("server", "Microservice Cluster", "Node.js Server Instances")}
+                      className="p-3.5 rounded-2xl border border-neutral-800 bg-neutral-900/60 hover:border-emerald-500/40 hover:bg-neutral-800/40 text-left transition-all cursor-pointer flex items-center gap-3 group"
+                    >
+                      <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
+                        <Server className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white">Microservice</h4>
+                        <p className="text-[10px] text-neutral-400">Backend Application</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleAddComponentNode("balancer", "Load Balancer", "Nginx / ALB Distribution")}
+                      className="p-3.5 rounded-2xl border border-neutral-800 bg-neutral-900/60 hover:border-amber-500/40 hover:bg-neutral-800/40 text-left transition-all cursor-pointer flex items-center gap-3 group"
+                    >
+                      <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 group-hover:scale-110 transition-transform">
+                        <Cpu className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white">Load Balancer</h4>
+                        <p className="text-[10px] text-neutral-400">Traffic Distribution</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleAddComponentNode("cache", "Redis Cache", "In-Memory Session Store")}
+                      className="p-3.5 rounded-2xl border border-neutral-800 bg-neutral-900/60 hover:border-rose-500/40 hover:bg-neutral-800/40 text-left transition-all cursor-pointer flex items-center gap-3 group"
+                    >
+                      <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 group-hover:scale-110 transition-transform">
+                        <HardDrive className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white">Redis Cache</h4>
+                        <p className="text-[10px] text-neutral-400">High-speed Memory</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleAddComponentNode("client", "Client Frontend", "React / Mobile App")}
+                      className="p-3.5 rounded-2xl border border-neutral-800 bg-neutral-900/60 hover:border-sky-500/40 hover:bg-neutral-800/40 text-left transition-all cursor-pointer flex items-center gap-3 group"
+                    >
+                      <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 group-hover:scale-110 transition-transform">
+                        <Globe className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white">Client App</h4>
+                        <p className="text-[10px] text-neutral-400">Web / iOS / Android</p>
+                      </div>
+                    </button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <button
+                onClick={() => alert("AI Magic Layout Triggered")}
+                className="p-2.5 rounded-xl text-purple-400 hover:text-purple-300 hover:bg-neutral-800 transition-colors cursor-pointer"
+                title="✨ AI Magic Tool"
+              >
+                <Sparkles className="w-4.5 h-4.5" />
+              </button>
+
+              <div className="w-5 h-px bg-neutral-800 my-1 self-center" />
+
               <button
                 onClick={() => setActiveTool("select")}
                 className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "select" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                  activeTool === "select" ? "bg-neutral-800 text-white shadow-inner" : "text-neutral-400 hover:text-white"
                 }`}
+                title="Select (v)"
               >
                 <MousePointer className="w-4.5 h-4.5" />
               </button>
-            </TooltipTrigger>
-            <TooltipContent>Select / Move (V)</TooltipContent>
-          </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => setActiveTool("hand")}
-                className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "hand" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
-                }`}
-              >
-                <Hand className="w-4.5 h-4.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Hand / Pan (H)</TooltipContent>
-          </Tooltip>
-
-          <div className="w-px h-5 bg-neutral-800 mx-0.5" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => setActiveTool("pencil")}
-                className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "pencil" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
-                }`}
-              >
-                <Pencil className="w-4.5 h-4.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Freehand Pencil (P)</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
               <button
                 onClick={() => setActiveTool("rectangle")}
                 className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "rectangle" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                  activeTool === "rectangle" ? "bg-neutral-800 text-white shadow-inner" : "text-neutral-400 hover:text-white"
                 }`}
+                title="Rectangle (r)"
               >
                 <Square className="w-4.5 h-4.5" />
               </button>
-            </TooltipTrigger>
-            <TooltipContent>Rectangle (R)</TooltipContent>
-          </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
               <button
                 onClick={() => setActiveTool("circle")}
                 className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "circle" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                  activeTool === "circle" ? "bg-neutral-800 text-white shadow-inner" : "text-neutral-400 hover:text-white"
                 }`}
+                title="Circle (o)"
               >
                 <CircleIcon className="w-4.5 h-4.5" />
               </button>
-            </TooltipTrigger>
-            <TooltipContent>Circle / Ellipse (C)</TooltipContent>
-          </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
               <button
                 onClick={() => setActiveTool("arrow")}
                 className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "arrow" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                  activeTool === "arrow" ? "bg-neutral-800 text-white shadow-inner" : "text-neutral-400 hover:text-white"
                 }`}
+                title="Arrow (a)"
               >
                 <ArrowUpRight className="w-4.5 h-4.5" />
               </button>
-            </TooltipTrigger>
-            <TooltipContent>Arrow (A)</TooltipContent>
-          </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
               <button
                 onClick={() => setActiveTool("line")}
                 className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "line" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                  activeTool === "line" ? "bg-neutral-800 text-white shadow-inner" : "text-neutral-400 hover:text-white"
                 }`}
+                title="Line (l)"
               >
                 <Minus className="w-4.5 h-4.5" />
               </button>
-            </TooltipTrigger>
-            <TooltipContent>Straight Line (L)</TooltipContent>
-          </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => setActiveTool("text")}
-                className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "text" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
-                }`}
-              >
-                <Type className="w-4.5 h-4.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Text (T)</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => setActiveTool("sticky")}
-                className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "sticky" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
-                }`}
-              >
-                <StickyNote className="w-4.5 h-4.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Sticky Note (N)</TooltipContent>
-          </Tooltip>
-
-          <div className="w-px h-5 bg-neutral-800 mx-0.5" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
               <button
                 onClick={() => setActiveTool("eraser")}
                 className={`p-2.5 rounded-xl transition-all cursor-pointer ${
-                  activeTool === "eraser" 
-                    ? "bg-purple-600 text-white shadow-lg shadow-purple-900/30" 
-                    : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                  activeTool === "eraser" ? "bg-neutral-800 text-white shadow-inner" : "text-neutral-400 hover:text-white"
                 }`}
+                title="Eraser (e)"
               >
                 <Eraser className="w-4.5 h-4.5" />
               </button>
-            </TooltipTrigger>
-            <TooltipContent>Eraser (E)</TooltipContent>
-          </Tooltip>
-        </div>
 
-        {/* LEFT PROPERTIES SIDEBAR */}
-        <aside className="absolute top-36 left-4 z-30 w-52 p-4 rounded-3xl bg-neutral-900/90 border border-neutral-800/80 shadow-2xl backdrop-blur-md space-y-5">
-          {/* Stroke Colors */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-              <Palette className="w-3.5 h-3.5 text-purple-400" />
-              Stroke Color
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {strokeColors.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setStrokeColor(c)}
-                  className={`w-6 h-6 rounded-full border transition-transform cursor-pointer ${
-                    strokeColor === c ? "scale-125 ring-2 ring-purple-500 border-white" : "border-neutral-700 hover:scale-110"
-                  }`}
-                  style={{ backgroundColor: c }}
+              <button
+                onClick={() => setActiveTool("text")}
+                className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+                  activeTool === "text" ? "bg-neutral-800 text-white shadow-inner" : "text-neutral-400 hover:text-white"
+                }`}
+                title="Text (t)"
+              >
+                <Type className="w-4.5 h-4.5" />
+              </button>
+            </aside>
+          )}
+
+          {/* LEFT SIDE: MARKDOWN DOCUMENTATION EDITOR */}
+          {(viewMode === "document" || viewMode === "both") && (
+            <div className={`h-full border-r border-neutral-800 bg-[#0b0b0e] flex flex-col p-6 overflow-y-auto ${
+              viewMode === "both" ? "w-1/2" : "w-full"
+            }`}>
+              <div className="flex items-center justify-between mb-4 border-b border-neutral-900 pb-3">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4" />
+                  System Documentation
+                </span>
+                <span className="text-[10px] font-semibold text-neutral-500">
+                  {isReadOnly ? "Read Only" : "Auto-saving markdown"}
+                </span>
+              </div>
+
+              <textarea
+                value={docText}
+                readOnly={isReadOnly}
+                onChange={(e) => {
+                  setDocText(e.target.value);
+                  saveDocToConvex(e.target.value);
+                }}
+                placeholder="Write system documentation here..."
+                className="w-full h-full bg-transparent text-sm text-neutral-200 outline-none resize-none font-mono leading-relaxed placeholder-neutral-600 p-0 border-none focus:ring-0"
+              />
+            </div>
+          )}
+
+          {/* RIGHT SIDE: WHITEBOARD CANVAS */}
+          {(viewMode === "canvas" || viewMode === "both") && (
+            <div className={`h-full relative overflow-hidden bg-[#09090b] ${
+              viewMode === "both" ? "w-1/2" : "w-full"
+            }`}>
+              <canvas
+                ref={canvasRef}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
+                className={`w-full h-full block ${isReadOnly ? "cursor-default" : "cursor-crosshair"}`}
+              />
+            </div>
+          )}
+
+          {/* RIGHT SLIDE-OVER AI CHAT DRAWER */}
+          {isAiChatOpen && (
+            <aside className="absolute top-0 right-0 h-full w-80 bg-[#0d0d11]/95 border-l border-neutral-800 shadow-2xl backdrop-blur-xl z-50 flex flex-col justify-between">
+              <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
+                <span className="font-bold text-sm text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-400" />
+                  Slate Architecture AI
+                </span>
+                <button onClick={() => setIsAiChatOpen(false)} className="p-1 text-neutral-400 hover:text-white cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
+                {aiMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3 rounded-2xl ${
+                      msg.role === "user"
+                        ? "bg-purple-600/20 border border-purple-500/30 text-white ml-6"
+                        : "bg-neutral-900 border border-neutral-800 text-neutral-300 mr-6"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleSendAi} className="p-3 border-t border-neutral-800 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Ask AI to design system..."
+                  value={aiInput}
+                  onChange={(e) => setAiInput(e.target.value)}
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white outline-none placeholder-neutral-500"
                 />
-              ))}
-            </div>
-          </div>
-
-          {/* Fill Colors */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 block">
-              Fill Color
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {fillColors.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setFillColor(c)}
-                  className={`w-6 h-6 rounded-full border flex items-center justify-center text-[10px] transition-transform cursor-pointer ${
-                    fillColor === c ? "scale-125 ring-2 ring-purple-500 border-white" : "border-neutral-700 hover:scale-110"
-                  }`}
-                  style={{ backgroundColor: c === "transparent" ? "#18181b" : c }}
-                >
-                  {c === "transparent" && "🚫"}
+                <button type="submit" className="p-2 rounded-xl bg-purple-600 text-white hover:bg-purple-700 cursor-pointer">
+                  <Send className="w-3.5 h-3.5" />
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Stroke Width */}
-          <div className="space-y-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 block">
-              Line Thickness
-            </span>
-            <div className="flex items-center gap-2 bg-neutral-950 p-1.5 rounded-xl border border-neutral-800">
-              {[2, 4, 8].map((w) => (
-                <button
-                  key={w}
-                  onClick={() => setStrokeWidth(w)}
-                  className={`flex-1 py-1 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-                    strokeWidth === w ? "bg-purple-600 text-white" : "text-neutral-400 hover:text-white"
-                  }`}
-                >
-                  {w === 2 ? "Thin" : w === 4 ? "Medium" : "Thick"}
-                </button>
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        {/* BOTTOM LEFT ZOOM & GRID CONTROLS */}
-        <div className="absolute bottom-4 left-4 z-30 flex items-center gap-2 p-1.5 rounded-2xl bg-neutral-900/90 border border-neutral-800/80 shadow-2xl backdrop-blur-md">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setZoom(Math.max(0.2, zoom - 0.1))}
-            className="text-neutral-400 hover:text-white cursor-pointer"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </Button>
-
-          <button
-            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-            className="text-xs font-extrabold text-neutral-300 px-2 py-1 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setZoom(Math.min(3, zoom + 0.1))}
-            className="text-neutral-400 hover:text-white cursor-pointer"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </Button>
-
-          <div className="w-px h-4 bg-neutral-800 mx-1" />
-
-          {/* Grid Style Switcher */}
-          <button
-            onClick={() => setGridStyle(gridStyle === "dots" ? "grid" : gridStyle === "grid" ? "plain" : "dots")}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
-          >
-            <Grid className="w-3.5 h-3.5" />
-            <span className="capitalize">{gridStyle}</span>
-          </button>
+              </form>
+            </aside>
+          )}
         </div>
-
-        {/* CANVAS DRAWING ELEMENT */}
-        <canvas
-          ref={canvasRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          className={`w-full h-full block ${
-            activeTool === "hand" ? "cursor-grab active:cursor-grabbing" : activeTool === "eraser" ? "cursor-crosshair" : "cursor-crosshair"
-          }`}
-        />
       </div>
     </TooltipProvider>
   );

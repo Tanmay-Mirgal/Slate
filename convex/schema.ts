@@ -19,6 +19,18 @@ export default defineSchema({
     lastEdited: v.number(),
     thumbnailIcon: v.string(),
     elements: v.optional(v.string()),
+    documentText: v.optional(v.string()),
   })
   .index("by_userId", ["userId"]),
+
+  presence: defineTable({
+    slateId: v.id("slates"),
+    userId: v.string(),
+    userName: v.string(),
+    userAvatar: v.optional(v.string()),
+    cursorX: v.number(),
+    cursorY: v.number(),
+    lastSeen: v.number(),
+  })
+  .index("by_slateId", ["slateId"]),
 });

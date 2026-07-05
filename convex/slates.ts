@@ -179,3 +179,85 @@ export const updateElements = mutation({
     return args.id;
   },
 });
+
+// Update document markdown text
+export const updateDocument = mutation({
+  args: {
+    id: v.id("slates"),
+    documentText: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Unauthenticated");
+    }
+
+    const existing = await ctx.db.get(args.id);
+    if (!existing) {
+      throw new Error("Slate not found");
+    }
+
+    await ctx.db.patch(args.id, {
+      documentText: args.documentText,
+      lastEdited: Date.now(),
+    });
+
+    return args.id;
+  },
+});
+
+// Update real-time multiplayer presence (cursor position & status)
+export const updatePresence = mutation({
+  args: {
+    slateId: v.id("slates"),
+    userId: v.string(),
+    userName: v.string(),
+    userAvatar: v.optional(v.string()),
+    cursorX: v.number(),
+    cursorY: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("presence")
+      .withIndex("by_slateId", (q) => q.eq("slateId", args.slateId))
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .first();
+
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        userName: args.userName,
+        userAvatar: args.userAvatar,
+        cursorX: args.cursorX,
+        cursorY: args.cursorY,
+        lastSeen: now,
+      });
+    } else {
+      await ctx.db.insert("presence", {
+        slateId: args.slateId,
+        userId: args.userId,
+        userName: args.userName,
+        userAvatar: args.userAvatar,
+        cursorX: args.cursorX,
+        cursorY: args.cursorY,
+        lastSeen: now,
+      });
+    }
+  },
+});
+
+// Query active presence for a slate (active within the last 15 seconds)
+export const getPresence = query({
+  args: { slateId: v.id("slates") },
+  handler: async (ctx, args) => {
+    const cutoff = Date.now() - 15000;
+    const list = await ctx.db
+      .query("presence")
+      .withIndex("by_slateId", (q) => q.eq("slateId", args.slateId))
+      .filter((q) => q.gte(q.field("lastSeen"), cutoff))
+      .collect();
+
+    return list;
+  },
+});
