@@ -151,14 +151,15 @@ export default function DashboardPage() {
       {/* Sidebar */}
       <aside className={`w-64 border-r flex flex-col justify-between shrink-0 ${theme === "dark" ? "border-neutral-900 bg-neutral-950" : "border-neutral-200 bg-white"}`}>
         <div>
-          {/* Sidebar Logo */}
-          <div className={`h-16 px-6 border-b flex items-center gap-2.5 ${theme === "dark" ? "border-neutral-900" : "border-neutral-200"}`}>
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 p-0.5 shadow-md">
-              <div className="w-full h-full rounded-[6px] bg-neutral-950 flex items-center justify-center">
-                <Paintbrush className="w-4 h-4 text-purple-400" />
-              </div>
-            </div>
-            <span className="text-md font-bold tracking-tight bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
+          <div className={`h-16 px-6 border-b flex items-center gap-2 ${theme === "dark" ? "border-neutral-900" : "border-neutral-200"}`}>
+            <Image
+              src="/logo.png"
+              alt="Slate Logo"
+              width={36}
+              height={36}
+              className="rounded-md shadow-[0_0_10px_rgba(147,51,234,0.1)]"
+            />
+            <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
               Slate
             </span>
             <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-[9px] font-bold text-purple-400 border border-purple-500/20">PRO</span>

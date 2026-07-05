@@ -38,11 +38,13 @@ export default async function Home() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group" id="logo-link">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 p-0.5 shadow-lg shadow-purple-900/20 group-hover:scale-105 transition-all duration-300">
-              <div className="w-full h-full rounded-[10px] bg-neutral-950 flex items-center justify-center">
-                <Paintbrush className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors" />
-              </div>
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Slate Logo"
+              width={40}
+              height={40}
+              className="rounded-xl shadow-[0_0_15px_rgba(147,51,234,0.15)] group-hover:scale-105 transition-all duration-300"
+            />
             <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-neutral-100 to-neutral-400 bg-clip-text text-transparent group-hover:text-white transition-colors duration-300">
               Slate
             </span>
@@ -318,11 +320,13 @@ export default async function Home() {
       <footer className="border-t border-neutral-900 py-16 px-6 bg-neutral-950">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 p-0.5">
-              <div className="w-full h-full rounded-[6px] bg-neutral-950 flex items-center justify-center">
-                <Paintbrush className="w-4 h-4 text-purple-400" />
-              </div>
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Slate Logo"
+              width={32}
+              height={32}
+              className="rounded-md shadow-md"
+            />
             <span className="text-sm font-bold tracking-wider text-neutral-400">SLATE INC.</span>
           </div>
           <div className="text-xs text-neutral-500">
