@@ -35,7 +35,7 @@ export const list = query({
   },
 });
 
-// Create a new slate (enforces Free Plan 3-slate limit)
+// Create a new slate (enforces Free Plan 3-slate limit, except for VIP email & PRO/MAX)
 export const create = mutation({
   args: {
     title: v.string(),
@@ -55,17 +55,22 @@ export const create = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
       .unique();
 
-    const plan = userRecord?.plan || "FREE";
+    const dbEmail = (userRecord?.email || identity.email || "").toLowerCase();
+    const isVip = dbEmail === "tanmaymirgal26@gmail.com" || userRecord?.plan === "MAX" || userRecord?.plan === "PRO";
 
-    if (plan === "FREE") {
-      const existingSlates = await ctx.db
-        .query("slates")
-        .withIndex("by_userId", (q) => q.eq("userId", clerkId))
-        .filter((q) => q.eq(q.field("isArchived"), false))
-        .collect();
+    if (!isVip) {
+      const plan = userRecord?.plan || "FREE";
 
-      if (existingSlates.length >= 3) {
-        throw new Error("FREE_LIMIT_REACHED: Starter plan limit reached (3/3 slates). Upgrade to PRO or MAX via Razorpay for unlimited slates!");
+      if (plan === "FREE") {
+        const existingSlates = await ctx.db
+          .query("slates")
+          .withIndex("by_userId", (q) => q.eq("userId", clerkId))
+          .filter((q) => q.eq(q.field("isArchived"), false))
+          .collect();
+
+        if (existingSlates.length >= 3) {
+          throw new Error("FREE_LIMIT_REACHED: Starter plan limit reached (3/3 slates). Upgrade to PRO or MAX via Razorpay for unlimited slates!");
+        }
       }
     }
 
@@ -82,7 +87,7 @@ export const create = mutation({
   },
 });
 
-// Upgrade user plan after successful Razorpay payment
+// Upgrade user plan after successful Razorpay payment or VIP auto-sync
 export const upgradePlan = mutation({
   args: {
     plan: v.string(),
@@ -137,17 +142,21 @@ export const getUserPlan = query({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
       .unique();
 
-    const plan = user?.plan || "FREE";
+    const dbEmail = (user?.email || identity.email || "").toLowerCase();
+    const isVip = dbEmail === "tanmaymirgal26@gmail.com";
+    
+    const plan = isVip ? "MAX" : user?.plan || "FREE";
     const isPro = plan === "PRO" || plan === "MAX";
     const isMax = plan === "MAX";
 
     return {
       plan,
-      paymentId: user?.paymentId,
+      paymentId: user?.paymentId || (isVip ? "vip_owner_max_access" : undefined),
       maxSlates: isPro ? 9999 : 3,
       storageMb: isMax ? 102400 : isPro ? 10240 : 100,
       isPro,
       isMax,
+      isVip,
     };
   },
 });

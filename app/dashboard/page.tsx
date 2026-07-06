@@ -55,7 +55,20 @@ export default function DashboardPage() {
   const renameSlate = useMutation(api.slates.rename);
   const upgradePlanMutation = useMutation(api.slates.upgradePlan);
 
-  // UI State
+  // VIP Owner Check
+  const userEmail = (user?.primaryEmailAddress?.emailAddress || "").toLowerCase();
+  const isVipUser = userEmail === "tanmaymirgal26@gmail.com";
+
+  // Auto-upgrade VIP user to MAX plan in Convex database
+  React.useEffect(() => {
+    if (isVipUser && userPlanInfo && userPlanInfo.plan !== "MAX") {
+      upgradePlanMutation({ plan: "MAX", paymentId: "vip_owner_max_access" }).catch(console.error);
+    }
+  }, [isVipUser, userPlanInfo, upgradePlanMutation]);
+
+  const effectivePlanInfo = isVipUser
+    ? { plan: "MAX", maxSlates: 9999, storageMb: 102400, isPro: true, isMax: true, isVip: true }
+    : userPlanInfo;
   const [activeTab, setActiveTab] = React.useState<DashboardTab>("recent");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
@@ -233,7 +246,13 @@ export default function DashboardPage() {
                 <h2 className="font-bold text-xs tracking-tight text-white leading-tight">
                   {user?.fullName ? `${user.fullName}'s Slate` : "Slate Workspace"}
                 </h2>
-                <p className="text-[10px] text-[#808080]">Pro Plan — 5 Members</p>
+                <p className="text-[10px] text-[#808080]">
+                  {effectivePlanInfo?.isMax
+                    ? "MAX Plan — Unlimited Access"
+                    : effectivePlanInfo?.isPro
+                    ? "Pro Plan — 10 GB Storage"
+                    : "Free Plan — 3 Slates Limit"}
+                </p>
               </div>
             </Link>
           </div>
@@ -287,34 +306,6 @@ export default function DashboardPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab("favorites")}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "favorites"
-                  ? "bg-[#202020] text-white border border-[#2B2B2B]"
-                  : "text-[#C5C5C5] hover:bg-[#1A1A1A] hover:text-white border border-transparent"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Star className="w-4 h-4 text-[#808080]" />
-                <span>Favorites</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("templates")}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "templates"
-                  ? "bg-[#202020] text-white border border-[#2B2B2B]"
-                  : "text-[#C5C5C5] hover:bg-[#1A1A1A] hover:text-white border border-transparent"
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Layout className="w-4 h-4 text-[#808080]" />
-                <span>Architecture Templates</span>
-              </div>
-            </button>
-
-            <button
               onClick={() => setActiveTab("settings")}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "settings"
@@ -333,7 +324,13 @@ export default function DashboardPage() {
           <div className="p-3 rounded-xl border border-[#2B2B2B] bg-[#141414] space-y-2">
             <div className="flex items-center justify-between text-[11px]">
               <span className="font-semibold text-white">Storage Used</span>
-              <span className="text-[#808080] font-mono">1.2 GB / 10 GB</span>
+              <span className="text-[#808080] font-mono">
+                {effectivePlanInfo?.isMax
+                  ? "1.2 GB / 100 GB"
+                  : effectivePlanInfo?.isPro
+                  ? "1.2 GB / 10 GB"
+                  : "12 MB / 100 MB"}
+              </span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-[#1A1A1A] overflow-hidden">
               <div className="h-full bg-[#ffffff] rounded-full w-12" />
@@ -382,12 +379,8 @@ export default function DashboardPage() {
               />
             </div>
 
-            {/* CREATE NEW SLATE DIALOG */}
+            {/* CREATE NEW SLATE DIALOG MODAL */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger className="h-10 px-4 rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold flex items-center gap-2 shadow-sm transition-all cursor-pointer">
-                <Plus className="w-4 h-4" />
-                New Slate
-              </DialogTrigger>
               <DialogContent className="bg-[#101010] border border-[#2B2B2B] text-white max-w-md rounded-2xl p-6">
                 <DialogHeader className="mb-4">
                   <DialogTitle className="text-lg font-bold flex items-center gap-2">
