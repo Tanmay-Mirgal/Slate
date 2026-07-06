@@ -1,0 +1,15 @@
+<svg width="400" height="250" viewBox="0 0 400 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="250" rx="16" fill="#0D1117"/>
+  <pattern id="grid4" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill="#21262D"/>
+  </pattern>
+  <rect width="400" height="250" fill="url(#grid4)"/>
+
+  <!-- Cloud Infrastructure -->
+  <g transform="translate(110, 50)">
+    <path d="M40 90 C20 90 10 75 20 60 C10 40 30 25 50 35 C65 20 95 20 110 35 C125 20 155 35 150 55 C165 65 160 90 140 90 Z" fill="#1E293B" stroke="#38BDF8" stroke-width="3"/>
+    <circle cx="65" cy="60" r="8" fill="#0EA5E9"/>
+    <circle cx="105" cy="55" r="10" fill="#38BDF8"/>
+    <line x1="65" y1="60" x2="105" y2="55" stroke="#BAE6FD" stroke-width="2"/>
+  </g>
+</svg>

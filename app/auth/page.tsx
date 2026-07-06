@@ -72,7 +72,7 @@ function AuthContent() {
             Back to Home
           </Link>
           <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Slate Logo" width={24} height={24} className="rounded-lg shadow-sm" />
+            <Image src="/logo.svg" alt="Slate Logo" width={24} height={24} className="rounded-lg shadow-sm" />
             <span className="font-bold text-sm tracking-tight text-white">SLATE</span>
           </div>
         </div>

@@ -1,0 +1,17 @@
+<svg width="400" height="250" viewBox="0 0 400 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="250" rx="16" fill="#0D1117"/>
+  <pattern id="grid5" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill="#21262D"/>
+  </pattern>
+  <rect width="400" height="250" fill="url(#grid5)"/>
+
+  <!-- Queue Packets -->
+  <g transform="translate(90, 65)">
+    <rect x="0" y="20" width="45" height="45" rx="8" fill="#78350F" stroke="#F59E0B" stroke-width="2"/>
+    <rect x="60" y="20" width="45" height="45" rx="8" fill="#78350F" stroke="#F59E0B" stroke-width="2"/>
+    <rect x="120" y="20" width="45" height="45" rx="8" fill="#B45309" stroke="#FBBF24" stroke-width="2"/>
+    <rect x="180" y="20" width="45" height="45" rx="8" fill="#D97706" stroke="#FDE68A" stroke-width="3"/>
+
+    <path d="M230 42.5 L255 42.5 M248 35 L257 42.5 L248 50" stroke="#FBBF24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

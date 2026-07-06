@@ -1,0 +1,180 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1920" height="1080" fill="#0A0A0A"/>
+  
+  <!-- Subtle Background Dot Grid -->
+  <pattern id="dotGrid" width="30" height="30" patternUnits="userSpaceOnUse">
+    <circle cx="3" cy="3" r="1.5" fill="#22272E"/>
+  </pattern>
+  <rect width="1920" height="1080" fill="url(#dotGrid)"/>
+
+  <!-- Top Canvas Window Status Bar -->
+  <rect x="40" y="40" width="1840" height="60" rx="16" fill="#141414" stroke="#2B2B2B" stroke-width="2"/>
+  <circle cx="75" cy="70" r="7" fill="#FF5F56"/>
+  <circle cx="95" cy="70" r="7" fill="#FFBD2E"/>
+  <circle cx="115" cy="70" r="7" fill="#27C93F"/>
+  <text x="145" y="75" fill="#808080" font-family="monospace" font-size="14" font-weight="600">slate.app/canvas/realtime-architecture-system</text>
+  
+  <rect x="1650" y="55" width="200" height="30" rx="15" fill="#052E16" stroke="#166534" stroke-width="1"/>
+  <circle cx="1670" cy="70" r="4" fill="#22C55E"/>
+  <text x="1685" y="74" fill="#4ADE80" font-family="sans-serif" font-size="12" font-weight="bold">● Realtime Sync Active</text>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3B82F6"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#A855F7"/>
+    </marker>
+    <marker id="arrow-emerald" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#10B981"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#F59E0B"/>
+    </marker>
+  </defs>
+
+  <!-- ================= ORTHOGONAL CONNECTORS ================= -->
+  <!-- 1. Frontend -> API Gateway -->
+  <path d="M 460 300 H 680" stroke="#3B82F6" stroke-width="3" marker-end="url(#arrow)"/>
+  <rect x="520" y="282" width="100" height="24" rx="6" fill="#0F172A" stroke="#1E3A8A" stroke-width="1.5"/>
+  <text x="570" y="298" fill="#93C5FD" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">HTTPS / REST</text>
+
+  <!-- 2. API Gateway -> AI Engine -->
+  <path d="M 960 300 H 1180" stroke="#A855F7" stroke-width="3" marker-end="url(#arrow-purple)"/>
+  <rect x="1020" y="282" width="100" height="24" rx="6" fill="#3B0764" stroke="#581C87" stroke-width="1.5"/>
+  <text x="1070" y="298" fill="#E9D5FF" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">gRPC Stream</text>
+
+  <!-- 3. API Gateway -> Convex Sync -->
+  <path d="M 820 410 V 550" stroke="#10B981" stroke-width="3" marker-end="url(#arrow-emerald)"/>
+  <rect x="835" y="465" width="110" height="24" rx="6" fill="#064E3B" stroke="#065F46" stroke-width="1.5"/>
+  <text x="890" y="481" fill="#A7F3D0" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">WebSocket Sync</text>
+
+  <!-- 4. Convex Sync -> PostgreSQL -->
+  <path d="M 960 670 H 1180" stroke="#10B981" stroke-width="3" marker-end="url(#arrow-emerald)"/>
+  <rect x="1025" y="652" width="90" height="24" rx="6" fill="#064E3B" stroke="#065F46" stroke-width="1.5"/>
+  <text x="1070" y="668" fill="#A7F3D0" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">SQL Query</text>
+
+  <!-- 5. Convex Sync -> Redis Cache -->
+  <path d="M 680 670 H 460" stroke="#F59E0B" stroke-width="3" marker-end="url(#arrow-amber)"/>
+  <rect x="520" y="652" width="100" height="24" rx="6" fill="#451A03" stroke="#78350F" stroke-width="1.5"/>
+  <text x="570" y="668" fill="#FDE68A" font-family="sans-serif" font-size="11" font-weight="bold" text-anchor="middle">In-Memory Read</text>
+
+
+  <!-- ================= SYSTEM ARCHITECTURE NODES ================= -->
+
+  <!-- NODE 1: React Web App Frontend -->
+  <g transform="translate(180, 200)">
+    <rect width="280" height="200" rx="16" fill="#141414" stroke="#3B82F6" stroke-width="3.5"/>
+    <path d="M 0 16 C 0 7, 7 0, 16 0 H 264 C 273 0, 280 7, 280 16 V 12 H 0 Z" fill="#3B82F6"/>
+    
+    <text x="24" y="42" fill="#FFFFFF" font-family="sans-serif" font-size="18" font-weight="bold">React Web Client</text>
+    <rect x="190" y="24" width="66" height="22" rx="11" fill="#1E3A8A"/>
+    <text x="223" y="39" fill="#93C5FD" font-family="sans-serif" font-size="10" font-weight="bold" text-anchor="middle">Frontend</text>
+
+    <text x="24" y="72" fill="#94A3B8" font-family="sans-serif" font-size="13">Next.js 16 App Router UI</text>
+
+    <rect x="24" y="95" width="232" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="121" fill="#CBD5E1" font-family="monospace" font-size="12">● Vector Whiteboard Canvas</text>
+
+    <rect x="24" y="145" width="232" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="171" fill="#CBD5E1" font-family="monospace" font-size="12">● Split LLD Markdown Specs</text>
+  </g>
+
+  <!-- NODE 2: API Gateway & Security -->
+  <g transform="translate(680, 200)">
+    <rect width="280" height="210" rx="16" fill="#141414" stroke="#A855F7" stroke-width="3.5"/>
+    <path d="M 0 16 C 0 7, 7 0, 16 0 H 264 C 273 0, 280 7, 280 16 V 12 H 0 Z" fill="#A855F7"/>
+    
+    <text x="24" y="42" fill="#FFFFFF" font-family="sans-serif" font-size="18" font-weight="bold">API Gateway Service</text>
+    <rect x="190" y="24" width="66" height="22" rx="11" fill="#581C87"/>
+    <text x="223" y="39" fill="#E9D5FF" font-family="sans-serif" font-size="10" font-weight="bold" text-anchor="middle">Gateway</text>
+
+    <text x="24" y="72" fill="#94A3B8" font-family="sans-serif" font-size="13">Authentication & Rate Limiter</text>
+
+    <rect x="24" y="95" width="232" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="121" fill="#CBD5E1" font-family="monospace" font-size="12">● Clerk OAuth Middleware</text>
+
+    <rect x="24" y="145" width="232" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="171" fill="#CBD5E1" font-family="monospace" font-size="12">● Token Bucket Limiter</text>
+  </g>
+
+  <!-- NODE 3: AI Generation Engine -->
+  <g transform="translate(1180, 200)">
+    <rect width="290" height="210" rx="16" fill="#141414" stroke="#EC4899" stroke-width="3.5"/>
+    <path d="M 0 16 C 0 7, 7 0, 16 0 H 274 C 283 0, 290 7, 290 16 V 12 H 0 Z" fill="#EC4899"/>
+    
+    <text x="24" y="42" fill="#FFFFFF" font-family="sans-serif" font-size="18" font-weight="bold">AI Diagram Engine</text>
+    <rect x="200" y="24" width="66" height="22" rx="11" fill="#831843"/>
+    <text x="233" y="39" fill="#FBCFE8" font-family="sans-serif" font-size="10" font-weight="bold" text-anchor="middle">AI Model</text>
+
+    <text x="24" y="72" fill="#94A3B8" font-family="sans-serif" font-size="13">Groq Llama 3.3 70B Fast Inference</text>
+
+    <rect x="24" y="95" width="242" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="121" fill="#CBD5E1" font-family="monospace" font-size="12">● Auto Layout Algorithm</text>
+
+    <rect x="24" y="145" width="242" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="171" fill="#CBD5E1" font-family="monospace" font-size="12">● Low-Level Spec Parser</text>
+  </g>
+
+  <!-- NODE 4: Convex Realtime State Engine -->
+  <g transform="translate(680, 550)">
+    <rect width="280" height="210" rx="16" fill="#141414" stroke="#10B981" stroke-width="3.5"/>
+    <path d="M 0 16 C 0 7, 7 0, 16 0 H 264 C 273 0, 280 7, 280 16 V 12 H 0 Z" fill="#10B981"/>
+    
+    <text x="24" y="42" fill="#FFFFFF" font-family="sans-serif" font-size="18" font-weight="bold">Convex Cloud Engine</text>
+    <rect x="190" y="24" width="66" height="22" rx="11" fill="#065F46"/>
+    <text x="223" y="39" fill="#A7F3D0" font-family="sans-serif" font-size="10" font-weight="bold" text-anchor="middle">Realtime</text>
+
+    <text x="24" y="72" fill="#94A3B8" font-family="sans-serif" font-size="13">Reactive Mutation & Query Pipeline</text>
+
+    <rect x="24" y="95" width="232" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="121" fill="#CBD5E1" font-family="monospace" font-size="12">● Slate Document Store</text>
+
+    <rect x="24" y="145" width="232" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="171" fill="#CBD5E1" font-family="monospace" font-size="12">● Sub-second Sync Bus</text>
+  </g>
+
+  <!-- NODE 5: PostgreSQL Database Cluster -->
+  <g transform="translate(1180, 550)">
+    <rect width="290" height="210" rx="16" fill="#141414" stroke="#3B82F6" stroke-width="3.5"/>
+    <path d="M 0 16 C 0 7, 7 0, 16 0 H 274 C 283 0, 290 7, 290 16 V 12 H 0 Z" fill="#3B82F6"/>
+    
+    <text x="24" y="42" fill="#FFFFFF" font-family="sans-serif" font-size="18" font-weight="bold">PostgreSQL Master</text>
+    <rect x="200" y="24" width="66" height="22" rx="11" fill="#1E3A8A"/>
+    <text x="233" y="39" fill="#93C5FD" font-family="sans-serif" font-size="10" font-weight="bold" text-anchor="middle">Database</text>
+
+    <text x="24" y="72" fill="#94A3B8" font-family="sans-serif" font-size="13">ACID Persistent System Records</text>
+
+    <rect x="24" y="95" width="242" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="121" fill="#CBD5E1" font-family="monospace" font-size="12">● Read Replica Pool</text>
+
+    <rect x="24" y="145" width="242" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="171" fill="#CBD5E1" font-family="monospace" font-size="12">● Automated Backups</text>
+  </g>
+
+  <!-- NODE 6: Redis Cache Cluster -->
+  <g transform="translate(180, 550)">
+    <rect width="280" height="210" rx="16" fill="#141414" stroke="#F59E0B" stroke-width="3.5"/>
+    <path d="M 0 16 C 0 7, 7 0, 16 0 H 264 C 273 0, 280 7, 280 16 V 12 H 0 Z" fill="#F59E0B"/>
+    
+    <text x="24" y="42" fill="#FFFFFF" font-family="sans-serif" font-size="18" font-weight="bold">Redis Memory Cache</text>
+    <rect x="190" y="24" width="66" height="22" rx="11" fill="#78350F"/>
+    <text x="223" y="39" fill="#FDE68A" font-family="sans-serif" font-size="10" font-weight="bold" text-anchor="middle">Memory</text>
+
+    <text x="24" y="72" fill="#94A3B8" font-family="sans-serif" font-size="13">Sub-millisecond State Cache</text>
+
+    <rect x="24" y="95" width="232" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="121" fill="#CBD5E1" font-family="monospace" font-size="12">● Session Key Storage</text>
+
+    <rect x="24" y="145" width="232" height="42" rx="8" fill="#1A1A1A" stroke="#2B2B2B" stroke-width="1.5"/>
+    <text x="36" y="171" fill="#CBD5E1" font-family="monospace" font-size="12">● Pub/Sub Presence</text>
+  </g>
+
+  <!-- Floating Multiplayer Presence Cursor -->
+  <g transform="translate(1050, 480)">
+    <path d="M 0 0 L 16 24 L 22 14 L 32 14 Z" fill="#3B82F6" stroke="#FFFFFF" stroke-width="2"/>
+    <rect x="20" y="18" width="180" height="28" rx="14" fill="#3B82F6"/>
+    <text x="110" y="36" fill="#FFFFFF" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">Alex (Principal Architect)</text>
+  </g>
+
+</svg>

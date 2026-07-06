@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="128" fill="#0A0A0A"/>
+  <rect x="8" y="8" width="496" height="496" rx="120" stroke="#2B2B2B" stroke-width="16"/>
+  
+  <!-- Sleek Slate Layered Architecture Symbol -->
+  <path d="M256 120 L390 196 L256 272 L122 196 Z" fill="url(#slate_top_grad)" stroke="#FFFFFF" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M122 250 L256 326 L390 250" stroke="#93C5FD" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M122 304 L256 380 L390 304" stroke="#3B82F6" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Glowing Accent Node Dots -->
+  <circle cx="256" cy="196" r="14" fill="#FFFFFF"/>
+  <circle cx="390" cy="196" r="10" fill="#60A5FA"/>
+  <circle cx="122" cy="196" r="10" fill="#60A5FA"/>
+
+  <defs>
+    <linearGradient id="slate_top_grad" x1="122" y1="120" x2="390" y2="272" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E293B"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+</svg>

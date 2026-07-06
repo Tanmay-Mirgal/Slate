@@ -159,7 +159,7 @@ export default function DashboardPage() {
       currency: "INR",
       name: "SLATE",
       description: `Upgrade to SLATE ${planName} Plan`,
-      image: typeof window !== "undefined" ? `${window.location.origin}/logo.png` : "/logo.png",
+      image: typeof window !== "undefined" ? `${window.location.origin}/logo.svg` : "/logo.svg",
       handler: async function (response: any) {
         try {
           await upgradePlanMutation({
@@ -223,7 +223,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between px-2">
             <Link href="/" className="flex items-center gap-2.5">
               <Image
-                src="/logo.png"
+                src="/logo.svg"
                 alt="Slate Logo"
                 width={26}
                 height={26}
@@ -577,10 +577,10 @@ export default function DashboardPage() {
                     {/* Top Thumbnail Canvas Preview - Random Illustration */}
                     <Link href={`/canvas/${slate._id}`} className="h-52 border-b border-[#2B2B2B] flex items-center justify-center relative overflow-hidden bg-white group-hover:brightness-95 transition-all">
                       <Image
-                        src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.png` : `/illustration_${(slate._id.charCodeAt(0) % 5) + 1}.png`}
+                        src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : `/illustration_${(slate._id.charCodeAt(0) % 5) + 1}.svg`}
                         alt="Slate Illustration"
                         fill
-                        className="object-cover opacity-90 group-hover:scale-105 transition-transform duration-500 mix-blend-multiply"
+                        className="object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
                       />
                       
                       {slate.isShared && (

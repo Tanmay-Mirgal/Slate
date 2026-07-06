@@ -978,7 +978,7 @@ export default function CanvasPage() {
     // Load and draw logo.png
     try {
       const img = new (window as any).Image();
-      img.src = "/logo.png";
+      img.src = "/logo.svg";
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
@@ -1761,7 +1761,7 @@ export default function CanvasPage() {
             {/* TOP LEFT: Project Identity */}
             <div className="absolute top-4 left-4 z-40 flex items-center gap-3 bg-[#141414]/80 backdrop-blur-xl border border-white/10 rounded-2xl px-3 py-2 shadow-2xl">
               <Link href="/dashboard" className="flex items-center gap-2 group">
-                <Image src="/logo.png" alt="Slate Logo" width={26} height={26} className="rounded-lg shadow-sm group-hover:scale-105 transition-transform" />
+                <Image src="/logo.svg" alt="Slate Logo" width={26} height={26} className="rounded-lg shadow-sm group-hover:scale-105 transition-transform" />
                 <span className="font-bold text-xs tracking-tight text-white">{slate?.title || "LLD Architecture Design"}</span>
               </Link>
               {isReadOnly ? (

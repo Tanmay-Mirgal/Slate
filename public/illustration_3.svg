@@ -1,0 +1,20 @@
+<svg width="400" height="250" viewBox="0 0 400 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="250" rx="16" fill="#0D1117"/>
+  <pattern id="grid3" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill="#21262D"/>
+  </pattern>
+  <rect width="400" height="250" fill="url(#grid3)"/>
+
+  <!-- AI Brain / Chip Nodes -->
+  <g transform="translate(130, 45)">
+    <rect x="25" y="25" width="90" height="90" rx="16" fill="#064E3B" stroke="#10B981" stroke-width="3"/>
+    <circle cx="70" cy="70" r="20" fill="#047857" stroke="#34D399" stroke-width="2"/>
+    <path d="M70 50 V90 M50 70 H90" stroke="#A7F3D0" stroke-width="2"/>
+    
+    <!-- External Pin Connectors -->
+    <line x1="70" y1="25" x2="70" y2="5" stroke="#10B981" stroke-width="3"/>
+    <line x1="70" y1="115" x2="70" y2="135" stroke="#10B981" stroke-width="3"/>
+    <line x1="25" y1="70" x2="5" y2="70" stroke="#10B981" stroke-width="3"/>
+    <line x1="115" y1="70" x2="135" y2="70" stroke="#10B981" stroke-width="3"/>
+  </g>
+</svg>

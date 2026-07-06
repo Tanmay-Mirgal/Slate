@@ -1,0 +1,25 @@
+<svg width="400" height="250" viewBox="0 0 400 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="250" rx="16" fill="#0D1117"/>
+  <pattern id="grid2" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill="#21262D"/>
+  </pattern>
+  <rect width="400" height="250" fill="url(#grid2)"/>
+
+  <!-- Connected Microservices Nodes -->
+  <g transform="translate(60, 50)">
+    <rect x="0" y="50" width="70" height="50" rx="10" fill="#1E1B4B" stroke="#818CF8" stroke-width="2"/>
+    <text x="35" y="80" text-anchor="middle" fill="#C7D2FE" font-size="12" font-family="sans-serif" font-weight="bold">Client</text>
+
+    <line x1="70" y1="75" x2="140" y2="75" stroke="#6366F1" stroke-width="2" stroke-dasharray="4 4"/>
+
+    <rect x="140" y="30" width="100" height="90" rx="12" fill="#311042" stroke="#A855F7" stroke-width="3"/>
+    <text x="190" y="70" text-anchor="middle" fill="#E9D5FF" font-size="13" font-family="sans-serif" font-weight="bold">API</text>
+    <text x="190" y="90" text-anchor="middle" fill="#C084FC" font-size="10" font-family="sans-serif">Gateway</text>
+
+    <line x1="240" y1="55" x2="300" y2="35" stroke="#EC4899" stroke-width="2"/>
+    <line x1="240" y1="95" x2="300" y2="115" stroke="#EC4899" stroke-width="2"/>
+
+    <circle cx="310" cy="35" r="16" fill="#831843" stroke="#F472B6" stroke-width="2"/>
+    <circle cx="310" cy="115" r="16" fill="#831843" stroke="#F472B6" stroke-width="2"/>
+  </g>
+</svg>

@@ -1,0 +1,18 @@
+<svg width="400" height="250" viewBox="0 0 400 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="250" rx="16" fill="#0D1117"/>
+  <!-- Grid Dots -->
+  <pattern id="grid1" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill="#21262D"/>
+  </pattern>
+  <rect width="400" height="250" fill="url(#grid1)"/>
+
+  <!-- Database Stack -->
+  <g transform="translate(140, 45)">
+    <ellipse cx="60" cy="30" rx="60" ry="20" fill="#1F2937" stroke="#3B82F6" stroke-width="3"/>
+    <path d="M0 30 V70 C0 81 27 90 60 90 C93 90 120 81 120 70 V30" fill="#111827" stroke="#3B82F6" stroke-width="3"/>
+    <path d="M0 70 V110 C0 121 27 130 60 130 C93 130 120 121 120 110 V70" fill="#0F172A" stroke="#2563EB" stroke-width="3"/>
+    <circle cx="30" cy="30" r="4" fill="#60A5FA"/>
+    <circle cx="30" cy="70" r="4" fill="#60A5FA"/>
+    <circle cx="30" cy="110" r="4" fill="#3B82F6"/>
+  </g>
+</svg>
