@@ -45,12 +45,15 @@ export default defineSchema({
 
   slates: defineTable({
     title: v.string(),
-    workspaceId: v.id("workspaces"),
+    workspaceId: v.optional(v.id("workspaces")),
     isArchived: v.boolean(),
     lastEdited: v.number(),
     thumbnailIcon: v.string(),
     elements: v.optional(v.string()),
     documentText: v.optional(v.string()),
+    // Legacy fields from pre-workspace schema (kept for backward compatibility)
+    userId: v.optional(v.string()),
+    isShared: v.optional(v.boolean()),
   })
   .index("by_workspaceId", ["workspaceId"]),
 

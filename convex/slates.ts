@@ -1,8 +1,10 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Helper function to check if a user has access to a workspace
-async function checkWorkspaceAccess(ctx: any, workspaceId: string, clerkId: string) {
+// Helper function to check if a user has access to a workspace.
+// Returns null for legacy slates that pre-date the workspace system.
+async function checkWorkspaceAccess(ctx: any, workspaceId: string | undefined, clerkId: string) {
+  if (!workspaceId) return null;
   const membership = await ctx.db
     .query("workspace_members")
     .withIndex("by_workspaceId_userId", (q: any) =>
@@ -39,8 +41,6 @@ export const list = query({
     return slates.sort((a, b) => b.lastEdited - a.lastEdited);
   },
 });
-
-// Create a new slate
 export const create = mutation({
   args: {
     title: v.string(),
