@@ -12,7 +12,7 @@ import { Doc } from "@/convex/_generated/dataModel";
 
 import {
   Plus, Search, Clock, Settings, Trash2, MoreHorizontal,
-  Briefcase, Pencil
+  Briefcase, Pencil, Bell, Check, X
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -54,9 +54,25 @@ export default function DashboardPage() {
 
   const slates = useQuery(api.slates.list, activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip");
   const sharedSlates = useQuery(api.slates.listShared);
+  const pendingInvites = useQuery(api.workspaces.getMyPendingInvites);
+  const respondToInvite = useMutation(api.workspaces.respondToInvite);
   const createSlate = useMutation(api.slates.create);
   const removeSlate = useMutation(api.slates.remove);
   const renameSlate = useMutation(api.slates.rename);
+
+  const [respondingId, setRespondingId] = React.useState<string | null>(null);
+
+  const handleInviteResponse = async (inviteId: Id<"invites">, accept: boolean) => {
+    setRespondingId(inviteId);
+    try {
+      await respondToInvite({ inviteId, accept });
+      if (accept) {
+        // refresh workspace list by clearing the cached active workspace
+        setActiveWorkspaceId(null);
+      }
+    } catch (err) { console.error(err); }
+    finally { setRespondingId(null); }
+  };
 
   const [activeTab, setActiveTab] = React.useState<DashboardTab>("recent");
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -238,6 +254,49 @@ export default function DashboardPage() {
             </div>
           )}
         </header>
+
+        {/* Pending Invites Banner */}
+        {pendingInvites && pendingInvites.length > 0 && (
+          <div className="border-b border-amber-500/20 bg-amber-950/20 px-8 py-3 space-y-2 shrink-0">
+            <div className="flex items-center gap-2 mb-1">
+              <Bell className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Pending Workspace Invitations</span>
+            </div>
+            {pendingInvites.map((invite: any) => (
+              <div key={invite._id} className="flex items-center justify-between gap-4 p-3 rounded-xl bg-amber-950/30 border border-amber-500/20">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Briefcase className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">
+                      {invite.workspaceName || "Unknown Workspace"}
+                    </p>
+                    <p className="text-[11px] text-[#808080]">
+                      Invited as <span className="text-amber-400 font-semibold">{invite.role}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleInviteResponse(invite._id, true)}
+                    disabled={respondingId === invite._id}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <Check className="w-3 h-3" />
+                    {respondingId === invite._id ? "..." : "Accept"}
+                  </button>
+                  <button
+                    onClick={() => handleInviteResponse(invite._id, false)}
+                    disabled={respondingId === invite._id}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-rose-950 border border-rose-500/30 text-rose-400 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-3 h-3" />
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="flex-1 p-8 overflow-y-auto">
           {activeTab === "recent" && (
