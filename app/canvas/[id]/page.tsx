@@ -259,8 +259,16 @@ export default function CanvasPage() {
         recipientEmail: inviteEmail.trim(),
         role: inviteRole,
       });
+      
+      const slateTitle = slate?.title || "Architecture Whiteboard";
+      const subject = encodeURIComponent(`Invitation to collaborate on "${slateTitle}"`);
+      const body = encodeURIComponent(
+        `Hello,\n\nI have added you to collaborate on the whiteboard slate "${slateTitle}" with "${inviteRole}" access.\n\nYou can accept the invitation and access the workspace here:\n${window.location.origin}/dashboard\n\nBest regards!`
+      );
+      window.open(`mailto:${inviteEmail.trim()}?subject=${subject}&body=${body}`, "_blank");
+      
       setInviteEmail("");
-      alert("Invitation sent successfully!");
+      alert("Invitation created! We've opened your mail client to send the email.");
     } catch (error: any) {
       alert("Failed to send invitation: " + error.message);
     } finally {

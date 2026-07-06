@@ -28,8 +28,15 @@ export function ShareDialog({ workspaceId }: { workspaceId: Id<"workspaces"> }) 
         recipientEmail: email,
         role,
       });
+
+      const subject = encodeURIComponent("Invitation to join Slate workspace");
+      const body = encodeURIComponent(
+        `Hello,\n\nI have added you to my Slate workspace with "${role}" access.\n\nYou can accept the invitation and access the workspace here:\n${window.location.origin}/dashboard\n\nBest regards!`
+      );
+      window.open(`mailto:${email.trim()}?subject=${subject}&body=${body}`, "_blank");
+
       setEmail("");
-      alert("Invite sent successfully!");
+      alert("Invitation created! We've opened your mail client to send the email.");
     } catch (error: any) {
       alert("Failed to send invite: " + error.message);
     } finally {

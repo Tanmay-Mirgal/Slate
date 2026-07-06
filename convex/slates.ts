@@ -400,3 +400,42 @@ export const getPresence = query({
     return list;
   },
 });
+
+// List slates that are shared with the user (workspaces they are a member of, but not owner)
+export const listShared = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    const clerkId = identity.subject;
+
+    // Get all memberships for the user
+    const memberships = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_userId", (q) => q.eq("userId", clerkId))
+      .collect();
+
+    const sharedSlates: any[] = [];
+    for (const m of memberships) {
+      const workspace = await ctx.db.get(m.workspaceId);
+      if (workspace && workspace.ownerId !== clerkId) {
+        const slates = await ctx.db
+          .query("slates")
+          .withIndex("by_workspaceId", (q) => q.eq("workspaceId", m.workspaceId))
+          .filter((q) => q.eq(q.field("isArchived"), false))
+          .collect();
+
+        slates.forEach((s) => {
+          sharedSlates.push({
+            ...s,
+            workspaceName: workspace.name,
+          });
+        });
+      }
+    }
+
+    return sharedSlates.sort((a, b) => b.lastEdited - a.lastEdited);
+  },
+});

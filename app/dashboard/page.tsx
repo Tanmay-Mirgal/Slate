@@ -53,6 +53,7 @@ export default function DashboardPage() {
   }, [workspaces, activeWorkspaceId]);
 
   const slates = useQuery(api.slates.list, activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip");
+  const sharedSlates = useQuery(api.slates.listShared);
   const createSlate = useMutation(api.slates.create);
   const removeSlate = useMutation(api.slates.remove);
   const renameSlate = useMutation(api.slates.rename);
@@ -120,6 +121,10 @@ export default function DashboardPage() {
   };
 
   const filteredSlates = (slates || []).filter((s) =>
+    s.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredSharedSlates = (sharedSlates || []).filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -318,6 +323,55 @@ export default function DashboardPage() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Shared Slates */}
+              {filteredSharedSlates.length > 0 && (
+                <div className="space-y-4 pt-6 border-t border-[#2B2B2B]">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080]">Shared Slates</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredSharedSlates.map((slate) => {
+                      const accent = getAccent(slate._id);
+                      return (
+                        <div key={slate._id}
+                          className={`group rounded-2xl border ${accent.border} bg-[#141414] hover:bg-[#181818] transition-all flex flex-col overflow-hidden shadow-md hover:shadow-lg hover:shadow-black/40`}>
+
+                          {/* Thumbnail */}
+                          <Link href={`/canvas/${slate._id}`}
+                            className={`relative h-48 flex items-center justify-center bg-gradient-to-br ${accent.gradient} overflow-hidden border-b ${accent.border}`}>
+                            <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${accent.stripe}`} />
+                            <Image
+                              src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : '/illustration_1.svg'}
+                              alt="Slate" fill
+                              className="object-cover opacity-75 group-hover:scale-105 transition-transform duration-500 mix-blend-luminosity"
+                            />
+                          </Link>
+
+                          {/* Footer */}
+                          <div className="p-4 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${accent.dot}`} />
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-xs font-bold text-white truncate">
+                                  {slate.title}
+                                </h4>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[10px] text-sky-400 font-semibold px-1.5 py-0.5 rounded bg-sky-950/40 border border-sky-900/30">
+                                    {slate.workspaceName || "Shared"}
+                                  </span>
+                                  <span className="text-[11px] text-[#666] font-mono">•</span>
+                                  <span className="text-[11px] text-[#808080] font-mono">
+                                    Edited {new Date(slate.lastEdited).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
