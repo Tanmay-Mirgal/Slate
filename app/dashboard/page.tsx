@@ -344,7 +344,7 @@ export default function DashboardPage() {
         {/* User Account Bar */}
         <div className="pt-4 border-t border-[#2B2B2B] flex items-center justify-between px-2">
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <UserButton afterSignOutUrl="/" />
+            <UserButton />
             <div className="truncate">
               <p className="text-xs font-bold text-white truncate">{user?.fullName || "Developer"}</p>
               <p className="text-[10px] text-[#808080] truncate">{user?.primaryEmailAddress?.emailAddress}</p>

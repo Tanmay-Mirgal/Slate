@@ -37,6 +37,7 @@ import {
   FileText,
   Layout,
   Maximize2,
+  Minimize2,
   Eye,
   Edit3,
   Copy,
@@ -87,7 +88,8 @@ const RESIZE_HANDLE_SIZE = 10;
 export interface SystemNode {
   id: string;
   type: Tool | "arrow";
-  nodeType?: "database" | "server" | "gateway" | "balancer" | "cache" | "storage" | "client";
+  nodeType?: "database" | "server" | "gateway" | "balancer" | "cache" | "storage" | "client" | "icon" | "queue" | "serverless" | "node" | "group";
+  lucideIcon?: string | null;
   title: string;
   subtitle?: string;
   x: number;
@@ -142,18 +144,39 @@ function drawMagneticArrow(
   const dy = to.y - from.y;
   const isVertical = Math.abs(dy) > Math.abs(dx);
   
-  // Create S-curve control points
-  const cp1 = isVertical ? { x: from.x, y: from.y + dy / 2 } : { x: from.x + dx / 2, y: from.y };
-  const cp2 = isVertical ? { x: to.x, y: to.y - dy / 2 } : { x: to.x - dx / 2, y: to.y };
-
   ctx.beginPath();
   ctx.moveTo(from.x, from.y);
-  ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y);
+
+  if (Math.abs(dx) < 20 || Math.abs(dy) < 20) {
+    ctx.lineTo(to.x, to.y);
+  } else {
+    const radius = Math.min(12, Math.abs(dx) / 2, Math.abs(dy) / 2);
+    if (isVertical) {
+      const midY = from.y + dy / 2;
+      const dirX = Math.sign(dx);
+      const dirY = Math.sign(dy);
+      ctx.lineTo(from.x, midY - dirY * radius);
+      ctx.arcTo(from.x, midY, from.x + dirX * radius, midY, radius);
+      ctx.lineTo(to.x - dirX * radius, midY);
+      ctx.arcTo(to.x, midY, to.x, midY + dirY * radius, radius);
+      ctx.lineTo(to.x, to.y);
+    } else {
+      const midX = from.x + dx / 2;
+      const dirX = Math.sign(dx);
+      const dirY = Math.sign(dy);
+      ctx.lineTo(midX - dirX * radius, from.y);
+      ctx.arcTo(midX, from.y, midX, from.y + dirY * radius, radius);
+      ctx.lineTo(midX, to.y - dirY * radius);
+      ctx.arcTo(midX, to.y, midX + dirX * radius, to.y, radius);
+      ctx.lineTo(to.x, to.y);
+    }
+  }
   ctx.stroke();
 
   // Arrowhead pointing along the tangent at 'to'
   const headLen = 10;
-  const angle = Math.atan2(to.y - cp2.y, to.x - cp2.x);
+  // For orthogonal routing, the final segment entering 'to' is vertical if isVertical, else horizontal
+  const angle = isVertical ? Math.atan2(dy, 0) : Math.atan2(0, dx);
   ctx.beginPath();
   ctx.moveTo(to.x, to.y);
   ctx.lineTo(to.x - headLen * Math.cos(angle - Math.PI / 6), to.y - headLen * Math.sin(angle - Math.PI / 6));
@@ -321,18 +344,29 @@ export default function CanvasPage() {
     }
   };
 
-  // Commit inline text
   const commitInlineText = () => {
     if (!inlineText) return;
     const trimmed = inlineText.text.trim();
-    if (trimmed && inlineText.isNew) {
-      const newEl: SystemNode = {
-        id: inlineText.id, type: "text", title: trimmed, text: trimmed,
-        x: inlineText.x, y: inlineText.y, width: 140, height: 30,
-        strokeColor: strokeColor || "#FFFFFF", fillColor: "transparent", strokeWidth: 2,
-      };
-      setElements(prev => [...prev, newEl]); // Optimistic update
-      addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newEl) });
+    if (trimmed) {
+      if (inlineText.isNew) {
+        const newEl: SystemNode = {
+          id: inlineText.id, type: "text", title: trimmed, text: trimmed,
+          x: inlineText.x, y: inlineText.y, width: 140, height: 30,
+          strokeColor: strokeColor || "#FFFFFF", fillColor: "transparent", strokeWidth: 2,
+        };
+        setElements(prev => [...prev, newEl]); // Optimistic update
+        addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newEl) });
+      } else {
+        const existingEl = elements.find(el => el.id === inlineText.id);
+        if (existingEl && (existingEl.text !== trimmed || existingEl.title !== trimmed)) {
+          // Update both text and title for consistency
+          updateElementMutation({
+            id: id as Id<"slates">,
+            elementId: inlineText.id,
+            updates: JSON.stringify({ text: trimmed, title: trimmed })
+          });
+        }
+      }
     }
     setInlineText(null);
     setActiveTool("select");
@@ -358,7 +392,7 @@ export default function CanvasPage() {
     } catch (e) {}
     finally {
       setIsSaving(false);
-      setIsLibraryOpen(false);
+      setIsInsertMenuOpen(false);
       setSelectedIds(new Set([newNode.id]));
     }
   };
@@ -504,6 +538,12 @@ export default function CanvasPage() {
   // ─── Mouse Down ─────────────────────────────────────────────────────────────
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isReadOnly) return;
+    
+    // Save history before any potential mutation
+    if (activeTool !== "hand") {
+      commitToHistory(elements);
+    }
+
     const { x, y } = getCanvasPos(e);
 
     if (activeTool === "hand") {
@@ -684,6 +724,11 @@ export default function CanvasPage() {
   const handleCanvasMouseUp = async () => {
     let madeChanges = false;
 
+    if (isErasing) {
+      setIsErasing(false);
+      return;
+    }
+
     if (isPanning) {
       setIsPanning(false);
       setDragStart(null);
@@ -776,6 +821,22 @@ export default function CanvasPage() {
     }
   };
 
+  const handleCanvasDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isReadOnly) return;
+    const { x, y } = getCanvasPos(e);
+    const target = getNodeAt(x, y);
+    if (target) {
+      if (target.type === "text" || target.text !== undefined) {
+        setInlineText({
+          id: target.id,
+          x: target.x,
+          y: target.y,
+          text: target.text || target.title || "",
+          isNew: false
+        });
+      }
+    }
+  };
 
   const handleExportPNG = async () => {
     let elementsToExport = selectedIds.size > 0 
@@ -916,7 +977,7 @@ export default function CanvasPage() {
     
     // Load and draw logo.png
     try {
-      const img = new Image();
+      const img = new (window as any).Image();
       img.src = "/logo.png";
       await new Promise((resolve, reject) => {
         img.onload = resolve;
@@ -1029,7 +1090,7 @@ export default function CanvasPage() {
 
     if (el.type === "node") {
       if (el.nodeType === "icon") {
-        let iconData = null;
+        let iconData: any = null;
         if (el.lucideIcon) iconData = (LucideCoreIcons as any)[el.lucideIcon];
         
         ctx.fillStyle = "#FFFFFF";
@@ -1092,7 +1153,7 @@ export default function CanvasPage() {
       let iconBg = "rgba(255, 255, 255, 0.1)";
       let svgPaths: string[] = [];
       
-      let iconData = null;
+      let iconData: any = null;
 
       if (el.nodeType === "database") {
         svgPaths = ["M 3 5 A 9 3 0 1 0 21 5 A 9 3 0 1 0 3 5", "M3 5V19A9 3 0 0 0 21 19V5", "M3 12A9 3 0 0 0 21 12"];
@@ -1167,7 +1228,11 @@ export default function CanvasPage() {
       }
       ctx.restore();
 
-      // Text
+      // Text — Progressive Disclosure based on zoom
+      // zoom state is in percentage (e.g. 100 = 100%)
+      const showText = zoom >= 40;
+      const showSubtitle = zoom >= 70;
+
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
       const maxTextWidth = Math.abs(el.width) - 76;
@@ -1193,22 +1258,35 @@ export default function CanvasPage() {
         currentTextY += lineHeight;
       };
 
-      if (el.title) {
+      if (showText && el.title) {
         drawWrappedText(el.title, "bold 13px sans-serif", "#FFFFFF", 16);
       }
       
-      if (el.subtitle) {
+      if (showSubtitle && el.subtitle) {
         currentTextY += 2;
         drawWrappedText(el.subtitle, "11px sans-serif", "#808080", 14);
       }
       
       ctx.textBaseline = "alphabetic";
-    } else if (el.type === "rectangle" || el.type === "frame") {
+    } else if (el.type === "rectangle") {
       ctx.fillStyle = el.fillColor;
       ctx.strokeStyle = isSelected ? "#FFFFFF" : el.strokeColor;
       ctx.lineWidth = el.strokeWidth;
       if (el.fillColor !== "transparent") ctx.fillRect(el.x, el.y, el.width, el.height);
       ctx.strokeRect(el.x, el.y, el.width, el.height);
+    } else if (el.type === "frame") {
+      ctx.fillStyle = el.fillColor === "transparent" ? "rgba(255, 255, 255, 0.02)" : el.fillColor;
+      ctx.strokeStyle = isSelected ? "#FFFFFF" : (el.strokeColor || "#4B5563");
+      ctx.lineWidth = el.strokeWidth || 1.5;
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(el.x, el.y, el.width, el.height, 12);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillRect(el.x, el.y, el.width, el.height);
+        ctx.strokeRect(el.x, el.y, el.width, el.height);
+      }
     } else if (el.type === "circle") {
       ctx.fillStyle = el.fillColor;
       ctx.strokeStyle = isSelected ? "#FFFFFF" : el.strokeColor;
@@ -1302,7 +1380,7 @@ export default function CanvasPage() {
       ctx.textBaseline = "middle";
 
       let iconWidth = 0;
-      let iconData = null;
+      let iconData: any = null;
       let svgPaths: string[] = [];
       
       if (el.lucideIcon) {
@@ -1570,7 +1648,13 @@ export default function CanvasPage() {
 
   // ─── Undo / Redo History ───────────────────────────────────────────────────
   const commitToHistory = React.useCallback((currentElements: SystemNode[]) => {
-    setHistory(prev => [...prev.slice(-49), currentElements]);
+    setHistory(prev => {
+      const last = prev[prev.length - 1];
+      if (last && JSON.stringify(last) === JSON.stringify(currentElements)) {
+        return prev;
+      }
+      return [...prev.slice(-49), currentElements];
+    });
     setFuture([]);
   }, []);
 
@@ -1603,14 +1687,7 @@ export default function CanvasPage() {
         return;
       }
 
-      if (e.key === "v") setActiveTool("select");
-      if (e.key === "r") setActiveTool("rectangle");
-      if (e.key === "o") setActiveTool("circle");
-      if (e.key === "a") setActiveTool("arrow");
-      if (e.key === "t") setActiveTool("text");
-      if (e.key === "e") setActiveTool("eraser");
-      if (e.key === "l") setActiveTool("line");
-      
+
       if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size > 0 && !isReadOnly) {
         commitToHistory(elements);
         selectedIds.forEach((sid) => {
@@ -1622,9 +1699,13 @@ export default function CanvasPage() {
         e.preventDefault();
         setIsCommandOpen(true);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setSelectedIds(new Set(elements.map(el => el.id)));
+      }
       if (e.key === "Escape") { setSelectedIds(new Set()); setSelectionNet(null); setNetStart(null); }
       if (e.key === "+") setZoom((z) => Math.min(200, z + 10));
-      if (e.key === "-") setZoom((z) => Math.max(30, z - 10));
+      if (e.key === "-") setZoom((z) => Math.max(10, z - 10));
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -1748,10 +1829,17 @@ export default function CanvasPage() {
               <div className="w-px h-5 bg-white/10 mx-1" />
 
               <div className="flex items-center gap-0.5 px-1">
-                <button onClick={() => setZoom((z) => Math.max(30, z - 10))} className="text-[#808080] hover:text-white hover:bg-white/10 rounded p-1 cursor-pointer w-6 h-6 flex items-center justify-center">−</button>
+                <button onClick={() => setZoom((z) => Math.max(10, z - 10))} className="text-[#808080] hover:text-white hover:bg-white/10 rounded p-1 cursor-pointer w-6 h-6 flex items-center justify-center">−</button>
                 <span className="text-[10px] font-bold text-white w-9 text-center">{zoom}%</span>
                 <button onClick={() => setZoom((z) => Math.min(200, z + 10))} className="text-[#808080] hover:text-white hover:bg-white/10 rounded p-1 cursor-pointer w-6 h-6 flex items-center justify-center">+</button>
               </div>
+
+              <div className="w-px h-5 bg-white/10 mx-1" />
+
+              <button onClick={() => setIsUiHidden(true)} title="Fullscreen Mode"
+                className="flex items-center justify-center p-1.5 rounded-xl text-[#808080] hover:text-white hover:bg-white/10 transition-all cursor-pointer">
+                <Maximize2 className="w-4 h-4" />
+              </button>
             </div>
 
             {/* BOTTOM CENTER: View Modes */}
@@ -1885,8 +1973,8 @@ export default function CanvasPage() {
         
         {isUiHidden && (
           <div className="absolute top-4 right-4 z-40 pointer-events-auto">
-            <button onClick={() => setIsUiHidden(false)} className="px-4 py-2 rounded-xl bg-[#141414]/80 backdrop-blur-md border border-white/10 text-xs font-bold text-white hover:bg-white/20 transition-colors shadow-2xl cursor-pointer">
-              Show UI
+            <button onClick={() => setIsUiHidden(false)} title="Exit Fullscreen" className="p-2.5 rounded-xl bg-[#141414]/80 backdrop-blur-md border border-white/10 text-[#808080] hover:text-white hover:bg-white/20 transition-all shadow-2xl cursor-pointer">
+              <Minimize2 className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -1920,6 +2008,7 @@ export default function CanvasPage() {
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
+              onDoubleClick={handleCanvasDoubleClick}
               className="w-full h-full block"
               style={{ cursor: getCursor() }} />
           </div>

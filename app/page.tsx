@@ -171,7 +171,7 @@ export default function LandingPage() {
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Button>
               </Link>
-              <UserButton afterSignOutUrl="/">
+              <UserButton>
                 <UserButton.MenuItems>
                   <UserButton.Link label="Dashboard" labelIcon={<Layout className="w-4 h-4 text-[#ffffff]" />} href="/dashboard" />
                 </UserButton.MenuItems>
