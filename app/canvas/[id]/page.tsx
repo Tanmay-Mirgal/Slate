@@ -1188,14 +1188,14 @@ export default function CanvasPage() {
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────────
-  const renderElement = (ctx: CanvasRenderingContext2D, el: SystemNode, isSelected: boolean) => {
+  const renderElement = (ctx: CanvasRenderingContext2D, el: SystemNode, isSelected: boolean, allElements = elements) => {
     ctx.save();
 
 
     // Magnetic/connected arrow
     if (el.type === "arrow" && el.startNodeId && el.endNodeId) {
-      const startNode = elements.find((e) => e.id === el.startNodeId);
-      const endNode = elements.find((e) => e.id === el.endNodeId);
+      const startNode = allElements.find((e) => e.id === el.startNodeId);
+      const endNode = allElements.find((e) => e.id === el.endNodeId);
       if (startNode && endNode) {
         const endCenter = getNodeCenter(endNode);
         const startCenter = getNodeCenter(startNode);
@@ -1832,97 +1832,177 @@ export default function CanvasPage() {
   };
 
   // Draw the faint grid
-  const renderGrid = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+  // Draw the faint grid (Infinite grid optimized with viewport-based drawing and batch path stroke)
+  const renderGrid = (ctx: CanvasRenderingContext2D, w: number, h: number, panX: number, panY: number) => {
     ctx.save();
     ctx.strokeStyle = "rgba(255,255,255,0.03)";
     ctx.lineWidth = 1;
-    for (let x = 0; x < w; x += SNAP_GRID) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    ctx.beginPath();
+    
+    const startX = -panX - (panX % SNAP_GRID);
+    const endX = startX + w;
+    const startY = -panY - (panY % SNAP_GRID);
+    const endY = startY + h;
+    
+    for (let x = startX; x < endX; x += SNAP_GRID) {
+      ctx.moveTo(x, startY);
+      ctx.lineTo(x, endY);
     }
-    for (let y = 0; y < h; y += SNAP_GRID) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    for (let y = startY; y < endY; y += SNAP_GRID) {
+      ctx.moveTo(startX, y);
+      ctx.lineTo(endX, y);
     }
+    ctx.stroke();
     ctx.restore();
   };
 
-  // Main render loop
+  // Sync canvas variables into Ref to prevent stale closures inside high-frequency RAF loop
+  const canvasStateRef = React.useRef({
+    elements,
+    currentElement,
+    selectedIds,
+    activePresence,
+    zoom,
+    pan,
+    magnetTarget,
+    selectionNet,
+  });
+
   React.useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    canvas.width = canvas.parentElement?.clientWidth || window.innerWidth;
-    canvas.height = canvas.parentElement?.clientHeight || window.innerHeight;
+    canvasStateRef.current = {
+      elements,
+      currentElement,
+      selectedIds,
+      activePresence,
+      zoom,
+      pan,
+      magnetTarget,
+      selectionNet,
+    };
+  }, [elements, currentElement, selectedIds, activePresence, zoom, pan, magnetTarget, selectionNet]);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.scale(zoom / 100, zoom / 100);
-    ctx.translate(pan.x, pan.y);
+  // Teammate cursors position cache for LERP interpolation
+  const teammateCursorsRef = React.useRef<Map<string, { x: number; y: number }>>(new Map());
 
-    renderGrid(ctx, canvas.width / (zoom / 100), canvas.height / (zoom / 100));
+  // Continuous animation frame render loop
+  React.useEffect(() => {
+    let animationFrameId: number;
 
-    const allEls = currentElement ? [...elements, currentElement] : elements;
+    const tick = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        animationFrameId = requestAnimationFrame(tick);
+        return;
+      }
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        animationFrameId = requestAnimationFrame(tick);
+        return;
+      }
 
-    // Draw arrows first (behind nodes)
-    allEls.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, selectedIds.has(el.id)));
-    // Draw non-arrows
-    allEls.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, selectedIds.has(el.id)));
+      const {
+        elements: currentElements,
+        currentElement: curEl,
+        selectedIds: selIds,
+        activePresence: presence,
+        zoom: z,
+        pan: p,
+        magnetTarget: magnet,
+        selectionNet: net,
+      } = canvasStateRef.current;
 
-    // Magnet highlight
-    if (magnetTarget) {
+      // Handle automatic canvas resizing
+      const desiredWidth = canvas.parentElement?.clientWidth || window.innerWidth;
+      const desiredHeight = canvas.parentElement?.clientHeight || window.innerHeight;
+      if (canvas.width !== desiredWidth || canvas.height !== desiredHeight) {
+        canvas.width = desiredWidth;
+        canvas.height = desiredHeight;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
-      ctx.strokeStyle = "#10B981";
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([6, 3]);
-      ctx.strokeRect(magnetTarget.x - 6, magnetTarget.y - 6, magnetTarget.width + 12, magnetTarget.height + 12);
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
+      ctx.scale(z / 100, z / 100);
+      ctx.translate(p.x, p.y);
 
-    // Teammates
-    if (activePresence && activePresence.length > 0) {
-      const colors = ["#FFFFFF", "#3B82F6", "#22C55E", "#F59E0B", "#EF4444"];
-      activePresence.forEach((p, idx) => {
-        if (p.userId === myUserId) return;
-        if (p.drawingElement) {
-          try { renderElement(ctx, JSON.parse(p.drawingElement), false); } catch (e) {}
-        }
-        const cc = colors[idx % colors.length];
+      // 1. Grid
+      renderGrid(ctx, canvas.width / (z / 100), canvas.height / (z / 100), p.x, p.y);
+
+      const allEls = curEl ? [...currentElements, curEl] : currentElements;
+
+      // 2. Draw arrows first (behind nodes)
+      allEls.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, selIds.has(el.id), currentElements));
+      
+      // 3. Draw non-arrows
+      allEls.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, selIds.has(el.id), currentElements));
+
+      // 4. Magnet highlight
+      if (magnet) {
         ctx.save();
-        ctx.fillStyle = cc;
-        ctx.beginPath();
-        ctx.moveTo(p.cursorX, p.cursorY);
-        ctx.lineTo(p.cursorX + 14, p.cursorY + 14);
-        ctx.lineTo(p.cursorX + 6, p.cursorY + 16);
-        ctx.lineTo(p.cursorX, p.cursorY + 22);
-        ctx.closePath(); ctx.fill();
-        const tagText = p.userName || "Teammate";
-        ctx.font = "bold 11px sans-serif";
-        const tw = ctx.measureText(tagText).width + 12;
-        ctx.beginPath();
-        ctx.roundRect(p.cursorX + 12, p.cursorY + 18, tw, 20, 6);
-        ctx.fill();
-        ctx.fillStyle = "#ffffff";
-        ctx.fillText(tagText, p.cursorX + 18, p.cursorY + 32);
+        ctx.strokeStyle = "#10B981";
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 3]);
+        ctx.strokeRect(magnet.x - 6, magnet.y - 6, magnet.width + 12, magnet.height + 12);
         ctx.restore();
-      });
-    }
+      }
 
-    // Selection net
-    if (selectionNet && selectionNet.w > 0) {
-      ctx.save();
-      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-      ctx.strokeStyle = "#FFFFFF";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([5, 3]);
-      ctx.fillRect(selectionNet.x, selectionNet.y, selectionNet.w, selectionNet.h);
-      ctx.strokeRect(selectionNet.x, selectionNet.y, selectionNet.w, selectionNet.h);
-      ctx.setLineDash([]);
+      // 5. Teammate cursors with smooth LERP interpolation (butter-smooth presence)
+      if (presence && presence.length > 0) {
+        const colors = ["#FFFFFF", "#3B82F6", "#22C55E", "#F59E0B", "#EF4444"];
+        presence.forEach((pUser, idx) => {
+          if (pUser.userId === myUserId) return;
+          if (pUser.drawingElement) {
+            try { renderElement(ctx, JSON.parse(pUser.drawingElement), false, currentElements); } catch (e) {}
+          }
+          
+          // Get or init previous cursor position
+          const prevPos = teammateCursorsRef.current.get(pUser.userId) || { x: pUser.cursorX, y: pUser.cursorY };
+          // Glide toward target with 16% interpolation step per frame
+          const lerpedX = prevPos.x + (pUser.cursorX - prevPos.x) * 0.16;
+          const lerpedY = prevPos.y + (pUser.cursorY - prevPos.y) * 0.16;
+          teammateCursorsRef.current.set(pUser.userId, { x: lerpedX, y: lerpedY });
+
+          const cc = colors[idx % colors.length];
+          ctx.save();
+          ctx.fillStyle = cc;
+          ctx.beginPath();
+          ctx.moveTo(lerpedX, lerpedY);
+          ctx.lineTo(lerpedX + 14, lerpedY + 14);
+          ctx.lineTo(lerpedX + 6, lerpedY + 16);
+          ctx.lineTo(lerpedX, lerpedY + 22);
+          ctx.closePath(); 
+          ctx.fill();
+          
+          const tagText = pUser.userName || "Teammate";
+          ctx.font = "bold 11px sans-serif";
+          const tw = ctx.measureText(tagText).width + 12;
+          ctx.beginPath();
+          ctx.roundRect(lerpedX + 12, lerpedY + 18, tw, 20, 6);
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(tagText, lerpedX + 18, lerpedY + 32);
+          ctx.restore();
+        });
+      }
+
+      // 6. Selection net
+      if (net && net.w > 0) {
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 3]);
+        ctx.fillRect(net.x, net.y, net.w, net.h);
+        ctx.strokeRect(net.x, net.y, net.w, net.h);
+        ctx.restore();
+      }
+
       ctx.restore();
-    }
+      animationFrameId = requestAnimationFrame(tick);
+    };
 
-    ctx.restore();
-  }, [elements, currentElement, selectedIds, activePresence, zoom, pan, viewMode, magnetTarget, selectionNet]);
+    animationFrameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
 
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
