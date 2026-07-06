@@ -261,14 +261,32 @@ export default function CanvasPage() {
       });
       
       const slateTitle = slate?.title || "Architecture Whiteboard";
-      const subject = encodeURIComponent(`Invitation to collaborate on "${slateTitle}"`);
-      const body = encodeURIComponent(
-        `Hello,\n\nI have added you to collaborate on the whiteboard slate "${slateTitle}" with "${inviteRole}" access.\n\nYou can accept the invitation and access the workspace here:\n${window.location.origin}/dashboard\n\nBest regards!`
-      );
-      window.open(`mailto:${inviteEmail.trim()}?subject=${subject}&body=${body}`, "_blank");
+      
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          role: inviteRole,
+          slateTitle,
+          workspaceName: "Slate Workspace",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        // Fallback: trigger mailto if SMTP server fails or credentials are unset
+        const subject = encodeURIComponent(`Invitation to collaborate on "${slateTitle}"`);
+        const body = encodeURIComponent(
+          `Hello,\n\nI have added you to collaborate on the whiteboard slate "${slateTitle}" with "${inviteRole}" access.\n\nYou can accept the invitation and access the workspace here:\n${window.location.origin}/dashboard\n\nBest regards!`
+        );
+        window.open(`mailto:${inviteEmail.trim()}?subject=${subject}&body=${body}`, "_blank");
+        alert("Invitation created in system! Opened your email client because SMTP is not configured yet on the server.");
+      } else {
+        alert("Invitation sent successfully via SMTP!");
+      }
       
       setInviteEmail("");
-      alert("Invitation created! We've opened your mail client to send the email.");
     } catch (error: any) {
       alert("Failed to send invitation: " + error.message);
     } finally {

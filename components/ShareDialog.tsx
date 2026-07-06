@@ -29,14 +29,31 @@ export function ShareDialog({ workspaceId }: { workspaceId: Id<"workspaces"> }) 
         role,
       });
 
-      const subject = encodeURIComponent("Invitation to join Slate workspace");
-      const body = encodeURIComponent(
-        `Hello,\n\nI have added you to my Slate workspace with "${role}" access.\n\nYou can accept the invitation and access the workspace here:\n${window.location.origin}/dashboard\n\nBest regards!`
-      );
-      window.open(`mailto:${email.trim()}?subject=${subject}&body=${body}`, "_blank");
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          role,
+          slateTitle: "Slate Workspace Boards",
+          workspaceName: "Slate Workspace",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        // Fallback: trigger mailto if SMTP server fails or credentials are unset
+        const subject = encodeURIComponent("Invitation to join Slate workspace");
+        const body = encodeURIComponent(
+          `Hello,\n\nI have added you to my Slate workspace with "${role}" access.\n\nYou can accept the invitation and access the workspace here:\n${window.location.origin}/dashboard\n\nBest regards!`
+        );
+        window.open(`mailto:${email.trim()}?subject=${subject}&body=${body}`, "_blank");
+        alert("Invitation created in system! Opened your email client because SMTP is not configured yet on the server.");
+      } else {
+        alert("Invitation sent successfully via SMTP!");
+      }
 
       setEmail("");
-      alert("Invitation created! We've opened your mail client to send the email.");
     } catch (error: any) {
       alert("Failed to send invite: " + error.message);
     } finally {
