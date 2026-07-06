@@ -401,17 +401,16 @@ export const getPresence = query({
   },
 });
 
-// List slates that are shared with the user (workspaces they are a member of, but not owner)
+// List slates shared WITH the user (workspaces where they are member but not owner)
+// Includes inviter profile info for "Shared by" display
 export const listShared = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return [];
-    }
+    if (!identity) return [];
 
     const clerkId = identity.subject;
+    const myEmail = identity.email?.toLowerCase();
 
-    // Get all memberships for the user
     const memberships = await ctx.db
       .query("workspace_members")
       .withIndex("by_userId", (q) => q.eq("userId", clerkId))
@@ -420,22 +419,122 @@ export const listShared = query({
     const sharedSlates: any[] = [];
     for (const m of memberships) {
       const workspace = await ctx.db.get(m.workspaceId);
-      if (workspace && workspace.ownerId !== clerkId) {
-        const slates = await ctx.db
-          .query("slates")
-          .withIndex("by_workspaceId", (q) => q.eq("workspaceId", m.workspaceId))
-          .filter((q) => q.eq(q.field("isArchived"), false))
-          .collect();
+      if (!workspace || workspace.ownerId === clerkId) continue;
 
-        slates.forEach((s) => {
-          sharedSlates.push({
-            ...s,
-            workspaceName: workspace.name,
-          });
-        });
+      // Find the invite that brought this user into the workspace
+      let sharedByProfile: any = null;
+      if (myEmail) {
+        const invite = await ctx.db
+          .query("invites")
+          .withIndex("by_recipientEmail", (q) => q.eq("recipientEmail", myEmail))
+          .filter((q) => q.eq(q.field("workspaceId"), m.workspaceId))
+          .first();
+
+        if (invite) {
+          const inviterUser = await ctx.db
+            .query("users")
+            .withIndex("by_clerkId", (q) => q.eq("clerkId", invite.inviterId))
+            .unique();
+          if (inviterUser) {
+            sharedByProfile = {
+              name: [inviterUser.firstName, inviterUser.lastName].filter(Boolean).join(" ") || inviterUser.email,
+              email: inviterUser.email,
+              avatar: inviterUser.imageUrl,
+            };
+          }
+        }
       }
+
+      // Fallback: look up owner profile
+      if (!sharedByProfile) {
+        const ownerUser = await ctx.db
+          .query("users")
+          .withIndex("by_clerkId", (q) => q.eq("clerkId", workspace.ownerId))
+          .unique();
+        if (ownerUser) {
+          sharedByProfile = {
+            name: [ownerUser.firstName, ownerUser.lastName].filter(Boolean).join(" ") || ownerUser.email,
+            email: ownerUser.email,
+            avatar: ownerUser.imageUrl,
+          };
+        }
+      }
+
+      const slates = await ctx.db
+        .query("slates")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", m.workspaceId))
+        .filter((q) => q.eq(q.field("isArchived"), false))
+        .collect();
+
+      slates.forEach((s) => {
+        sharedSlates.push({
+          ...s,
+          workspaceName: workspace.name,
+          sharedBy: sharedByProfile,
+        });
+      });
     }
 
     return sharedSlates.sort((a, b) => b.lastEdited - a.lastEdited);
+  },
+});
+
+// List slates the user has shared with others (workspaces they own that have other members)
+export const listSharedByMe = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const clerkId = identity.subject;
+
+    const myWorkspaces = await ctx.db
+      .query("workspaces")
+      .withIndex("by_ownerId", (q) => q.eq("ownerId", clerkId))
+      .collect();
+
+    const results: any[] = [];
+
+    for (const workspace of myWorkspaces) {
+      // Get members other than the owner
+      const otherMembers = await ctx.db
+        .query("workspace_members")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+        .filter((q) => q.neq(q.field("userId"), clerkId))
+        .collect();
+
+      if (otherMembers.length === 0) continue;
+
+      // Enrich member profiles
+      const sharedWith = await Promise.all(
+        otherMembers.map(async (m) => {
+          const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerkId", (q) => q.eq("clerkId", m.userId))
+            .unique();
+          return {
+            name: user ? ([user.firstName, user.lastName].filter(Boolean).join(" ") || user.email) : m.userId,
+            email: user?.email ?? null,
+            avatar: user?.imageUrl ?? null,
+            role: m.role,
+          };
+        })
+      );
+
+      const slates = await ctx.db
+        .query("slates")
+        .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+        .filter((q) => q.eq(q.field("isArchived"), false))
+        .collect();
+
+      slates.forEach((s) => {
+        results.push({
+          ...s,
+          workspaceName: workspace.name,
+          sharedWith,
+        });
+      });
+    }
+
+    return results.sort((a, b) => b.lastEdited - a.lastEdited);
   },
 });

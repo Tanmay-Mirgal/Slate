@@ -12,7 +12,7 @@ import { Doc } from "@/convex/_generated/dataModel";
 
 import {
   Plus, Search, Clock, Settings, Trash2, MoreHorizontal,
-  Briefcase, Pencil, Bell, Check, X
+  Briefcase, Pencil, Bell, Check, X, Users, Share2
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CommandPalette } from "@/components/CommandPalette";
 
-export type DashboardTab = "recent" | "settings";
+export type DashboardTab = "recent" | "shared" | "settings";
 
 const CARD_ACCENTS = [
   { border: "border-violet-500/40", gradient: "from-violet-900/30 to-purple-900/10", dot: "bg-violet-400", stripe: "from-violet-500 to-purple-600" },
@@ -54,6 +54,7 @@ export default function DashboardPage() {
 
   const slates = useQuery(api.slates.list, activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip");
   const sharedSlates = useQuery(api.slates.listShared);
+  const sharedByMeSlates = useQuery(api.slates.listSharedByMe);
   const pendingInvites = useQuery(api.workspaces.getMyPendingInvites);
   const respondToInvite = useMutation(api.workspaces.respondToInvite);
   const createSlate = useMutation(api.slates.create);
@@ -144,6 +145,12 @@ export default function DashboardPage() {
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredSharedByMe = (sharedByMeSlates || []).filter((s: any) =>
+    s.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const totalSharedCount = (sharedSlates?.length || 0) + (sharedByMeSlates?.length || 0);
+
   return (
     <div className="flex h-screen w-screen bg-[#0A0A0A] text-white font-sans selection:bg-white/20 select-none overflow-hidden">
 
@@ -215,15 +222,34 @@ export default function DashboardPage() {
           </div>
 
           <nav className="space-y-1">
-            {(["recent", "settings"] as DashboardTab[]).map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                  activeTab === tab ? "bg-[#202020] text-white border border-[#2B2B2B]" : "text-[#C5C5C5] hover:bg-[#1A1A1A] border border-transparent"
-                }`}>
-                {tab === "recent" ? <Clock className="w-4 h-4 text-[#808080]" /> : <Settings className="w-4 h-4 text-[#808080]" />}
-                <span>{tab === "recent" ? "Slates" : "Settings & Members"}</span>
-              </button>
-            ))}
+            <button onClick={() => setActiveTab("recent")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "recent" ? "bg-[#202020] text-white border border-[#2B2B2B]" : "text-[#C5C5C5] hover:bg-[#1A1A1A] border border-transparent"
+              }`}>
+              <Clock className="w-4 h-4 text-[#808080]" />
+              <span>Slates</span>
+            </button>
+            <button onClick={() => setActiveTab("shared")}
+              className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "shared" ? "bg-[#202020] text-white border border-[#2B2B2B]" : "text-[#C5C5C5] hover:bg-[#1A1A1A] border border-transparent"
+              }`}>
+              <div className="flex items-center gap-2.5">
+                <Share2 className="w-4 h-4 text-[#808080]" />
+                <span>Shared Slates</span>
+              </div>
+              {totalSharedCount > 0 && (
+                <span className="text-[10px] font-bold bg-sky-600/80 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                  {totalSharedCount}
+                </span>
+              )}
+            </button>
+            <button onClick={() => setActiveTab("settings")}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "settings" ? "bg-[#202020] text-white border border-[#2B2B2B]" : "text-[#C5C5C5] hover:bg-[#1A1A1A] border border-transparent"
+              }`}>
+              <Settings className="w-4 h-4 text-[#808080]" />
+              <span>Settings &amp; Members</span>
+            </button>
           </nav>
         </div>
 
@@ -237,7 +263,9 @@ export default function DashboardPage() {
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0A0A]">
         <header className="h-16 border-b border-[#2B2B2B] px-8 flex items-center justify-between shrink-0">
           <h1 className="text-sm font-bold text-white tracking-tight uppercase">
-            {activeTab === "recent" ? "Workspace Slates" : "Workspace Settings"}
+            {activeTab === "recent" && "Workspace Slates"}
+            {activeTab === "shared" && "Shared Slates"}
+            {activeTab === "settings" && "Workspace Settings"}
           </h1>
           {activeTab === "recent" && (
             <div className="flex items-center gap-3">
@@ -384,55 +412,124 @@ export default function DashboardPage() {
                   })}
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Shared Slates */}
-              {filteredSharedSlates.length > 0 && (
-                <div className="space-y-4 pt-6 border-t border-[#2B2B2B]">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080]">Shared Slates</h3>
+          {/* SHARED SLATES TAB */}
+          {activeTab === "shared" && (
+            <div className="space-y-8">
+
+              {/* Shared With Me */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080] flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5" /> Shared With Me
+                </h3>
+                {filteredSharedSlates.length === 0 ? (
+                  <p className="text-xs text-[#666] py-4">No slates have been shared with you yet.</p>
+                ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filteredSharedSlates.map((slate) => {
+                    {filteredSharedSlates.map((slate: any) => {
                       const accent = getAccent(slate._id);
                       return (
                         <div key={slate._id}
-                          className={`group rounded-2xl border ${accent.border} bg-[#141414] hover:bg-[#181818] transition-all flex flex-col overflow-hidden shadow-md hover:shadow-lg hover:shadow-black/40`}>
-
-                          {/* Thumbnail */}
+                          className={`group rounded-2xl border ${accent.border} bg-[#141414] hover:bg-[#181818] transition-all flex flex-col overflow-hidden shadow-md`}>
                           <Link href={`/canvas/${slate._id}`}
-                            className={`relative h-48 flex items-center justify-center bg-gradient-to-br ${accent.gradient} overflow-hidden border-b ${accent.border}`}>
+                            className={`relative h-40 flex items-center justify-center bg-gradient-to-br ${accent.gradient} overflow-hidden border-b ${accent.border}`}>
                             <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${accent.stripe}`} />
-                            <Image
-                              src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : '/illustration_1.svg'}
-                              alt="Slate" fill
-                              className="object-cover opacity-75 group-hover:scale-105 transition-transform duration-500 mix-blend-luminosity"
-                            />
+                            <Image src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : '/illustration_1.svg'}
+                              alt="Slate" fill className="object-cover opacity-75 group-hover:scale-105 transition-transform duration-500 mix-blend-luminosity" />
                           </Link>
-
-                          {/* Footer */}
-                          <div className="p-4 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                              <div className={`w-2 h-2 rounded-full shrink-0 ${accent.dot}`} />
-                              <div className="min-w-0 flex-1">
-                                <h4 className="text-xs font-bold text-white truncate">
-                                  {slate.title}
-                                </h4>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[10px] text-sky-400 font-semibold px-1.5 py-0.5 rounded bg-sky-950/40 border border-sky-900/30">
-                                    {slate.workspaceName || "Shared"}
-                                  </span>
-                                  <span className="text-[11px] text-[#666] font-mono">•</span>
-                                  <span className="text-[11px] text-[#808080] font-mono">
-                                    Edited {new Date(slate.lastEdited).toLocaleDateString()}
-                                  </span>
+                          <div className="p-4 space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="text-xs font-bold text-white truncate">{slate.title}</h4>
+                                <span className="text-[10px] text-sky-400 font-semibold">{slate.workspaceName}</span>
+                              </div>
+                              <div className={`w-2 h-2 rounded-full shrink-0 mt-1 ${accent.dot}`} />
+                            </div>
+                            {/* Shared By Info */}
+                            {slate.sharedBy && (
+                              <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                                {slate.sharedBy.avatar ? (
+                                  <img src={slate.sharedBy.avatar} alt={slate.sharedBy.name} className="w-6 h-6 rounded-full object-cover shrink-0 border border-white/10" />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full bg-[#333] flex items-center justify-center text-[9px] font-bold text-white shrink-0">
+                                    {slate.sharedBy.name?.charAt(0) || "?"}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <p className="text-[11px] text-[#808080] leading-none">Shared by</p>
+                                  <p className="text-[11px] font-semibold text-white truncate">{slate.sharedBy.name}</p>
+                                  {slate.sharedBy.email && <p className="text-[10px] text-[#666] truncate">{slate.sharedBy.email}</p>}
                                 </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+
+              {/* Shared By Me */}
+              <div className="space-y-4 pt-6 border-t border-[#2B2B2B]">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080] flex items-center gap-2">
+                  <Share2 className="w-3.5 h-3.5" /> Shared By Me
+                </h3>
+                {filteredSharedByMe.length === 0 ? (
+                  <p className="text-xs text-[#666] py-4">You haven't shared any slates yet. Use the Share button inside a slate to invite members.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredSharedByMe.map((slate: any) => {
+                      const accent = getAccent(slate._id);
+                      return (
+                        <div key={slate._id}
+                          className={`group rounded-2xl border ${accent.border} bg-[#141414] hover:bg-[#181818] transition-all flex flex-col overflow-hidden shadow-md`}>
+                          <Link href={`/canvas/${slate._id}`}
+                            className={`relative h-40 flex items-center justify-center bg-gradient-to-br ${accent.gradient} overflow-hidden border-b ${accent.border}`}>
+                            <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${accent.stripe}`} />
+                            <Image src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : '/illustration_1.svg'}
+                              alt="Slate" fill className="object-cover opacity-75 group-hover:scale-105 transition-transform duration-500 mix-blend-luminosity" />
+                          </Link>
+                          <div className="p-4 space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="text-xs font-bold text-white truncate">{slate.title}</h4>
+                                <span className="text-[10px] text-emerald-400 font-semibold">{slate.workspaceName}</span>
+                              </div>
+                              <div className={`w-2 h-2 rounded-full shrink-0 mt-1 ${accent.dot}`} />
+                            </div>
+                            {/* Shared With Info */}
+                            {slate.sharedWith && slate.sharedWith.length > 0 && (
+                              <div className="pt-2 border-t border-white/5 space-y-1.5">
+                                <p className="text-[11px] text-[#808080]">Shared with {slate.sharedWith.length} {slate.sharedWith.length === 1 ? "person" : "people"}</p>
+                                {slate.sharedWith.map((person: any, idx: number) => (
+                                  <div key={idx} className="flex items-center gap-2">
+                                    {person.avatar ? (
+                                      <img src={person.avatar} alt={person.name} className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/10" />
+                                    ) : (
+                                      <div className="w-5 h-5 rounded-full bg-[#333] flex items-center justify-center text-[8px] font-bold text-white shrink-0">
+                                        {person.name?.charAt(0) || "?"}
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="text-[11px] font-semibold text-white truncate">{person.name}</p>
+                                      {person.email && <p className="text-[10px] text-[#666] truncate">{person.email}</p>}
+                                    </div>
+                                    <span className="text-[9px] font-bold text-[#666] ml-auto shrink-0">{person.role}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
 
