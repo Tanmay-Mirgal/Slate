@@ -20,158 +20,450 @@ export async function POST(req: Request) {
       return NextResponse.json({ elements: fallbackElements, source: "slate-fallback" });
     }
 
-    const systemPrompt = `You are a Senior Staff Software Engineer specializing in AI Diagram Generation, Graph Layout Algorithms, ELK.js, and visual system design.
+    const systemPrompt = `We are NOT building an AI that simply generates nodes.
 
-Your architecture generation must NOT be a dashboard.
-Stop generating dashboards.
-Stop generating grids.
-Stop generating equally spaced cards.
-I do NOT want card layouts.
-I want real software architecture diagrams.
-Think like Eraser.io.
+We are building an Enterprise Diagram Designer similar to Eraser.io.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The generated diagram should look like it was manually designed by a Principal Solutions Architect.
 
-Every diagram must tell a visual story.
+CRITICAL INSTRUCTION: Generate highly detailed architecture diagrams. You must include a single and each and every minute detail in the diagram, down to the lowest level components, queues, caches, background workers, configuration maps, and minor microservices. Leave absolutely nothing out.
 
-The eye should naturally flow
-TOP
-↓
-MIDDLE
-↓
-BOTTOM
+The diagram should be suitable for engineering documentation, architecture reviews, investor presentations and technical design documents.
 
-Never scatter components randomly.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CURRENT PROBLEM
 
-Follow this hierarchy.
+The current diagrams look like grids of cards.
+
+Nodes overlap.
+
+Connections overlap.
+
+Everything feels compressed.
+
+Containers are too small.
+
+The diagram does not breathe.
+
+It looks AI generated.
+
+This is NOT acceptable.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NEW OBJECTIVE
+
+Generate diagrams that are visually comparable to
+
+• Eraser.io
+• Lucidchart
+• Whimsical
+• Miro
+• Microsoft Visio
+• AWS Architecture Center
+
+NOT dashboards.
+
+NOT grids.
+
+NOT wireframes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CANVAS
+
+The canvas should automatically expand.
+
+Do NOT try to fit everything inside one small screen.
+
+The canvas should become larger whenever necessary.
+
+Allow thousands of pixels of width and height.
+
+Large enterprise systems should naturally occupy large canvases.
+
+Whitespace is GOOD.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SPACING
+
+This is the highest priority.
+
+Every node should have generous spacing.
+
+Every container should have generous padding.
+
+Every layer should have generous margins.
+
+There should be enough empty space so that
+
+- labels never overlap
+- edges never overlap
+- users never need to guess where something belongs
+
+Optimize readability instead of compactness.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LAYERS
+
+Always organize diagrams into architectural layers.
+
+Example
 
 Users
+
 ↓
-Clients
+
+Client Applications
+
 ↓
+
 API Gateway
+
 ↓
+
+Application Services
+
+↓
+
 Business Services
+
 ↓
-Shared Services
+
+AI Platform
+
 ↓
+
 Data Layer
+
 ↓
+
 Infrastructure
+
 ↓
+
 External Providers
 
-Never violate this hierarchy.
+↓
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Monitoring
 
-The canvas should NEVER resemble a dashboard.
+Every layer should have a large visual separation.
 
-BAD
-□ □ □
-□ □ □
-□ □ □
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-GOOD
-                 Users
-                    │
-              Web Application
-                    │
-             API Gateway
-                    │
-      ┌─────────────┼──────────────┐
-      │             │              │
- Authentication  Workspace   Collaboration
-      │             │              │
-      └─────────────┼──────────────┘
-                    │
-             AI Diagram Engine
-                    │
-          LLM Gateway
-                    │
- OpenAI Claude Gemini Groq
+CONTAINERS
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Create professional containers.
 
-Do not distribute nodes evenly.
-Create hierarchy.
-Create focus.
-Large components should appear near the center.
-Supporting components should appear around them.
+Each container should include
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Title
 
-Never generate one box for every feature.
-Instead generate domains.
+• Optional subtitle
 
-BAD
-Flowchart Generator
-ER Generator
-Class Generator
-Sequence Generator
+• Soft background
 
-GOOD
-AI Diagram Engine
-contains
-Flowchart, ER, Sequence, Class, Architecture
+• Rounded corners
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Padding
 
-Never expose implementation details inside HLD.
-Instead expose architectural domains.
+• Margin
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Border
 
-The renderer should resemble:
-Eraser.io
-AWS Architecture Center
-Google Cloud Architecture
+Every node belongs to exactly one container.
+
+NO FLOATING NODES. Every single node (including infrastructure, cloud services, external providers, and monitoring) MUST be logically connected to the main application or backend via an edge. If a component is idle or disconnected, do not generate it. Ensure all components have at least one incoming or outgoing edge.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NODES
+
+Every node should contain
+
+• Icon
+
+• Title
+
+• Subtitle
+
+• Technology
+
+• Category
+
+• Description
+
+Icons must match the technology.
+
+Examples
+
+PostgreSQL
+
+Redis
+
+Kafka
+
+Docker
+
+Kubernetes
+
+AWS
+
+OpenAI
+
+Claude
+
+Gemini
+
+Cloudflare
+
 Stripe
-Netflix
-Uber Engineering
 
-NOT PowerPoint
-NOT Dashboard
-NOT Grid
-NOT Card Layout
+GitHub
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Prometheus
 
-Every diagram should be understandable within five seconds.
-If the viewer cannot immediately identify
-Client, Backend, Data, Infrastructure, External Services
-the architecture has failed.
+Grafana
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Never display generic icons.
 
-The AI should optimize for:
-Storytelling
-Hierarchy
-Grouping
-Bounded Contexts
-Readability
-Whitespace
-Presentation Quality
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-NOT Equal spacing
-NOT Grid layouts
-NOT Symmetric dashboards
+NODE SIZES
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Nodes should automatically resize according to their content.
 
-Generate diagrams that look handcrafted by a Principal Solutions Architect.
-The result should be visually indistinguishable from Eraser.io.
+Long names should wrap.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Never clip text.
+
+Never overflow.
+
+Never overlap.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TEXT
+
+Typography must be documentation quality.
+
+Section Titles
+
+Large
+
+Bold
+
+Node Titles
+
+Medium
+
+Bold
+
+Node Description
+
+Small
+
+Readable
+
+Connection Labels
+
+Small
+
+Subtle
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EDGES
+
+Edges should
+
+Avoid crossings
+
+Avoid overlaps
+
+Use orthogonal routing
+
+Have arrow heads
+
+Contain protocol labels
+
+Contain operation labels
+
+Examples
+
+REST
+
+HTTPS
+
+gRPC
+
+Publish
+
+Subscribe
+
+Read
+
+Write
+
+Webhook
+
+JWT
+
+OAuth
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AUTO LAYOUT
+
+Never position nodes manually.
+
+Generate a semantic graph first.
+
+Then use a graph layout engine.
+
+The renderer should calculate
+
+x
+
+y
+
+routing
+
+spacing
+
+container sizes
+
+layer spacing
+
+Do NOT ask the LLM to calculate coordinates.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HIERARCHY
+
+Large systems should naturally become large diagrams.
+
+Never compress the architecture.
+
+Instead
+
+Increase whitespace
+
+Increase canvas
+
+Increase spacing
+
+Increase readability
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DETAIL LEVELS
+
+Support multiple detail levels.
+
+High Level Architecture
+
+Only domains
+
+Medium Detail
+
+Domains + Services
+
+Low Level Design
+
+Domains + Services + Internal Components
+
+Users should be able to zoom into deeper levels.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VISUAL STYLE
+
+The diagram should resemble engineering documentation.
+
+It should never resemble a dashboard.
+
+It should never resemble a PowerPoint slide.
+
+It should never resemble a collection of cards.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL QUALITY CHECK
+
+Before rendering ask
+
+Can every node be read without zooming?
+
+Do containers have enough spacing?
+
+Can a CTO understand the architecture within five seconds?
+
+Do the connections feel natural?
+
+Are labels readable?
+
+Does the diagram breathe?
+
+If the answer is NO
+
+increase canvas
+
+increase spacing
+
+increase padding
+
+increase margins
+
+reduce crossings
+
+recalculate layout
+
+Only render after all quality checks pass.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GOAL
+
+The final output should look indistinguishable from a diagram manually designed in Eraser.io.
+
+Users should feel they are looking at a professionally crafted engineering architecture document—not an AI-generated graph.
+Diagram Density Rules
+
+Small Project
+→ 1200 × 900 canvas
+
+Medium Project
+→ 2500 × 1800 canvas
+
+Large Enterprise
+→ 4500 × 3000 canvas
+
+Very Large Enterprise
+→ Unlimited canvas with auto-expanding sections.
+
+Never compress a large architecture into a small viewport.
+
+Increase the canvas instead of reducing spacing.
+Generate diagrams as if they will be printed on an A0 engineering poster.
+
+Optimize for clarity, documentation quality, and long-term maintainability—not for fitting everything into one screen.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 OUTPUT FORMAT
 Return ONLY JSON. NEVER output x/y coordinates. Output semantic structure only.
 
-CRITICAL INSTRUCTION: For EVERY node, you MUST use "type": "icon" and you MUST provide a "lucideIcon" field containing the EXACT case-sensitive name of a Lucide icon that represents the component (e.g. "Server", "Database", "Cloud", "User", "Globe", "Smartphone", "Zap", "Monitor", "Code", "Image", "Mail", "Shield", "Settings", "Box", "Layers"). Do not use any other node type.
+CRITICAL INSTRUCTION FOR COLOR CODING: For EVERY node, you MUST assign a "category" field with EXACTLY one of the following values: "frontend" (for UI/features), "backend" (for APIs/services), or "infra" (for databases/cloud/infrastructure). This is required so the system can color them Blue, Yellow, and Green respectively!
+
+CRITICAL INSTRUCTION: For EVERY node, you can use semantic types like "database", "decision", "server", "rectangle", or "icon". Provide a "lucideIcon" field with the EXACT case-sensitive name of a Lucide icon. If no relevant icon is found, leave "lucideIcon" empty (or null) - DO NOT use a generic or irrelevant icon.
 
 {
+  "reasoning": "Think step-by-step about the architecture. List all core services, databases, caching layers, external APIs, and monitoring tools. Ensure no component is left isolated. Explain how data flows through the system.",
   "diagramType": "HLD",
   "groups": [
     {
@@ -189,7 +481,7 @@ CRITICAL INSTRUCTION: For EVERY node, you MUST use "type": "icon" and you MUST p
       "groupId": "group1",
       "type": "icon",
       "lucideIcon": "Shield",
-      "importance": "critical",
+      "category": "backend",
       "technologies": ["Node.js", "Express"]
     }
   ],
@@ -227,7 +519,8 @@ Only a beautiful professional diagram.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate architecture diagram elements for: ${prompt}` },
         ],
-        temperature: 0.2,
+        temperature: 0.3,
+        max_tokens: 8192,
       }),
     });
 
@@ -259,8 +552,10 @@ Only a beautiful professional diagram.`;
         layoutOptions: { 
           'elk.algorithm': 'layered', 
           'elk.direction': parsedData.diagramType === 'ER' ? 'RIGHT' : 'DOWN',
-          'elk.spacing.nodeNode': '60',
-          'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+          'elk.spacing.nodeNode': '200',
+          'elk.layered.spacing.nodeNodeBetweenLayers': '240',
+          'elk.spacing.edgeNode': '60',
+          'elk.spacing.edgeEdge': '60',
           'elk.edgeRouting': 'ORTHOGONAL',
           'elk.hierarchyHandling': 'INCLUDE_CHILDREN'
         },
@@ -268,52 +563,69 @@ Only a beautiful professional diagram.`;
         edges: []
       };
 
-      // Map colors by importance or category
+      // Map colors by category as requested by the user
       const getColor = (node: any) => {
-        if (node.importance === 'critical') return '#EF4444'; // Red
-        if (node.importance === 'major') return '#3B82F6'; // Blue
-        if (node.category === 'database') return '#22C55E'; // Green
-        return '#8B5CF6'; // Purple default
+        if (node.category === 'frontend') return '#3B82F6'; // Blue
+        if (node.category === 'backend') return '#EAB308'; // Yellow
+        if (node.category === 'infra') return '#22C55E'; // Green
+        return '#8B5CF6'; // Purple default fallback
       };
 
       const getShape = (node: any) => {
-        if (node.type === 'database') return 'ellipse'; // or cylinder if supported
+        if (node.type === 'database') return 'ellipse';
         if (node.type === 'decision') return 'diamond';
+        if (node.type === 'icon') return 'icon';
         return 'rectangle';
       };
 
       // 1. Create a map of groups
+      const sessionId = Math.random().toString(36).substring(2, 9);
       const groupMap: Record<string, any> = {};
       if (parsedData.groups) {
         parsedData.groups.forEach((g: any) => {
-          groupMap[g.id] = {
-            id: g.id,
+          const uId = `${g.id}_${sessionId}`;
+          groupMap[uId] = {
+            id: uId,
             title: g.title,
             children: [],
             layoutOptions: { 
-              'elk.padding': '[top=60,left=30,bottom=30,right=30]' 
+              'elk.padding': '[top=100,left=80,bottom=80,right=80]' 
             }
           };
-          elkGraph.children.push(groupMap[g.id]);
+          elkGraph.children.push(groupMap[uId]);
         });
       }
 
       // 2. Add nodes to groups or root
       parsedData.nodes.forEach((n: any) => {
         const isCritical = n.importance === 'critical';
-        const w = isCritical ? 260 : 200;
-        const h = isCritical ? 90 : 70;
+        const shape = getShape(n);
+        
+        let w = isCritical ? 260 : 220;
+        let h = isCritical ? 100 : 85;
+        
+        // Ellipses and diamonds need more bounding box area to fit the same content
+        if (shape === 'ellipse') {
+          w += 40;
+          h += 40;
+        } else if (shape === 'diamond') {
+          w += 60;
+          h += 60;
+        }
+        
+        const uId = `${n.id}_${sessionId}`;
+        const uGroupId = n.groupId ? `${n.groupId}_${sessionId}` : null;
         
         const elkNode = { 
-          id: n.id, 
+          id: uId, 
           width: w, 
           height: h,
           // Store original data to map back later
           _original: n 
         };
 
-        if (n.groupId && groupMap[n.groupId]) {
-          groupMap[n.groupId].children.push(elkNode);
+        if (uGroupId && groupMap[uGroupId]) {
+          groupMap[uGroupId].children.push(elkNode);
         } else {
           elkGraph.children.push(elkNode);
         }
@@ -322,9 +634,9 @@ Only a beautiful professional diagram.`;
       // 3. Add edges
       parsedData.edges.forEach((e: any, idx: number) => {
         elkGraph.edges.push({
-          id: `e_${idx}`,
-          sources: [e.source],
-          targets: [e.target],
+          id: `e_${idx}_${sessionId}`,
+          sources: [`${e.source}_${sessionId}`],
+          targets: [`${e.target}_${sessionId}`],
           _original: e
         });
       });
@@ -334,8 +646,8 @@ Only a beautiful professional diagram.`;
 
       // 5. Flatten ELK graph back into Slate nodes
       const flattenNode = (node: any, offsetX = 0, offsetY = 0) => {
-        const absX = node.x + offsetX;
-        const absY = node.y + offsetY;
+        const absX = (node.x || 0) + offsetX;
+        const absY = (node.y || 0) + offsetY;
 
         if (node.children && node.children.length > 0) {
           // This is a group container. Render background rectangle, then a text node for the title at the top.
@@ -374,8 +686,9 @@ Only a beautiful professional diagram.`;
           elements.push({
             id: node.id,
             type: getShape(orig),
-            text: orig.title + (orig.subtitle ? `
-(${orig.subtitle})` : ''),
+            nodeType: orig.type,
+            lucideIcon: orig.lucideIcon,
+            text: orig.title ? (orig.title + (orig.subtitle ? `\n(${orig.subtitle})` : '')) : (orig.name || orig.id || "Component Node"),
             x: absX,
             y: absY,
             width: node.width,

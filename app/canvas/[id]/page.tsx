@@ -127,34 +127,38 @@ function getNodeEdgePoint(node: SystemNode, toward: { x: number; y: number }) {
   return { x: cx + dx * scale, y: cy + dy * scale };
 }
 
-function drawOrthogonalArrow(
+function drawMagneticArrow(
   ctx: CanvasRenderingContext2D,
   from: { x: number; y: number },
   to: { x: number; y: number },
   color: string,
   isSelected: boolean
 ) {
-  const midX = (from.x + to.x) / 2;
   ctx.strokeStyle = isSelected ? "#FFFFFF" : color;
   ctx.lineWidth = isSelected ? 2.5 : 1.8;
   ctx.setLineDash([]);
+  
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const isVertical = Math.abs(dy) > Math.abs(dx);
+  
+  // Create S-curve control points
+  const cp1 = isVertical ? { x: from.x, y: from.y + dy / 2 } : { x: from.x + dx / 2, y: from.y };
+  const cp2 = isVertical ? { x: to.x, y: to.y - dy / 2 } : { x: to.x - dx / 2, y: to.y };
+
   ctx.beginPath();
   ctx.moveTo(from.x, from.y);
-  ctx.lineTo(midX, from.y);
-  ctx.lineTo(midX, to.y);
-  ctx.lineTo(to.x, to.y);
+  ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, to.x, to.y);
   ctx.stroke();
 
-  // Arrowhead
+  // Arrowhead pointing along the tangent at 'to'
   const headLen = 10;
-  const angle = Math.atan2(to.y - to.y, to.x - midX);
-  const actualAngle = Math.atan2(to.y - to.y, to.x >= midX ? 1 : -1);
-  const finalAngle = to.x >= midX ? 0 : Math.PI;
+  const angle = Math.atan2(to.y - cp2.y, to.x - cp2.x);
   ctx.beginPath();
   ctx.moveTo(to.x, to.y);
-  ctx.lineTo(to.x - headLen * Math.cos(finalAngle - Math.PI / 6), to.y - headLen * Math.sin(finalAngle - Math.PI / 6));
+  ctx.lineTo(to.x - headLen * Math.cos(angle - Math.PI / 6), to.y - headLen * Math.sin(angle - Math.PI / 6));
   ctx.moveTo(to.x, to.y);
-  ctx.lineTo(to.x - headLen * Math.cos(finalAngle + Math.PI / 6), to.y - headLen * Math.sin(finalAngle + Math.PI / 6));
+  ctx.lineTo(to.x - headLen * Math.cos(angle + Math.PI / 6), to.y - headLen * Math.sin(angle + Math.PI / 6));
   ctx.stroke();
 }
 
@@ -402,7 +406,7 @@ export default function CanvasPage() {
 
         const newNodes: SystemNode[] = nodeElements.map((el: any, i: number) => ({
           id: el.id || `node-${Date.now()}-${i}`,
-          type: el.type === "ellipse" ? "circle" : el.type === "diamond" ? "rectangle" : el.type === "sticky" ? "frame" : (el.type || "rectangle"),
+          type: el.type === "icon" ? "node" : (el.type === "ellipse" ? "circle" : el.type === "diamond" ? "rectangle" : el.type === "sticky" ? "frame" : (el.type || "rectangle")),
           nodeType: el.nodeType || ((el.text || "").toLowerCase().includes("db") || (el.text || "").toLowerCase().includes("database") ? "database"
             : (el.text || "").toLowerCase().includes("api") || (el.text || "").toLowerCase().includes("gateway") ? "gateway"
             : "server"),
@@ -774,10 +778,52 @@ export default function CanvasPage() {
 
 
   const handleExportPNG = () => {
-    if (elements.length === 0) return;
+    let elementsToExport = selectedIds.size > 0 
+      ? elements.filter(el => selectedIds.has(el.id)) 
+      : [...elements];
+
+    if (selectedIds.size > 0) {
+      let selMinX = Infinity, selMinY = Infinity, selMaxX = -Infinity, selMaxY = -Infinity;
+      elementsToExport.forEach(el => {
+        if (el.x !== undefined && el.width !== undefined && el.type !== "pencil" && el.type !== "arrow") {
+          const x1 = Math.min(el.x, el.x + el.width);
+          const y1 = Math.min(el.y, el.y + el.height);
+          const x2 = Math.max(el.x, el.x + el.width);
+          const y2 = Math.max(el.y, el.y + el.height);
+          selMinX = Math.min(selMinX, x1);
+          selMinY = Math.min(selMinY, y1);
+          selMaxX = Math.max(selMaxX, x2);
+          selMaxY = Math.max(selMaxY, y2);
+        }
+      });
+      
+      const autoIncluded = elements.filter(el => {
+        if (selectedIds.has(el.id)) return false;
+        if (el.type === "arrow" || el.type === "pencil") return false;
+        if (el.x !== undefined && el.width !== undefined) {
+          const cx = el.x + el.width / 2;
+          const cy = el.y + el.height / 2;
+          return cx >= selMinX && cx <= selMaxX && cy >= selMinY && cy <= selMaxY;
+        }
+        return false;
+      });
+      
+      elementsToExport = [...elementsToExport, ...autoIncluded];
+      const exportIds = new Set(elementsToExport.map(e => e.id));
+      
+      const connectedArrows = elements.filter(el => 
+        el.type === "arrow" && 
+        el.startNodeId && exportIds.has(el.startNodeId) && 
+        el.endNodeId && exportIds.has(el.endNodeId) &&
+        !exportIds.has(el.id)
+      );
+      elementsToExport = [...elementsToExport, ...connectedArrows];
+    }
+
+    if (elementsToExport.length === 0) return;
     
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    elements.forEach(el => {
+    elementsToExport.forEach(el => {
       if (el.width !== undefined && el.height !== undefined && el.type !== "pencil") {
         const x1 = Math.min(el.x, el.x + el.width);
         const y1 = Math.min(el.y, el.y + el.height);
@@ -809,11 +855,24 @@ export default function CanvasPage() {
     const width = maxX - minX;
     const height = maxY - minY;
 
+    // High resolution export, but capped to browser's safe maximum dimension (approx 16000px)
+    let exportScale = 50; 
+    const MAX_DIMENSION = 16000;
+    
+    if (width * exportScale > MAX_DIMENSION) {
+      exportScale = Math.max(1, Math.floor(MAX_DIMENSION / width));
+    }
+    if (height * exportScale > MAX_DIMENSION) {
+      exportScale = Math.max(1, Math.floor(MAX_DIMENSION / height));
+    }
+
     const offCanvas = document.createElement("canvas");
-    offCanvas.width = width;
-    offCanvas.height = height;
+    offCanvas.width = width * exportScale;
+    offCanvas.height = height * exportScale;
     const ctx = offCanvas.getContext("2d");
     if (!ctx) return;
+
+    ctx.scale(exportScale, exportScale);
 
     // Draw background
     ctx.fillStyle = "#0D0D0D";
@@ -824,8 +883,8 @@ export default function CanvasPage() {
     ctx.translate(-minX, -minY);
 
     // Draw elements
-    elements.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, false));
-    elements.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, false));
+    elementsToExport.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, false));
+    elementsToExport.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, false));
 
     ctx.restore();
 
@@ -862,71 +921,6 @@ export default function CanvasPage() {
     ctx.save();
 
 
-    // Lucide Raw Icon
-    if (el.nodeType === "icon" && el.lucideIcon) {
-      const iconData = (LucideCoreIcons as any)[el.lucideIcon];
-      if (iconData) {
-        ctx.fillStyle = el.fillColor && el.fillColor !== "transparent" ? el.fillColor : "rgba(255, 255, 255, 0.05)";
-        ctx.beginPath();
-        ctx.roundRect(el.x, el.y, el.width, el.height, 16);
-        ctx.fill();
-        ctx.strokeStyle = isSelected ? "#FFFFFF" : (el.strokeColor || "#2B2B2B");
-        ctx.lineWidth = isSelected ? 2.5 : 1.5;
-        ctx.stroke();
-        
-        ctx.save();
-        const iconSize = Math.min(el.width, el.height) * 0.5;
-        ctx.translate(el.x + el.width/2 - iconSize/2, el.y + el.height/2 - iconSize/2);
-        ctx.scale(iconSize/24, iconSize/24);
-        ctx.strokeStyle = el.strokeColor || "#FFFFFF";
-        ctx.lineWidth = 2;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        try {
-          iconData.forEach(([tag, attrs]: any) => {
-            if (tag === 'path') {
-              const p = new Path2D(attrs.d);
-              ctx.stroke(p);
-            } else if (tag === 'circle') {
-              ctx.beginPath();
-              ctx.arc(attrs.cx, attrs.cy, attrs.r, 0, 2*Math.PI);
-              ctx.stroke();
-            } else if (tag === 'rect') {
-              ctx.strokeRect(attrs.x, attrs.y, attrs.width, attrs.height);
-            } else if (tag === 'line') {
-              ctx.beginPath();
-              ctx.moveTo(attrs.x1, attrs.y1);
-              ctx.lineTo(attrs.x2, attrs.y2);
-              ctx.stroke();
-            } else if (tag === 'polyline' || tag === 'polygon') {
-              const pts = attrs.points.split(' ').map((p:string) => p.split(',').map(Number));
-              ctx.beginPath();
-              ctx.moveTo(pts[0][0], pts[0][1]);
-              for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-              if (tag === 'polygon') ctx.closePath();
-              ctx.stroke();
-            }
-          });
-        } catch(e) {}
-        ctx.restore();
-      }
-      
-      if (isSelected) {
-        ctx.strokeStyle = "#FFFFFF";
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 4]);
-        ctx.strokeRect(el.x - 4, el.y - 4, el.width + 8, el.height + 8);
-        ctx.setLineDash([]);
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(el.x + el.width - 4, el.y + el.height - 4, 8, 8);
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(el.x + el.width - 4, el.y + el.height - 4, 8, 8);
-      }
-      ctx.restore();
-      return;
-    }
-
     // Magnetic/connected arrow
     if (el.type === "arrow" && el.startNodeId && el.endNodeId) {
       const startNode = elements.find((e) => e.id === el.startNodeId);
@@ -936,15 +930,54 @@ export default function CanvasPage() {
         const startCenter = getNodeCenter(startNode);
         const from = getNodeEdgePoint(startNode, endCenter);
         const to = getNodeEdgePoint(endNode, startCenter);
-        drawOrthogonalArrow(ctx, from, to, el.strokeColor || el.color || "#6B7280", isSelected);
+        drawMagneticArrow(ctx, from, to, el.strokeColor || el.color || "#6B7280", isSelected);
         // Arrow label
         if (el.text) {
           const midX = (from.x + to.x) / 2;
           const midY = (from.y + to.y) / 2;
-          ctx.fillStyle = "#808080";
-          ctx.font = "10px sans-serif";
+          ctx.fillStyle = "#FFFFFF";
+          ctx.font = "bold 13px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText(el.text, midX, midY - 6);
+          
+          const maxLineWidth = 80;
+          const words = el.text.split(' ');
+          const lines = [];
+          let currentLine = words[0] || '';
+
+          for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = ctx.measureText(currentLine + " " + word).width;
+            if (width < maxLineWidth) {
+              currentLine += " " + word;
+            } else {
+              lines.push(currentLine);
+              currentLine = word;
+            }
+          }
+          if (currentLine) lines.push(currentLine);
+
+          // Calculate dimensions for background block
+          const blockHeight = lines.length * 15;
+          let blockWidth = 0;
+          lines.forEach(l => {
+            const w = ctx.measureText(l).width;
+            if (w > blockWidth) blockWidth = w;
+          });
+
+          // Position text so the bottom-most line sits above the arrow
+          let startY = midY - 12 - (lines.length - 1) * 15;
+          
+          // Draw dark background to prevent text mashing together
+          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+          // startY is the alphabetic baseline of the first line, so the top is about startY - 12
+          ctx.fillRect(midX - blockWidth / 2 - 6, startY - 13, blockWidth + 12, blockHeight + 6);
+
+          ctx.fillStyle = "#FFFFFF";
+          lines.forEach((line) => {
+            ctx.fillText(line, midX, startY);
+            startY += 15;
+          });
+          
           ctx.textAlign = "left";
         }
       }
@@ -964,7 +997,12 @@ export default function CanvasPage() {
       let iconBg = "rgba(255, 255, 255, 0.1)";
       let svgPaths: string[] = [];
       
-      if (el.nodeType === "database") {
+      let iconData = null;
+
+      if (el.nodeType === "icon" && el.lucideIcon) {
+        iconColor = "#A78BFA"; iconBg = "rgba(167, 139, 250, 0.1)";
+        iconData = (LucideCoreIcons as any)[el.lucideIcon];
+      } else if (el.nodeType === "database") {
         iconColor = "#FFFFFF"; iconBg = "rgba(255, 255, 255, 0.1)";
         svgPaths = ["M 3 5 A 9 3 0 1 0 21 5 A 9 3 0 1 0 3 5", "M3 5V19A9 3 0 0 0 21 19V5", "M3 12A9 3 0 0 0 21 12"];
       } else if (el.nodeType === "gateway") {
@@ -1008,24 +1046,80 @@ export default function CanvasPage() {
       ctx.lineWidth = 2;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      svgPaths.forEach(d => {
+      
+      if (iconData) {
         try {
-            const p = new Path2D(d);
-            ctx.stroke(p);
-        } catch (e) {}
-      });
+          iconData.forEach(([tag, attrs]: any) => {
+            if (tag === 'path') {
+              const p = new Path2D(attrs.d);
+              ctx.stroke(p);
+            } else if (tag === 'circle') {
+              ctx.beginPath();
+              ctx.arc(attrs.cx, attrs.cy, attrs.r, 0, 2*Math.PI);
+              ctx.stroke();
+            } else if (tag === 'rect') {
+              ctx.strokeRect(attrs.x, attrs.y, attrs.width, attrs.height);
+            } else if (tag === 'line') {
+              ctx.beginPath();
+              ctx.moveTo(attrs.x1, attrs.y1);
+              ctx.lineTo(attrs.x2, attrs.y2);
+              ctx.stroke();
+            } else if (tag === 'polyline' || tag === 'polygon') {
+              const pts = attrs.points.split(' ').map((p:string) => p.split(',').map(Number));
+              ctx.beginPath();
+              ctx.moveTo(pts[0][0], pts[0][1]);
+              for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+              if (tag === 'polygon') ctx.closePath();
+              ctx.stroke();
+            }
+          });
+        } catch(e) {}
+      } else {
+        svgPaths.forEach(d => {
+          try {
+              const p = new Path2D(d);
+              ctx.stroke(p);
+          } catch (e) {}
+        });
+      }
       ctx.restore();
 
       // Text
-      ctx.fillStyle = "#FFFFFF";
-      ctx.font = "bold 13px sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText(el.title, el.x + 66, el.y + 44);
-      if (el.subtitle) {
-        ctx.fillStyle = "#808080";
-        ctx.font = "11px sans-serif";
-        ctx.fillText(el.subtitle, el.x + 66, el.y + 60);
+      ctx.textBaseline = "top";
+      const maxTextWidth = Math.abs(el.width) - 76;
+      let currentTextY = el.y + 25;
+
+      const drawWrappedText = (text: string, font: string, fillStyle: string, lineHeight: number) => {
+        ctx.font = font;
+        ctx.fillStyle = fillStyle;
+        const words = text.split(' ');
+        let line = '';
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > maxTextWidth && n > 0) {
+            ctx.fillText(line.trim(), el.x + 66, currentTextY);
+            currentTextY += lineHeight;
+            line = words[n] + ' ';
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line.trim(), el.x + 66, currentTextY);
+        currentTextY += lineHeight;
+      };
+
+      if (el.title) {
+        drawWrappedText(el.title, "bold 13px sans-serif", "#FFFFFF", 16);
       }
+      
+      if (el.subtitle) {
+        currentTextY += 2;
+        drawWrappedText(el.subtitle, "11px sans-serif", "#808080", 14);
+      }
+      
+      ctx.textBaseline = "alphabetic";
     } else if (el.type === "rectangle" || el.type === "frame") {
       ctx.fillStyle = el.fillColor;
       ctx.strokeStyle = isSelected ? "#FFFFFF" : el.strokeColor;
@@ -1117,8 +1211,8 @@ export default function CanvasPage() {
       ctx.textBaseline = "alphabetic";
     }
 
-    // Draw text inside shapes (rectangle, circle, diamond, triangle)
-    if (["rectangle", "frame", "circle", "diamond", "triangle"].includes(el.type) && el.text) {
+    // Draw text inside shapes (rectangle, frame, circle, diamond, triangle)
+    if (["rectangle", "frame", "circle", "diamond", "triangle"].includes(el.type) && (el.text || el.lucideIcon)) {
       ctx.fillStyle = "#FFFFFF";
       ctx.font = "bold 14px sans-serif";
       ctx.textAlign = "center";
@@ -1126,31 +1220,76 @@ export default function CanvasPage() {
       const cx = el.x + Math.abs(el.width) / 2;
       const cy = el.y + Math.abs(el.height) / 2;
       const maxWidth = Math.abs(el.width) - 20; // 10px padding on each side
-      const lineHeight = 18;
       
-      const words = el.text.split(' ');
+      let iconHeight = 0;
+      let iconData = null;
+      if (el.lucideIcon) {
+        iconData = (LucideCoreIcons as any)[el.lucideIcon];
+        if (iconData) iconHeight = 24 + 8; // Icon size + padding
+      }
+      
+      const lineHeight = 18;
+      const textToDraw = el.text || "";
+      const words = textToDraw.split(' ');
       let line = '';
       const lines = [];
       
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        const metrics = ctx.measureText(testLine);
-        const testWidth = metrics.width;
-        if (testWidth > maxWidth && n > 0) {
-          lines.push(line);
-          line = words[n] + ' ';
-        } else {
-          line = testLine;
+      if (textToDraw) {
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          const testWidth = metrics.width;
+          if (testWidth > maxWidth && n > 0) {
+            lines.push(line);
+            line = words[n] + ' ';
+          } else {
+            line = testLine;
+          }
         }
+        lines.push(line);
       }
-      lines.push(line);
       
-      const totalHeight = lines.length * lineHeight;
-      let startY = cy - (totalHeight / 2) + (lineHeight / 2);
+      const totalTextHeight = lines.length > 0 ? (lines.length * lineHeight) : 0;
+      const totalBlockHeight = iconHeight + totalTextHeight;
       
+      let currentY = cy - (totalBlockHeight / 2);
+      
+      if (iconData) {
+        ctx.save();
+        ctx.translate(cx - 12, currentY);
+        ctx.strokeStyle = el.strokeColor === "transparent" ? "#FFFFFF" : (el.strokeColor || "#FFFFFF");
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        try {
+          iconData.forEach(([tag, attrs]: any) => {
+            if (tag === 'path') {
+              ctx.stroke(new Path2D(attrs.d));
+            } else if (tag === 'circle') {
+              ctx.beginPath(); ctx.arc(attrs.cx, attrs.cy, attrs.r, 0, 2*Math.PI); ctx.stroke();
+            } else if (tag === 'rect') {
+              ctx.strokeRect(attrs.x, attrs.y, attrs.width, attrs.height);
+            } else if (tag === 'line') {
+              ctx.beginPath(); ctx.moveTo(attrs.x1, attrs.y1); ctx.lineTo(attrs.x2, attrs.y2); ctx.stroke();
+            } else if (tag === 'polyline' || tag === 'polygon') {
+              const pts = attrs.points.split(' ').map((p:string) => p.split(',').map(Number));
+              ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+              for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+              if (tag === 'polygon') ctx.closePath();
+              ctx.stroke();
+            }
+          });
+        } catch(e) {}
+        ctx.restore();
+        currentY += iconHeight;
+      }
+      
+      currentY += (lineHeight / 2); // Shift to text baseline
       lines.forEach(l => {
-        ctx.fillText(l.trim(), cx, startY);
-        startY += lineHeight;
+        if (l.trim()) {
+          ctx.fillText(l.trim(), cx, currentY);
+          currentY += lineHeight;
+        }
       });
       
       ctx.textAlign = "left";
