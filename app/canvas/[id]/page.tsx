@@ -251,6 +251,7 @@ export default function CanvasPage() {
 
   const [elements, setElements] = React.useState<SystemNode[]>([]);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [clipboard, setClipboard] = React.useState<SystemNode[]>([]);
   const [isSaving, setIsSaving] = React.useState(false);
 
   // New states for Custom Canvas
@@ -369,7 +370,6 @@ export default function CanvasPage() {
       }
     }
     setInlineText(null);
-    setActiveTool("select");
   };
 
   const handleCopyLink = (mode: "edit" | "view") => {
@@ -569,6 +569,7 @@ export default function CanvasPage() {
     }
 
     if (activeTool === "text") {
+      e.preventDefault();
       const newId = `text-${Date.now()}-${Math.random()}`;
       setInlineText({ id: newId, x, y, text: "", isNew: true });
       setIsDrawing(false);
@@ -1394,7 +1395,31 @@ export default function CanvasPage() {
       ctx.fillStyle = el.strokeColor || "#FFFFFF";
       ctx.font = "bold 15px sans-serif";
       ctx.textBaseline = "top";
-      ctx.fillText(el.text || "Text Label", el.x, el.y);
+      
+      const lines = (el.text || "Text Label").split('\n');
+      const lineHeight = 18;
+      const maxWidth = el.width && el.width > 20 ? el.width : 500;
+      let currentY = el.y;
+      
+      lines.forEach(p => {
+        const words = p.split(' ');
+        let line = '';
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth && n > 0) {
+            ctx.fillText(line.trim(), el.x, currentY);
+            currentY += lineHeight;
+            line = words[n] + ' ';
+          } else {
+            line = testLine;
+          }
+        }
+        if (line.trim()) {
+          ctx.fillText(line.trim(), el.x, currentY);
+          currentY += lineHeight;
+        }
+      });
       ctx.textBaseline = "alphabetic";
     }
 
@@ -1672,6 +1697,15 @@ export default function CanvasPage() {
   }, [elements, currentElement, selectedIds, activePresence, zoom, pan, viewMode, magnetTarget, selectionNet]);
 
 
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    if (e.ctrlKey || e.metaKey) {
+      const zoomDelta = e.deltaY > 0 ? -10 : 10;
+      setZoom(z => Math.max(10, Math.min(300, z + zoomDelta)));
+    } else {
+      setPan(p => ({ x: p.x - (e.deltaX / (zoom / 100)), y: p.y - (e.deltaY / (zoom / 100)) }));
+    }
+  };
+
   // ─── Undo / Redo History ───────────────────────────────────────────────────
   const commitToHistory = React.useCallback((currentElements: SystemNode[]) => {
     setHistory(prev => {
@@ -1729,8 +1763,29 @@ export default function CanvasPage() {
         e.preventDefault();
         setSelectedIds(new Set(elements.map(el => el.id)));
       }
+      
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "c") {
+        if (selectedIds.size > 0 && !isReadOnly) {
+          setClipboard(elements.filter(el => selectedIds.has(el.id)));
+        }
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "v") {
+        if (clipboard.length > 0 && !isReadOnly) {
+          commitToHistory(elements);
+          const newIds = new Set<string>();
+          clipboard.forEach(el => {
+             const newId = `pasted-${Date.now()}-${Math.random()}`;
+             newIds.add(newId);
+             const newEl = { ...el, id: newId, x: (el.x || 0) + 40, y: (el.y || 0) + 40 };
+             addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newEl) });
+          });
+          setSelectedIds(newIds);
+        }
+      }
+
       if (e.key === "Escape") { setSelectedIds(new Set()); setSelectionNet(null); setNetStart(null); }
-      if (e.key === "+") setZoom((z) => Math.min(200, z + 10));
+      if (e.key === "+") setZoom((z) => Math.min(300, z + 10));
       if (e.key === "-") setZoom((z) => Math.max(10, z - 10));
     };
     window.addEventListener("keydown", handler);
@@ -1855,9 +1910,28 @@ export default function CanvasPage() {
               <div className="w-px h-5 bg-white/10 mx-1" />
 
               <div className="flex items-center gap-0.5 px-1">
+                <button onClick={() => {
+                  if (elements.length === 0) return;
+                  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                  elements.forEach(el => {
+                    if (el.type === "arrow" || el.type === "pencil") return;
+                    minX = Math.min(minX, el.x); minY = Math.min(minY, el.y);
+                    maxX = Math.max(maxX, el.x + (el.width||0)); maxY = Math.max(maxY, el.y + (el.height||0));
+                  });
+                  if (minX !== Infinity) {
+                    const canvasW = canvasRef.current?.width || window.innerWidth;
+                    const canvasH = canvasRef.current?.height || window.innerHeight;
+                    const contentW = maxX - minX + 200;
+                    const contentH = maxY - minY + 200;
+                    const scale = Math.min(canvasW / contentW, canvasH / contentH, 2);
+                    setZoom(Math.max(10, Math.min(300, Math.floor(scale * 100))));
+                    setPan({ x: -minX + 100, y: -minY + 100 });
+                  }
+                }} className="text-[#808080] hover:text-white hover:bg-white/10 rounded p-1 cursor-pointer flex items-center justify-center mr-1 text-[10px] font-bold px-2">Fit</button>
+                <button onClick={() => { setZoom(100); setPan({x: 0, y: 0}); }} className="text-[#808080] hover:text-white hover:bg-white/10 rounded p-1 cursor-pointer flex items-center justify-center mr-1 text-[10px] font-bold px-2">Reset</button>
                 <button onClick={() => setZoom((z) => Math.max(10, z - 10))} className="text-[#808080] hover:text-white hover:bg-white/10 rounded p-1 cursor-pointer w-6 h-6 flex items-center justify-center">−</button>
                 <span className="text-[10px] font-bold text-white w-9 text-center">{zoom}%</span>
-                <button onClick={() => setZoom((z) => Math.min(200, z + 10))} className="text-[#808080] hover:text-white hover:bg-white/10 rounded p-1 cursor-pointer w-6 h-6 flex items-center justify-center">+</button>
+                <button onClick={() => setZoom((z) => Math.min(300, z + 10))} className="text-[#808080] hover:text-white hover:bg-white/10 rounded p-1 cursor-pointer w-6 h-6 flex items-center justify-center">+</button>
               </div>
 
               <div className="w-px h-5 bg-white/10 mx-1" />
@@ -2012,13 +2086,31 @@ export default function CanvasPage() {
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
 
             {inlineText && (
-              <input autoFocus value={inlineText.text} placeholder="Type text..."
+              <textarea 
+                ref={(el) => { if (el && document.activeElement !== el) { setTimeout(() => { el.focus(); }, 10); } }}
+                value={inlineText.text} placeholder="Type text..."
                 onChange={(e) => setInlineText({ ...inlineText, text: e.target.value })}
-                onKeyDown={(e) => { if (e.key === "Enter") commitInlineText(); if (e.key === "Escape") { setInlineText(null); setActiveTool("select"); } }}
+                onKeyDown={(e) => { 
+                  if (e.key === "Enter" && !e.shiftKey) { 
+                    e.preventDefault(); 
+                    commitInlineText(); 
+                  } 
+                  if (e.key === "Escape") { 
+                    setInlineText(null); 
+                    setActiveTool("select"); 
+                  } 
+                }}
                 onBlur={commitInlineText}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="absolute z-40 bg-[#141414] text-white font-bold border border-white rounded-lg px-2.5 py-1.5 text-sm outline-none shadow-2xl"
-                style={{ left: `${(inlineText.x + pan.x) * (zoom / 100)}px`, top: `${(inlineText.y + pan.y) * (zoom / 100)}px`, minWidth: "140px" }} />
+                className="absolute z-40 bg-[#141414]/90 text-white font-bold border border-white/50 rounded-lg px-3 py-2 text-[15px] outline-none shadow-2xl resize focus:border-white focus:ring-1 focus:ring-white transition-all"
+                style={{ 
+                  left: `${(inlineText.x + pan.x) * (zoom / 100)}px`, 
+                  top: `${(inlineText.y + pan.y) * (zoom / 100)}px`, 
+                  minWidth: "200px",
+                  minHeight: "45px",
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: 'top left'
+                }} />
             )}
 
             {/* Selected count badge removed as per user request */}
@@ -2035,6 +2127,7 @@ export default function CanvasPage() {
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onDoubleClick={handleCanvasDoubleClick}
+              onWheel={handleWheel}
               className="w-full h-full block"
               style={{ cursor: getCursor() }} />
           </div>
