@@ -777,7 +777,7 @@ export default function CanvasPage() {
   };
 
 
-  const handleExportPNG = () => {
+  const handleExportPNG = async () => {
     let elementsToExport = selectedIds.size > 0 
       ? elements.filter(el => selectedIds.has(el.id)) 
       : [...elements];
@@ -851,7 +851,7 @@ export default function CanvasPage() {
     minX -= padding;
     minY -= padding;
     maxX += padding;
-    maxY += padding;
+    maxY += (padding + 60); // Extra bottom space for watermark
     
     const width = maxX - minX;
     const height = maxY - minY;
@@ -887,6 +887,47 @@ export default function CanvasPage() {
     elementsToExport.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, false));
     elementsToExport.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, false));
 
+    ctx.restore();
+
+    // Draw Watermark / Branding at Bottom Right
+    ctx.save();
+    
+    ctx.font = "900 26px sans-serif";
+    const textWidth = ctx.measureText("Slate").width;
+    
+    const logoSize = 32;
+    const gap = 12;
+    const totalWidth = logoSize + gap + textWidth;
+    
+    const rightEdge = width - 24;
+    const leftEdge = rightEdge - totalWidth;
+    
+    // Draw Slate text
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("Slate", rightEdge, height - 28);
+    
+    // Draw "Powered by Tanmay Mirgal" centered under Logo + Slate
+    ctx.font = "600 12px sans-serif";
+    ctx.fillStyle = "#808080";
+    ctx.textAlign = "center";
+    ctx.fillText("Powered by Tanmay Mirgal", leftEdge + totalWidth / 2, height - 10);
+    
+    // Load and draw logo.png
+    try {
+      const img = new Image();
+      img.src = "/logo.png";
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+      const logoY = height - 28 - 26; 
+      ctx.drawImage(img, leftEdge, logoY, logoSize, logoSize);
+    } catch (err) {
+      console.error("Failed to load logo", err);
+    }
+    
     ctx.restore();
 
     // Export and download
@@ -1686,10 +1727,15 @@ export default function CanvasPage() {
               { tool: "eraser" as Tool, Icon: Eraser, title: "Eraser (e)" },
               { tool: "text" as Tool, Icon: Type, title: "Text (t)" },
             ] as { tool: Tool; Icon: any; title: string }[]).map(({ tool, Icon, title }) => (
-              <button key={tool} onClick={() => setActiveTool(tool)} title={title}
-                className={`p-2.5 rounded-[14px] transition-all cursor-pointer hover:scale-110 active:scale-95 ${activeTool === tool ? "bg-white text-black shadow-md" : "text-[#808080] hover:text-white hover:bg-white/10"}`}>
-                <Icon className="w-5 h-5" />
-              </button>
+              <div key={tool} className="relative group flex items-center">
+                <button onClick={() => setActiveTool(tool)}
+                  className={`p-2.5 rounded-[14px] transition-all cursor-pointer hover:scale-110 active:scale-95 ${activeTool === tool ? "bg-white text-black shadow-md" : "text-[#808080] hover:text-white hover:bg-white/10"}`}>
+                  <Icon className="w-5 h-5" />
+                </button>
+                <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-[#2B2B2B] text-white text-[11px] font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 whitespace-nowrap shadow-xl border border-white/10 z-50">
+                  {title}
+                </div>
+              </div>
             ))}
 
             {/* Color pickers matching screenshot */}
