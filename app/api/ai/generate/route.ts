@@ -1089,21 +1089,31 @@ function resolvePort(
   }
 }
 
-// Helper to compute node dimensions based on shape
+// Helper to compute node dimensions based on shape and text length
 function getNodeDimensions(node: any): { w: number; h: number; shape: string } {
   const shape = getNodeShape(node);
-  if (shape === "ellipse") return { w: 280, h: 110, shape };
-  if (shape === "diamond") return { w: 280, h: 120, shape };
-  return { w: 240, h: 90, shape };
+  const text = node.title ? (node.subtitle ? `${node.title} ${node.subtitle}` : node.title) : (node.id || "Component");
+  
+  // Usable text width inside a card is ~170px (~20 characters per line)
+  const charsPerLine = 20;
+  const estimatedLines = Math.max(1, Math.ceil(text.length / charsPerLine));
+  const textHeight = estimatedLines * 18;
+  
+  const baseW = 260;
+  const baseH = Math.max(100, 48 + textHeight);
+
+  if (shape === "ellipse") return { w: 290, h: Math.max(125, baseH + 25), shape };
+  if (shape === "diamond") return { w: 290, h: Math.max(135, baseH + 35), shape };
+  return { w: baseW, h: baseH, shape };
 }
 
-// Post-Layout Overlap Resolution Engine
+// Post-Layout Overlap Resolution Engine for ALL elements (nodes + frames)
 function resolveOverlaps(
   placedNodes: { id: string; nodeId: string; x: number; y: number; w: number; h: number; element: any }[]
 ) {
-  const MARGIN_X = 120; // Required clearance between node bounding boxes horizontally
-  const MARGIN_Y = 100; // Required clearance between node bounding boxes vertically
-  const MAX_ITERATIONS = 30;
+  const MARGIN_X = 160; // Strict clearance between node bounding boxes horizontally
+  const MARGIN_Y = 140; // Strict clearance between node bounding boxes vertically
+  const MAX_ITERATIONS = 40;
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     let hasShift = false;
@@ -1125,14 +1135,14 @@ function resolveOverlaps(
           hasShift = true;
           // Separate along the axis of smaller overlap
           if (overlapY <= overlapX) {
-            const shiftY = Math.ceil(overlapY);
+            const shiftY = Math.ceil(overlapY / 20) * 20; // Maintain grid alignment
             if (centerBy >= centerAy) {
               b.y += shiftY;
             } else {
               a.y += shiftY;
             }
           } else {
-            const shiftX = Math.ceil(overlapX);
+            const shiftX = Math.ceil(overlapX / 20) * 20; // Maintain grid alignment
             if (centerBx >= centerAx) {
               b.x += shiftX;
             } else {
@@ -1146,8 +1156,10 @@ function resolveOverlaps(
     if (!hasShift) break;
   }
 
-  // Update underlying element x, y coordinates
+  // Update underlying element x, y coordinates with grid snapping
   placedNodes.forEach((pn) => {
+    pn.x = Math.round(pn.x / 20) * 20;
+    pn.y = Math.round(pn.y / 20) * 20;
     pn.element.x = pn.x;
     pn.element.y = pn.y;
   });

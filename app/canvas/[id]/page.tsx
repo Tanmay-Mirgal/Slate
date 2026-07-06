@@ -1038,11 +1038,12 @@ export default function CanvasPage() {
         if (el.text) {
           const midX = (from.x + to.x) / 2;
           const midY = (from.y + to.y) / 2;
-          ctx.fillStyle = "#FFFFFF";
-          ctx.font = "bold 13px sans-serif";
+          ctx.save();
+          ctx.fillStyle = "#F8FAFC";
+          ctx.font = "bold 12px sans-serif";
           ctx.textAlign = "center";
           
-          const maxLineWidth = 80;
+          const maxLineWidth = 130;
           const words = el.text.split(' ');
           const lines = [];
           let currentLine = words[0] || '';
@@ -1058,30 +1059,45 @@ export default function CanvasPage() {
             }
           }
           if (currentLine) lines.push(currentLine);
+          // Limit label to max 3 lines to prevent tall blocks
+          const finalLines = lines.slice(0, 3);
+          if (lines.length > 3) finalLines[2] = finalLines[2] + "...";
 
           // Calculate dimensions for background block
-          const blockHeight = lines.length * 15;
+          const blockHeight = finalLines.length * 15;
           let blockWidth = 0;
-          lines.forEach(l => {
+          finalLines.forEach(l => {
             const w = ctx.measureText(l).width;
             if (w > blockWidth) blockWidth = w;
           });
 
-          // Position text so the bottom-most line sits above the arrow
-          let startY = midY - 12 - (lines.length - 1) * 15;
+          // Position text so it is centered on midY
+          let startY = midY - (blockHeight / 2) + 10;
           
-          // Draw dark background to prevent text mashing together
-          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-          // startY is the alphabetic baseline of the first line, so the top is about startY - 12
-          ctx.fillRect(midX - blockWidth / 2 - 6, startY - 13, blockWidth + 12, blockHeight + 6);
+          // Draw solid opaque background badge to prevent text overlap
+          ctx.fillStyle = "#0F172A";
+          ctx.strokeStyle = "#334155";
+          ctx.lineWidth = 1;
+          const padX = 8, padY = 4;
+          const rectX = midX - blockWidth / 2 - padX;
+          const rectY = midY - (blockHeight / 2) - padY;
+          const rectW = blockWidth + padX * 2;
+          const rectH = blockHeight + padY * 2;
 
-          ctx.fillStyle = "#FFFFFF";
-          lines.forEach((line) => {
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(rectX, rectY, rectW, rectH, 6);
+          else ctx.rect(rectX, rectY, rectW, rectH);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#F8FAFC";
+          finalLines.forEach((line) => {
             ctx.fillText(line, midX, startY);
             startY += 15;
           });
           
           ctx.textAlign = "left";
+          ctx.restore();
         }
       }
       ctx.restore();
@@ -1228,15 +1244,21 @@ export default function CanvasPage() {
       }
       ctx.restore();
 
-      // Text — Progressive Disclosure based on zoom
-      // zoom state is in percentage (e.g. 100 = 100%)
+      // Text — Progressive Disclosure based on zoom with node clipping
       const showText = zoom >= 40;
       const showSubtitle = zoom >= 70;
 
+      ctx.save();
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(el.x, el.y, el.width, el.height, 12);
+      else ctx.rect(el.x, el.y, el.width, el.height);
+      ctx.clip();
+
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
-      const maxTextWidth = Math.abs(el.width) - 76;
+      const maxTextWidth = Math.max(40, Math.abs(el.width) - 76);
       let currentTextY = el.y + 25;
+      const maxY = el.y + el.height - 10;
 
       const drawWrappedText = (text: string, font: string, fillStyle: string, lineHeight: number) => {
         ctx.font = font;
@@ -1244,6 +1266,7 @@ export default function CanvasPage() {
         const words = text.split(' ');
         let line = '';
         for (let n = 0; n < words.length; n++) {
+          if (currentTextY > maxY) break;
           const testLine = line + words[n] + ' ';
           const metrics = ctx.measureText(testLine);
           if (metrics.width > maxTextWidth && n > 0) {
@@ -1254,8 +1277,10 @@ export default function CanvasPage() {
             line = testLine;
           }
         }
-        ctx.fillText(line.trim(), el.x + 66, currentTextY);
-        currentTextY += lineHeight;
+        if (currentTextY <= maxY && line.trim()) {
+          ctx.fillText(line.trim(), el.x + 66, currentTextY);
+          currentTextY += lineHeight;
+        }
       };
 
       if (showText && el.title) {
@@ -1267,6 +1292,7 @@ export default function CanvasPage() {
         drawWrappedText(el.subtitle, "11px sans-serif", "#808080", 14);
       }
       
+      ctx.restore();
       ctx.textBaseline = "alphabetic";
     } else if (el.type === "rectangle") {
       ctx.fillStyle = el.fillColor;
