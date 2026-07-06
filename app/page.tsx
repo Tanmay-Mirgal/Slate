@@ -37,8 +37,6 @@ import {
   ZoomIn
 } from "lucide-react";
 
-import { useMutation } from "convex/react";
-import { api } from "../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/CommandPalette";
 
@@ -49,23 +47,18 @@ export default function LandingPage() {
   const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
   const [activeShowcaseTab, setActiveShowcaseTab] = React.useState<"diagram" | "image" | "split">("diagram");
   const [demoPrompt, setDemoPrompt] = React.useState("");
-  const createSlateMutation = useMutation(api.slates.create);
 
-  const handleCreateNewSlate = async (isAi = false, initialPrompt = "") => {
+  const handleCreateNewSlate = (isAi = false, initialPrompt = "") => {
     if (!isSignedIn) {
       router.push("/auth?mode=sign-in");
       return;
     }
-    try {
-      const id = await createSlateMutation({
-        title: initialPrompt ? `${initialPrompt.slice(0, 24)}...` : (isAi ? "AI Architecture Slate" : "Untitled Slate"),
-        thumbnailIcon: isAi ? "Cpu" : "Database",
-      });
-      router.push(`/canvas/${id}${isAi ? `?ai=true${initialPrompt ? `&prompt=${encodeURIComponent(initialPrompt)}` : ""}` : ""}`);
-    } catch (e) {
-      console.error(e);
-      router.push("/dashboard");
-    }
+    // Redirect to dashboard — workspace context is needed to create a slate
+    const params = new URLSearchParams();
+    if (isAi) params.set("ai", "true");
+    if (initialPrompt) params.set("prompt", encodeURIComponent(initialPrompt));
+    const qs = params.toString();
+    router.push(`/dashboard${qs ? `?${qs}` : ""}`);
   };
 
   const handleRazorpayPayment = async (planName: string, amountInINR: number) => {

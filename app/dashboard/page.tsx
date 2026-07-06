@@ -8,6 +8,7 @@ import { useQuery, useMutation } from "convex/react";
 import { useUser, UserButton } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { Doc } from "@/convex/_generated/dataModel";
 
 import {
   Plus, Search, Clock, Users, Settings, Trash2, MoreHorizontal,
@@ -142,7 +143,7 @@ export default function DashboardPage() {
               Workspaces
             </label>
             <div className="space-y-1 max-h-40 overflow-y-auto px-1">
-              {workspaces?.map((w) => (
+              {workspaces?.map((w: Doc<"workspaces"> & { role: string }) => (
                 <button
                   key={w._id}
                   onClick={() => setActiveWorkspaceId(w._id)}

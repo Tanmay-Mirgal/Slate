@@ -115,6 +115,8 @@ export function CommandPalette({
       (item.subtitle && item.subtitle.toLowerCase().includes(query.toLowerCase()))
   );
 
+  // Intentional: reset keyboard selection when search query changes
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
@@ -171,7 +173,7 @@ export function CommandPalette({
         <div className="p-3 max-h-[460px] overflow-y-auto space-y-1.5">
           {filteredItems.length === 0 ? (
             <div className="p-12 text-center text-sm text-slate-400">
-              No matching commands or slates found for "{query}"
+              No matching commands or slates found for &ldquo;{query}&rdquo;
             </div>
           ) : (
             filteredItems.map((item, idx) => {
