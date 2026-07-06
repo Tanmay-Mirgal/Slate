@@ -27,6 +27,7 @@ CRITICAL DIRECTIVE ON DETAIL:
 You MUST generate EXTREMELY DETAILED architectures. Do NOT create simple, high-level, or abstract diagrams. Every single minute detail must be included. 
 Regardless of what diagram the user requests, you MUST include all necessary micro-components, sub-services, caching layers, message queues, load balancers, API gateways, security groups, workers, CDNs, and database read/write replicas. 
 Take your time to think exhaustively about the system. The output MUST look like it was rigorously designed by a Principal Architect for a highly scalable, enterprise-grade production system.
+You MUST generate a MINIMUM of 15-25 nodes in your output. Break down services into smaller microservices, databases into read/write replicas, and add caches, message brokers (Kafka/RabbitMQ), workers, and CDNs where applicable. Do not give me a 5-node summary.
 
 You output structured JSON that represents nodes, edges, and grouping containers.
 
@@ -523,6 +524,7 @@ Only a beautiful professional diagram.`;
         ],
         temperature: 0.3,
         max_tokens: 8192,
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -570,13 +572,19 @@ Only a beautiful professional diagram.`;
         if (node.category === 'frontend') return '#3B82F6'; // Blue
         if (node.category === 'backend') return '#EAB308'; // Yellow
         if (node.category === 'infra') return '#22C55E'; // Green
-        return '#8B5CF6'; // Purple default fallback
+        return '#FFFFFF'; // White default fallback
+      };
+
+      const getGroupStrokeColor = (category: string) => {
+        if (category === 'frontend') return '#3B82F6';
+        if (category === 'backend') return '#EAB308';
+        if (category === 'infra') return '#22C55E';
+        return '#4B5563';
       };
 
       const getShape = (node: any) => {
-        if (node.type === 'database') return 'ellipse';
+        if (node.type === 'database') return 'circle';
         if (node.type === 'decision') return 'diamond';
-        if (node.type === 'icon') return 'icon';
         return 'rectangle';
       };
 
@@ -695,7 +703,10 @@ Only a beautiful professional diagram.`;
             y: absY,
             width: node.width,
             height: node.height,
-            color: getColor(orig)
+            color: getColor(orig),
+            fillColor: "transparent",
+            strokeColor: getColor(orig),
+            strokeWidth: 2
           });
         }
       };

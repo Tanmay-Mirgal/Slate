@@ -1028,6 +1028,59 @@ export default function CanvasPage() {
     }
 
     if (el.type === "node") {
+      if (el.nodeType === "icon") {
+        let iconData = null;
+        if (el.lucideIcon) iconData = (LucideCoreIcons as any)[el.lucideIcon];
+        
+        ctx.fillStyle = "#FFFFFF";
+        ctx.strokeStyle = isSelected ? "#FFFFFF" : "transparent";
+        ctx.lineWidth = 1.5;
+        
+        if (isSelected) {
+          ctx.beginPath();
+          ctx.roundRect(el.x, el.y, el.width, el.height, 8);
+          ctx.stroke();
+        }
+
+        if (iconData) {
+          ctx.save();
+          ctx.translate(el.x + el.width / 2 - 24, el.y + 12);
+          ctx.scale(2, 2); 
+          ctx.strokeStyle = "#FFFFFF";
+          ctx.lineWidth = 1;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          
+          try {
+            iconData.forEach(([tag, attrs]: any) => {
+              if (tag === 'path') {
+                ctx.stroke(new Path2D(attrs.d));
+              } else if (tag === 'circle') {
+                ctx.beginPath(); ctx.arc(attrs.cx, attrs.cy, attrs.r, 0, 2*Math.PI); ctx.stroke();
+              } else if (tag === 'rect') {
+                ctx.strokeRect(attrs.x, attrs.y, attrs.width, attrs.height);
+              } else if (tag === 'line') {
+                ctx.beginPath(); ctx.moveTo(attrs.x1, attrs.y1); ctx.lineTo(attrs.x2, attrs.y2); ctx.stroke();
+              } else if (tag === 'polyline' || tag === 'polygon') {
+                const pts = attrs.points.split(' ').map((p:string) => p.split(',').map(Number));
+                ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+                for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+                if (tag === 'polygon') ctx.closePath();
+                ctx.stroke();
+              }
+            });
+          } catch(e) {}
+          ctx.restore();
+        }
+        
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 12px sans-serif";
+        ctx.fillText(el.title, el.x + el.width / 2, el.y + 64);
+        return;
+      }
+
       ctx.fillStyle = el.fillColor || "#141414";
       ctx.strokeStyle = isSelected ? "#FFFFFF" : "#2B2B2B";
       ctx.lineWidth = isSelected ? 2.5 : 1.5;
@@ -1041,35 +1094,23 @@ export default function CanvasPage() {
       
       let iconData = null;
 
-      if (el.nodeType === "icon" && el.lucideIcon) {
-        iconColor = "#A78BFA"; iconBg = "rgba(167, 139, 250, 0.1)";
-        iconData = (LucideCoreIcons as any)[el.lucideIcon];
-      } else if (el.nodeType === "database") {
-        iconColor = "#FFFFFF"; iconBg = "rgba(255, 255, 255, 0.1)";
+      if (el.nodeType === "database") {
         svgPaths = ["M 3 5 A 9 3 0 1 0 21 5 A 9 3 0 1 0 3 5", "M3 5V19A9 3 0 0 0 21 19V5", "M3 12A9 3 0 0 0 21 12"];
       } else if (el.nodeType === "gateway") {
-        iconColor = "#818CF8"; iconBg = "rgba(129, 140, 248, 0.1)";
         svgPaths = ["M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 L13 2"];
       } else if (el.nodeType === "server") {
-        iconColor = "#34D399"; iconBg = "rgba(52, 211, 153, 0.1)";
         svgPaths = ["M2 2 h20 v8 h-20 z", "M2 14 h20 v8 h-20 z", "M6 6 h0.01", "M6 18 h0.01"];
       } else if (el.nodeType === "balancer") {
-        iconColor = "#FBBF24"; iconBg = "rgba(251, 191, 36, 0.1)";
         svgPaths = ["M4 4 h16 v16 h-16 z", "M9 9 h6 v6 h-6 z", "M15 2 v2", "M15 20 v2", "M2 15 h2", "M2 9 h2", "M20 15 h2", "M20 9 h2", "M9 2 v2", "M9 20 v2"];
       } else if (el.nodeType === "cache") {
-        iconColor = "#FB7185"; iconBg = "rgba(251, 113, 133, 0.1)";
         svgPaths = ["M22 12 L2 12", "M5.45 5.11 L2 12 v6 a2 2 0 0 0 2 2 h16 a2 2 0 0 0 2-2 v-6 l-3.45-6.89 A2 2 0 0 0 16.76 4 H7.24 a2 2 0 0 0-1.79 1.11 z", "M6 16 h0.01", "M10 16 h0.01"];
       } else if (el.nodeType === "client") {
-        iconColor = "#38BDF8"; iconBg = "rgba(56, 189, 248, 0.1)";
         svgPaths = ["M12 12 m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0", "M12 2 a14.5 14.5 0 0 0 0 20 a14.5 14.5 0 0 0 0-20", "M2 12 h20"];
       } else if (el.nodeType === "storage") {
-        iconColor = "#22D3EE"; iconBg = "rgba(34, 211, 238, 0.1)";
         svgPaths = ["M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"];
       } else if (el.nodeType === "queue") {
-        iconColor = "#F472B6"; iconBg = "rgba(244, 114, 182, 0.1)";
         svgPaths = ["M16 16 h6 v6 h-6 z", "M2 16 h6 v6 h-6 z", "M9 2 h6 v6 h-6 z", "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3", "M12 12V8"];
       } else if (el.nodeType === "serverless") {
-        iconColor = "#FB923C"; iconBg = "rgba(251, 146, 60, 0.1)";
         svgPaths = ["M4 17 L10 11 L4 5", "M12 19 h8"];
       } else {
         svgPaths = ["M12 2 L2 22 L22 22 Z"];
@@ -1254,33 +1295,45 @@ export default function CanvasPage() {
     }
 
     // Draw text inside shapes (rectangle, frame, circle, diamond, triangle)
-    if (["rectangle", "frame", "circle", "diamond", "triangle"].includes(el.type) && (el.text || el.lucideIcon)) {
+    if (["rectangle", "frame", "circle", "diamond", "triangle"].includes(el.type) && (el.text || el.lucideIcon || el.nodeType)) {
       ctx.fillStyle = "#FFFFFF";
       ctx.font = "bold 14px sans-serif";
-      ctx.textAlign = "center";
+      ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      const cx = el.x + Math.abs(el.width) / 2;
-      const cy = el.y + Math.abs(el.height) / 2;
-      const maxWidth = Math.abs(el.width) - 20; // 10px padding on each side
-      
-      let iconHeight = 0;
+
+      let iconWidth = 0;
       let iconData = null;
+      let svgPaths: string[] = [];
+      
       if (el.lucideIcon) {
         iconData = (LucideCoreIcons as any)[el.lucideIcon];
-        if (iconData) iconHeight = 24 + 8; // Icon size + padding
+        if (iconData) iconWidth = 24 + 10; // Icon size + right padding
+      } else if (el.nodeType && el.nodeType !== "node" && el.nodeType !== "group") {
+        if (el.nodeType === "database") svgPaths = ["M 3 5 A 9 3 0 1 0 21 5 A 9 3 0 1 0 3 5", "M3 5V19A9 3 0 0 0 21 19V5", "M3 12A9 3 0 0 0 21 12"];
+        else if (el.nodeType === "gateway") svgPaths = ["M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 L13 2"];
+        else if (el.nodeType === "server") svgPaths = ["M2 2 h20 v8 h-20 z", "M2 14 h20 v8 h-20 z", "M6 6 h0.01", "M6 18 h0.01"];
+        else if (el.nodeType === "balancer") svgPaths = ["M4 4 h16 v16 h-16 z", "M9 9 h6 v6 h-6 z", "M15 2 v2", "M15 20 v2", "M2 15 h2", "M2 9 h2", "M20 15 h2", "M20 9 h2", "M9 2 v2", "M9 20 v2"];
+        else if (el.nodeType === "cache") svgPaths = ["M22 12 L2 12", "M5.45 5.11 L2 12 v6 a2 2 0 0 0 2 2 h16 a2 2 0 0 0 2-2 v-6 l-3.45-6.89 A2 2 0 0 0 16.76 4 H7.24 a2 2 0 0 0-1.79 1.11 z", "M6 16 h0.01", "M10 16 h0.01"];
+        else if (el.nodeType === "client") svgPaths = ["M12 12 m-10 0a10 10 0 1 0 20 0a10 10 0 1 0 -20 0", "M12 2 a14.5 14.5 0 0 0 0 20 a14.5 14.5 0 0 0 0-20", "M2 12 h20"];
+        else if (el.nodeType === "storage") svgPaths = ["M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"];
+        else if (el.nodeType === "queue") svgPaths = ["M16 16 h6 v6 h-6 z", "M2 16 h6 v6 h-6 z", "M9 2 h6 v6 h-6 z", "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3", "M12 12V8"];
+        else if (el.nodeType === "serverless") svgPaths = ["M4 17 L10 11 L4 5", "M12 19 h8"];
+        else svgPaths = ["M12 2 L2 22 L22 22 Z"]; // default shape
+        if (svgPaths.length > 0) iconWidth = 24 + 10;
       }
       
+      const maxWidth = el.type === "frame" ? el.width - 40 : Math.max(20, el.width - iconWidth - 20); // 10px padding on each side
       const lineHeight = 18;
       const textToDraw = el.text || "";
-      const words = textToDraw.split(' ');
-      let line = '';
-      const lines = [];
+      const paragraphs = textToDraw.split('\n');
+      const lines: string[] = [];
       
-      if (textToDraw) {
+      for (const p of paragraphs) {
+        const words = p.split(' ');
+        let line = '';
         for (let n = 0; n < words.length; n++) {
           const testLine = line + words[n] + ' ';
-          const metrics = ctx.measureText(testLine);
-          const testWidth = metrics.width;
+          const testWidth = ctx.measureText(testLine).width;
           if (testWidth > maxWidth && n > 0) {
             lines.push(line);
             line = words[n] + ' ';
@@ -1288,51 +1341,106 @@ export default function CanvasPage() {
             line = testLine;
           }
         }
-        lines.push(line);
+        if (line.trim()) lines.push(line);
       }
       
       const totalTextHeight = lines.length > 0 ? (lines.length * lineHeight) : 0;
-      const totalBlockHeight = iconHeight + totalTextHeight;
       
-      let currentY = cy - (totalBlockHeight / 2);
-      
-      if (iconData) {
-        ctx.save();
-        ctx.translate(cx - 12, currentY);
-        ctx.strokeStyle = el.strokeColor === "transparent" ? "#FFFFFF" : (el.strokeColor || "#FFFFFF");
-        ctx.lineWidth = 2;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        try {
-          iconData.forEach(([tag, attrs]: any) => {
-            if (tag === 'path') {
-              ctx.stroke(new Path2D(attrs.d));
-            } else if (tag === 'circle') {
-              ctx.beginPath(); ctx.arc(attrs.cx, attrs.cy, attrs.r, 0, 2*Math.PI); ctx.stroke();
-            } else if (tag === 'rect') {
-              ctx.strokeRect(attrs.x, attrs.y, attrs.width, attrs.height);
-            } else if (tag === 'line') {
-              ctx.beginPath(); ctx.moveTo(attrs.x1, attrs.y1); ctx.lineTo(attrs.x2, attrs.y2); ctx.stroke();
-            } else if (tag === 'polyline' || tag === 'polygon') {
-              const pts = attrs.points.split(' ').map((p:string) => p.split(',').map(Number));
-              ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-              for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-              if (tag === 'polygon') ctx.closePath();
-              ctx.stroke();
+      if (el.type === "frame") {
+        // Frame: Top left
+        let startX = el.x + 20;
+        let startY = el.y + 20;
+        
+        if (iconData || svgPaths.length > 0) {
+          ctx.save();
+          ctx.translate(startX, startY);
+          ctx.strokeStyle = el.strokeColor === "transparent" ? "#FFFFFF" : (el.strokeColor || "#FFFFFF");
+          ctx.lineWidth = 2;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          try {
+            if (iconData) {
+              iconData.forEach(([tag, attrs]: any) => {
+                if (tag === 'path') ctx.stroke(new Path2D(attrs.d));
+                else if (tag === 'circle') { ctx.beginPath(); ctx.arc(attrs.cx, attrs.cy, attrs.r, 0, 2*Math.PI); ctx.stroke(); }
+                else if (tag === 'rect') ctx.strokeRect(attrs.x, attrs.y, attrs.width, attrs.height);
+                else if (tag === 'line') { ctx.beginPath(); ctx.moveTo(attrs.x1, attrs.y1); ctx.lineTo(attrs.x2, attrs.y2); ctx.stroke(); }
+                else if (tag === 'polyline' || tag === 'polygon') {
+                  const pts = attrs.points.split(' ').map((p:string) => p.split(',').map(Number));
+                  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+                  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+                  if (tag === 'polygon') ctx.closePath();
+                  ctx.stroke();
+                }
+              });
+            } else {
+              svgPaths.forEach(d => { try { ctx.stroke(new Path2D(d)); } catch(e) {} });
             }
-          });
-        } catch(e) {}
-        ctx.restore();
-        currentY += iconHeight;
-      }
-      
-      currentY += (lineHeight / 2); // Shift to text baseline
-      lines.forEach(l => {
-        if (l.trim()) {
-          ctx.fillText(l.trim(), cx, currentY);
-          currentY += lineHeight;
+          } catch(e) {}
+          ctx.restore();
+          startX += iconWidth; // shift text to the right of icon
         }
-      });
+        
+        startY += 12; // offset text baseline
+        lines.forEach(l => {
+          if (l.trim()) {
+            ctx.fillText(l.trim(), startX, startY);
+            startY += lineHeight;
+          }
+        });
+
+      } else {
+        // Other shapes: Centered block, Icon on Left, Text on Right
+        let maxTextLineWidth = 0;
+        lines.forEach(l => {
+          const w = ctx.measureText(l.trim()).width;
+          if (w > maxTextLineWidth) maxTextLineWidth = w;
+        });
+
+        const totalBlockWidth = iconWidth + maxTextLineWidth;
+        const cx = el.x + Math.abs(el.width) / 2;
+        const cy = el.y + Math.abs(el.height) / 2;
+        
+        let startX = cx - (totalBlockWidth / 2);
+        
+        if (iconData || svgPaths.length > 0) {
+          ctx.save();
+          ctx.translate(startX, cy - 12); // center vertically (icon height is 24)
+          ctx.strokeStyle = el.strokeColor === "transparent" ? "#FFFFFF" : (el.strokeColor || "#FFFFFF");
+          ctx.lineWidth = 2;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          try {
+            if (iconData) {
+              iconData.forEach(([tag, attrs]: any) => {
+                if (tag === 'path') ctx.stroke(new Path2D(attrs.d));
+                else if (tag === 'circle') { ctx.beginPath(); ctx.arc(attrs.cx, attrs.cy, attrs.r, 0, 2*Math.PI); ctx.stroke(); }
+                else if (tag === 'rect') ctx.strokeRect(attrs.x, attrs.y, attrs.width, attrs.height);
+                else if (tag === 'line') { ctx.beginPath(); ctx.moveTo(attrs.x1, attrs.y1); ctx.lineTo(attrs.x2, attrs.y2); ctx.stroke(); }
+                else if (tag === 'polyline' || tag === 'polygon') {
+                  const pts = attrs.points.split(' ').map((p:string) => p.split(',').map(Number));
+                  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+                  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+                  if (tag === 'polygon') ctx.closePath();
+                  ctx.stroke();
+                }
+              });
+            } else {
+              svgPaths.forEach(d => { try { ctx.stroke(new Path2D(d)); } catch(e) {} });
+            }
+          } catch(e) {}
+          ctx.restore();
+          startX += iconWidth; // shift text to the right of icon
+        }
+        
+        let startY = cy - (totalTextHeight / 2) + (lineHeight / 2);
+        lines.forEach(l => {
+          if (l.trim()) {
+            ctx.fillText(l.trim(), startX, startY);
+            startY += lineHeight;
+          }
+        });
+      }
       
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
