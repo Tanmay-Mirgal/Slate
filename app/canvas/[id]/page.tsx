@@ -397,8 +397,8 @@ export default function CanvasPage() {
   const commitInlineText = () => {
     if (!inlineText) return;
     const trimmed = inlineText.text.trim();
-    if (trimmed) {
-      if (inlineText.isNew) {
+    if (inlineText.isNew) {
+      if (trimmed) {
         const newEl: SystemNode = {
           id: inlineText.id, type: "text", title: trimmed, text: trimmed,
           x: inlineText.x, y: inlineText.y, width: 140, height: 30,
@@ -406,16 +406,16 @@ export default function CanvasPage() {
         };
         setElements(prev => [...prev, newEl]); // Optimistic update
         addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newEl) });
-      } else {
-        const existingEl = elements.find(el => el.id === inlineText.id);
-        if (existingEl && (existingEl.text !== trimmed || existingEl.title !== trimmed)) {
-          // Update both text and title for consistency
-          updateElementMutation({
-            id: id as Id<"slates">,
-            elementId: inlineText.id,
-            updates: JSON.stringify({ text: trimmed, title: trimmed })
-          });
-        }
+      }
+    } else {
+      const existingEl = elements.find(el => el.id === inlineText.id);
+      if (existingEl && (existingEl.text !== trimmed || existingEl.title !== trimmed)) {
+        // Update both text and title for consistency (even if empty)
+        updateElementMutation({
+          id: id as Id<"slates">,
+          elementId: inlineText.id,
+          updates: JSON.stringify({ text: trimmed, title: trimmed })
+        });
       }
     }
     setInlineText(null);
@@ -548,11 +548,52 @@ export default function CanvasPage() {
 
   // ─── Get node under cursor ───────────────────────────────────────────────────
   const getNodeAt = (x: number, y: number): SystemNode | null => {
-    // Ignore arrow-only elements for hit testing
     return (
       [...elements].reverse().find((el) => {
-        if (el.type === "arrow" && el.startNodeId && el.endNodeId) return false;
-        return x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height;
+        // 1. Pencil hit test
+        if (el.type === "pencil" && el.points) {
+          return el.points.some(p => Math.hypot(p.x - x, p.y - y) < 15);
+        }
+        
+        // 2. Connected arrow hit test
+        if (el.type === "arrow" && el.startNodeId && el.endNodeId) {
+          const startNode = elements.find((e) => e.id === el.startNodeId);
+          const endNode = elements.find((e) => e.id === el.endNodeId);
+          if (startNode && endNode) {
+            const from = { x: startNode.x + startNode.width / 2, y: startNode.y + startNode.height / 2 };
+            const to = { x: endNode.x + endNode.width / 2, y: endNode.y + endNode.height / 2 };
+            
+            const l2 = Math.hypot(to.x - from.x, to.y - from.y) ** 2;
+            if (l2 === 0) return Math.hypot(x - from.x, y - from.y) < 15;
+            let t = ((x - from.x) * (to.x - from.x) + (y - from.y) * (to.y - from.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            const dist = Math.hypot(x - (from.x + t * (to.x - from.x)), y - (from.y + t * (to.y - from.y)));
+            return dist < 15;
+          }
+          return false;
+        }
+
+        // 3. Free arrow or line hit test
+        if (el.type === "arrow" || el.type === "line") {
+          const x1 = el.x;
+          const y1 = el.y;
+          const x2 = el.x + el.width;
+          const y2 = el.y + el.height;
+          
+          const l2 = Math.hypot(x2 - x1, y2 - y1) ** 2;
+          if (l2 === 0) return Math.hypot(x - x1, y - y1) < 15;
+          let t = ((x - x1) * (x2 - x1) + (y - y1) * (y2 - y1)) / l2;
+          t = Math.max(0, Math.min(1, t));
+          const dist = Math.hypot(x - (x1 + t * (x2 - x1)), y - (y1 + t * (y2 - y1)));
+          return dist < 15;
+        }
+
+        // 4. Default shape bounding box hit test
+        const xMin = Math.min(el.x, el.x + el.width);
+        const xMax = Math.max(el.x, el.x + el.width);
+        const yMin = Math.min(el.y, el.y + el.height);
+        const yMax = Math.max(el.y, el.y + el.height);
+        return x >= xMin && x <= xMax && y >= yMin && y <= yMax;
       }) || null
     );
   };
@@ -860,6 +901,19 @@ export default function CanvasPage() {
         Math.abs(finalEl.width) > 5 || Math.abs(finalEl.height) > 5
       ) {
         await addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(finalEl) });
+
+        // Auto trigger text entry after placing a shape or arrow
+        if (["rectangle", "circle", "arrow", "diamond", "triangle"].includes(finalEl.type)) {
+          const showAtX = finalEl.x + finalEl.width / 2 - 100;
+          const showAtY = finalEl.y + finalEl.height / 2 - 20;
+          setInlineText({
+            id: finalEl.id,
+            x: showAtX,
+            y: showAtY,
+            text: "",
+            isNew: false
+          });
+        }
       }
 
       if (id && myUserId) {
@@ -876,15 +930,79 @@ export default function CanvasPage() {
     const { x, y } = getCanvasPos(e);
     const target = getNodeAt(x, y);
     if (target) {
-      if (target.type === "text" || target.text !== undefined) {
+      // Allow entering text inside shapes, frames, and arrows by positioning editor at center
+      const showAtX = target.type === "text" ? target.x : target.x + target.width / 2 - 100;
+      const showAtY = target.type === "text" ? target.y : target.y + target.height / 2 - 20;
+      
+      setInlineText({
+        id: target.id,
+        x: showAtX,
+        y: showAtY,
+        text: target.text || target.title || "",
+        isNew: false
+      });
+    }
+  };
+
+  const handleCanvasDrop = async (e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (isReadOnly) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / (zoom / 100) - pan.x;
+    const y = (e.clientY - rect.top) / (zoom / 100) - pan.y;
+
+    const tool = e.dataTransfer.getData("canvas-tool");
+    const iconName = e.dataTransfer.getData("canvas-icon");
+
+    if (tool) {
+      const newId = `shape-${Date.now()}-${Math.random()}`;
+      let newEl: SystemNode;
+
+      if (tool === "arrow" || tool === "line") {
+        newEl = {
+          id: newId, type: tool as Tool, title: "", text: "",
+          x: x - 50, y: y - 50, width: 100, height: 100,
+          strokeColor, fillColor: "transparent", strokeWidth: 2
+        };
+      } else if (tool === "text") {
+        setInlineText({ id: newId, x, y, text: "", isNew: true });
+        return;
+      } else if (tool === "pencil") {
+        setActiveTool("pencil");
+        return;
+      } else {
+        newEl = {
+          id: newId, type: tool as Tool, title: "",
+          x: x - 60, y: y - 40, width: 120, height: 80,
+          strokeColor, fillColor, strokeWidth: 2
+        };
+      }
+
+      await addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newEl) });
+
+      // Automatically trigger inline text after drop!
+      if (["rectangle", "circle", "arrow", "diamond", "triangle"].includes(newEl.type)) {
         setInlineText({
-          id: target.id,
-          x: target.x,
-          y: target.y,
-          text: target.text || target.title || "",
+          id: newEl.id,
+          x: newEl.x + newEl.width / 2 - 100,
+          y: newEl.y + newEl.height / 2 - 20,
+          text: "",
           isNew: false
         });
       }
+    } else if (iconName) {
+      const newId = `icon-${Date.now()}`;
+      const newEl: SystemNode = {
+        id: newId, type: "node", title: iconName, subtitle: "Icon",
+        x: x - 40, y: y - 40, width: 80, height: 80,
+        strokeColor: "#FFFFFF", fillColor: "transparent", strokeWidth: 1.5,
+        nodeType: "icon", lucideIcon: iconName
+      };
+      await addElementMutation({ id: id as any, element: JSON.stringify(newEl) });
+      setIsInsertMenuOpen(false);
     }
   };
 
@@ -1423,6 +1541,67 @@ export default function CanvasPage() {
       ctx.moveTo(toX, toY);
       ctx.lineTo(toX - headLen * Math.cos(angle + Math.PI / 6), toY - headLen * Math.sin(angle + Math.PI / 6));
       ctx.stroke();
+
+      // Draw text badge on free-draw arrows
+      if (el.text) {
+        const midX = el.x + el.width / 2;
+        const midY = el.y + el.height / 2;
+        ctx.save();
+        ctx.fillStyle = "#F8FAFC";
+        ctx.font = "bold 12px sans-serif";
+        ctx.textAlign = "center";
+        
+        const maxLineWidth = 130;
+        const words = el.text.split(' ');
+        const lines = [];
+        let currentLine = words[0] || '';
+
+        for (let i = 1; i < words.length; i++) {
+          const word = words[i];
+          const width = ctx.measureText(currentLine + " " + word).width;
+          if (width < maxLineWidth) {
+            currentLine += " " + word;
+          } else {
+            lines.push(currentLine);
+            currentLine = word;
+          }
+        }
+        if (currentLine) lines.push(currentLine);
+        const finalLines = lines.slice(0, 3);
+        if (lines.length > 3) finalLines[2] = finalLines[2] + "...";
+
+        const blockHeight = finalLines.length * 15;
+        let blockWidth = 0;
+        finalLines.forEach(l => {
+          const w = ctx.measureText(l).width;
+          if (w > blockWidth) blockWidth = w;
+        });
+
+        let startY = midY - (blockHeight / 2) + 10;
+        
+        ctx.fillStyle = "#0F172A";
+        ctx.strokeStyle = "#334155";
+        ctx.lineWidth = 1;
+        const padX = 8, padY = 4;
+        const rectX = midX - blockWidth / 2 - padX;
+        const rectY = midY - (blockHeight / 2) - padY;
+        const rectW = blockWidth + padX * 2;
+        const rectH = blockHeight + padY * 2;
+
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(rectX, rectY, rectW, rectH, 6);
+        else ctx.rect(rectX, rectY, rectW, rectH);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "#F8FAFC";
+        finalLines.forEach((line) => {
+          ctx.fillText(line, midX, startY);
+          startY += 15;
+        });
+        
+        ctx.restore();
+      }
     } else if (el.type === "line") {
       ctx.strokeStyle = isSelected ? "#FFFFFF" : el.strokeColor;
       ctx.lineWidth = el.strokeWidth;
@@ -2072,6 +2251,10 @@ export default function CanvasPage() {
                             addElementMutation({ id: id as any, element: JSON.stringify(newEl) });
                             setIsInsertMenuOpen(false);
                           }}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("canvas-icon", iconName);
+                          }}
                           className="flex flex-col items-center justify-center gap-2 p-3 rounded-xl hover:bg-white/10 transition-all cursor-pointer group"
                           title={iconName}
                         >
@@ -2102,7 +2285,12 @@ export default function CanvasPage() {
               { tool: "text" as Tool, Icon: Type, title: "Text (t)" },
             ] as { tool: Tool; Icon: any; title: string }[]).map(({ tool, Icon, title }) => (
               <div key={tool} className="relative group flex items-center">
-                <button onClick={() => setActiveTool(tool)}
+                <button 
+                  onClick={() => setActiveTool(tool)}
+                  draggable={["rectangle", "circle", "arrow", "line", "text"].includes(tool)}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("canvas-tool", tool);
+                  }}
                   className={`p-2.5 rounded-[14px] transition-all cursor-pointer hover:scale-110 active:scale-95 ${activeTool === tool ? "bg-white text-black shadow-md" : "text-[#808080] hover:text-white hover:bg-white/10"}`}>
                   <Icon className="w-5 h-5" />
                 </button>
@@ -2206,6 +2394,8 @@ export default function CanvasPage() {
               onMouseUp={handleCanvasMouseUp}
               onDoubleClick={handleCanvasDoubleClick}
               onWheel={handleWheel}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleCanvasDrop}
               className="w-full h-full block"
               style={{ cursor: getCursor() }} />
           </div>
