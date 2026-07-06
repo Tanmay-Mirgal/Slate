@@ -577,7 +577,7 @@ export default function DashboardPage() {
                     {/* Top Thumbnail Canvas Preview - Random Illustration */}
                     <Link href={`/canvas/${slate._id}`} className="h-52 border-b border-[#2B2B2B] flex items-center justify-center relative overflow-hidden bg-white group-hover:brightness-95 transition-all">
                       <Image
-                        src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : `/illustration_${(slate._id.charCodeAt(0) % 5) + 1}.svg`}
+                        src={['1','2','3','4','5','6','7','8','9','10'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : `/illustration_${(slate._id.charCodeAt(0) % 10) + 1}.svg`}
                         alt="Slate Illustration"
                         fill
                         className="object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
