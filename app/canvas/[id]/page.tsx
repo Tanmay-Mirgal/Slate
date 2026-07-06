@@ -244,6 +244,29 @@ export default function CanvasPage() {
   const [isShareModalOpen, setIsShareModalOpen] = React.useState<boolean>(false);
   const [isCommandOpen, setIsCommandOpen] = React.useState<boolean>(false);
   const [copiedType, setCopiedType] = React.useState<"edit" | "view" | null>(null);
+  const [inviteEmail, setInviteEmail] = React.useState("");
+  const [inviteRole, setInviteRole] = React.useState<"Viewer" | "Editor">("Viewer");
+  const [isInviting, setIsInviting] = React.useState(false);
+  const createInviteMutation = useMutation(api.workspaces.createInvite);
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim() || !slate?.workspaceId) return;
+    setIsInviting(true);
+    try {
+      await createInviteMutation({
+        workspaceId: slate.workspaceId,
+        recipientEmail: inviteEmail.trim(),
+        role: inviteRole,
+      });
+      setInviteEmail("");
+      alert("Invitation sent successfully!");
+    } catch (error: any) {
+      alert("Failed to send invitation: " + error.message);
+    } finally {
+      setIsInviting(false);
+    }
+  };
 
   const [docText, setDocText] = React.useState<string>(
     "# System Architecture & Low Level Design\n\n## 1. Overview\nThis slate contains the low-level design diagrams and component mappings for your application.\n\n## 2. Components\n- **Client UI**: Next.js 16 App Router\n- **Backend**: Convex Cloud Realtime Functions\n- **Authentication**: Clerk OAuth Provider\n- **Database**: Convex Document DB\n"
@@ -1877,7 +1900,36 @@ export default function CanvasPage() {
                     <DialogTitle className="text-lg font-bold flex items-center gap-2"><Users className="w-5 h-5 text-white" />Collaborate & Share Slate</DialogTitle>
                     <DialogDescription className="text-xs text-[#808080]">Invite team members to view or edit this architecture canvas in real-time.</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 mb-4">
+                  
+                  {slate?.workspaceId && (
+                    <div className="border-b border-white/10 pb-4 mb-4">
+                      <h4 className="text-xs font-bold text-[#808080] uppercase tracking-wider mb-2">Invite Member via Email</h4>
+                      <form onSubmit={handleInvite} className="flex gap-2">
+                        <input
+                          type="email"
+                          required
+                          placeholder="member@company.com"
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
+                          className="flex-1 h-9 rounded-lg border border-white/10 bg-[#141414] px-3 text-xs text-white outline-none focus:border-white"
+                        />
+                        <select
+                          value={inviteRole}
+                          onChange={(e) => setInviteRole(e.target.value as any)}
+                          className="h-9 rounded-lg border border-white/10 bg-[#141414] px-2 text-xs text-white outline-none focus:border-white cursor-pointer"
+                        >
+                          <option value="Viewer">View Only</option>
+                          <option value="Editor">Can Edit</option>
+                        </select>
+                        <Button type="submit" disabled={isInviting} size="sm" className="bg-white text-black hover:bg-slate-100 rounded-lg text-xs h-9 font-semibold cursor-pointer">
+                          {isInviting ? "Inviting..." : "Invite"}
+                        </Button>
+                      </form>
+                    </div>
+                  )}
+
+                  <div className="space-y-4 mb-2">
+                    <h4 className="text-xs font-bold text-[#808080] uppercase tracking-wider">Quick Link Access</h4>
                     {(["edit", "view"] as const).map((mode) => (
                       <div key={mode} className="p-3 rounded-xl bg-[#141414] border border-white/10 space-y-2">
                         <div className="flex items-center justify-between">

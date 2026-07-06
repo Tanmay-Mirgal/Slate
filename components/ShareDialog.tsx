@@ -39,12 +39,12 @@ export function ShareDialog({ workspaceId }: { workspaceId: Id<"workspaces"> }) 
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      <DialogTrigger render={
         <Button className="bg-[#1A1A1A] border border-[#2B2B2B] text-white hover:bg-[#202020] text-xs h-8 px-3 rounded-lg flex items-center gap-1.5">
           <Share2 className="w-3.5 h-3.5" />
           Share Workspace
         </Button>
-      </DialogTrigger>
+      } />
       <DialogContent className="bg-[#101010] border border-[#2B2B2B] text-white p-6 max-w-sm rounded-2xl">
         <DialogHeader className="mb-4">
           <DialogTitle className="text-base font-bold text-white">Invite to Workspace</DialogTitle>

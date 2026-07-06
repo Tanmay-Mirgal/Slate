@@ -32,6 +32,31 @@ export const create = mutation({
   },
 });
 
+export const renameWorkspace = mutation({
+  args: {
+    id: v.id("workspaces"),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    const membership = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspaceId_userId", (q) =>
+        q.eq("workspaceId", args.id).eq("userId", identity.subject)
+      )
+      .unique();
+
+    if (!membership || membership.role !== "Admin") throw new Error("Unauthorized");
+
+    await ctx.db.patch(args.id, { name: args.name.trim(), updatedAt: Date.now() });
+    return args.id;
+  },
+});
+
+
+
 export const listMyWorkspaces = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
