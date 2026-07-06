@@ -824,6 +824,7 @@ export default function CanvasPage() {
     
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     elementsToExport.forEach(el => {
+      if (el.type === "arrow" && el.startNodeId && el.endNodeId) return;
       if (el.width !== undefined && el.height !== undefined && el.type !== "pencil") {
         const x1 = Math.min(el.x, el.x + el.width);
         const y1 = Math.min(el.y, el.y + el.height);
@@ -1752,12 +1753,7 @@ export default function CanvasPage() {
                 style={{ left: `${(inlineText.x + pan.x) * (zoom / 100)}px`, top: `${(inlineText.y + pan.y) * (zoom / 100)}px`, minWidth: "140px" }} />
             )}
 
-            {/* Selected count badge */}
-            {selectedIds.size > 1 && (
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 px-3 py-1 rounded-full bg-white text-black text-white text-xs font-bold shadow-lg">
-                {selectedIds.size} elements selected · Drag to move · Del to delete
-              </div>
-            )}
+            {/* Selected count badge removed as per user request */}
 
             {/* Snap hint */}
             {activeTool === "arrow" && !isReadOnly && (
