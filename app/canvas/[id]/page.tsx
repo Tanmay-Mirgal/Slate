@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
+import { motion } from "framer-motion";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -110,9 +111,18 @@ export interface SystemNode {
   // Magnetic arrow connections
   startNodeId?: string;
   endNodeId?: string;
+  sourceAnchor?: "top" | "bottom" | "left" | "right";
+  targetAnchor?: "top" | "bottom" | "left" | "right";
+  connectorStyle?: "straight" | "curved" | "orthogonal" | "smooth";
+  label?: string;
   color?: string;
   imageSrc?: string;
+  createdAt?: number;
 }
+
+type BranchDirection = "top" | "bottom" | "left" | "right";
+type AnchorSide = BranchDirection;
+type ConnectorStyle = "straight" | "curved" | "orthogonal" | "smooth";
 
 const snapToGrid = (value: number) => Math.round(value / SNAP_GRID) * SNAP_GRID;
 
@@ -135,60 +145,343 @@ function getNodeEdgePoint(node: SystemNode, toward: { x: number; y: number }) {
   return { x: cx + dx * scale, y: cy + dy * scale };
 }
 
-function drawMagneticArrow(
-  ctx: CanvasRenderingContext2D,
+function getNodeAnchorPoint(node: SystemNode, side: AnchorSide) {
+  switch (side) {
+    case "top":
+      return { x: node.x + node.width / 2, y: node.y };
+    case "bottom":
+      return { x: node.x + node.width / 2, y: node.y + node.height };
+    case "left":
+      return { x: node.x, y: node.y + node.height / 2 };
+    case "right":
+      return { x: node.x + node.width, y: node.y + node.height / 2 };
+  }
+}
+
+function getNodeRect(node: SystemNode, padding = 0) {
+  return {
+    x: node.x - padding,
+    y: node.y - padding,
+    width: node.width + padding * 2,
+    height: node.height + padding * 2,
+  };
+}
+
+function rectsOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
+  return !(
+    a.x + a.width <= b.x ||
+    a.x >= b.x + b.width ||
+    a.y + a.height <= b.y ||
+    a.y >= b.y + b.height
+  );
+}
+
+function inferAnchorSides(from: SystemNode, to: SystemNode): { sourceAnchor: AnchorSide; targetAnchor: AnchorSide } {
+  const fromCenter = getNodeCenter(from);
+  const toCenter = getNodeCenter(to);
+  const dx = toCenter.x - fromCenter.x;
+  const dy = toCenter.y - fromCenter.y;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0
+      ? { sourceAnchor: "right", targetAnchor: "left" }
+      : { sourceAnchor: "left", targetAnchor: "right" };
+  }
+
+  return dy >= 0
+    ? { sourceAnchor: "bottom", targetAnchor: "top" }
+    : { sourceAnchor: "top", targetAnchor: "bottom" };
+}
+
+function sampleQuadratic(
   from: { x: number; y: number },
+  control: { x: number; y: number },
   to: { x: number; y: number },
-  color: string,
-  isSelected: boolean
+  steps = 24
 ) {
-  ctx.strokeStyle = isSelected ? "#FFFFFF" : color;
-  ctx.lineWidth = isSelected ? 2.5 : 1.8;
-  ctx.setLineDash([]);
-  
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const mt = 1 - t;
+    points.push({
+      x: mt * mt * from.x + 2 * mt * t * control.x + t * t * to.x,
+      y: mt * mt * from.y + 2 * mt * t * control.y + t * t * to.y,
+    });
+  }
+  return points;
+}
+
+function sampleCubic(
+  from: { x: number; y: number },
+  c1: { x: number; y: number },
+  c2: { x: number; y: number },
+  to: { x: number; y: number },
+  steps = 24
+) {
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const mt = 1 - t;
+    points.push({
+      x:
+        mt * mt * mt * from.x +
+        3 * mt * mt * t * c1.x +
+        3 * mt * t * t * c2.x +
+        t * t * t * to.x,
+      y:
+        mt * mt * mt * from.y +
+        3 * mt * mt * t * c1.y +
+        3 * mt * t * t * c2.y +
+        t * t * t * to.y,
+    });
+  }
+  return points;
+}
+
+function getConnectorGeometry(
+  fromNode: SystemNode,
+  toNode: SystemNode,
+  style: ConnectorStyle,
+  sourceAnchor?: AnchorSide,
+  targetAnchor?: AnchorSide
+) {
+  const anchors = sourceAnchor && targetAnchor ? { sourceAnchor, targetAnchor } : inferAnchorSides(fromNode, toNode);
+  const from = getNodeAnchorPoint(fromNode, anchors.sourceAnchor);
+  const to = getNodeAnchorPoint(toNode, anchors.targetAnchor);
   const dx = to.x - from.x;
   const dy = to.y - from.y;
-  const isVertical = Math.abs(dy) > Math.abs(dx);
-  
-  ctx.beginPath();
-  ctx.moveTo(from.x, from.y);
+  let points: { x: number; y: number }[] = [];
+  let headAngle = Math.atan2(dy, dx);
 
-  if (Math.abs(dx) < 20 || Math.abs(dy) < 20) {
-    ctx.lineTo(to.x, to.y);
-  } else {
-    const radius = Math.min(12, Math.abs(dx) / 2, Math.abs(dy) / 2);
-    if (isVertical) {
+  if (style === "straight") {
+    points = [from, to];
+  } else if (style === "orthogonal") {
+    const fromVertical = anchors.sourceAnchor === "top" || anchors.sourceAnchor === "bottom";
+    const toVertical = anchors.targetAnchor === "top" || anchors.targetAnchor === "bottom";
+    if (fromVertical && toVertical) {
       const midY = from.y + dy / 2;
-      const dirX = Math.sign(dx);
-      const dirY = Math.sign(dy);
-      ctx.lineTo(from.x, midY - dirY * radius);
-      ctx.arcTo(from.x, midY, from.x + dirX * radius, midY, radius);
-      ctx.lineTo(to.x - dirX * radius, midY);
-      ctx.arcTo(to.x, midY, to.x, midY + dirY * radius, radius);
-      ctx.lineTo(to.x, to.y);
-    } else {
+      points = [from, { x: from.x, y: midY }, { x: to.x, y: midY }, to];
+      headAngle = Math.atan2(to.y - midY, to.x - to.x);
+    } else if (!fromVertical && !toVertical) {
       const midX = from.x + dx / 2;
-      const dirX = Math.sign(dx);
-      const dirY = Math.sign(dy);
-      ctx.lineTo(midX - dirX * radius, from.y);
-      ctx.arcTo(midX, from.y, midX, from.y + dirY * radius, radius);
-      ctx.lineTo(midX, to.y - dirY * radius);
-      ctx.arcTo(midX, to.y, midX + dirX * radius, to.y, radius);
-      ctx.lineTo(to.x, to.y);
+      points = [from, { x: midX, y: from.y }, { x: midX, y: to.y }, to];
+      headAngle = Math.atan2(to.y - to.y, to.x - midX);
+    } else {
+      const elbowX = from.x + dx / 2;
+      const elbowY = from.y + dy / 2;
+      points = [from, { x: elbowX, y: from.y }, { x: elbowX, y: elbowY }, { x: to.x, y: elbowY }, to];
+      headAngle = Math.atan2(to.y - elbowY, to.x - to.x);
     }
+  } else if (style === "curved") {
+    const curvature = Math.min(120, Math.max(40, Math.hypot(dx, dy) * 0.35));
+    const perpendicular = Math.abs(dx) > Math.abs(dy)
+      ? { x: 0, y: dy >= 0 ? curvature : -curvature }
+      : { x: dx >= 0 ? curvature : -curvature, y: 0 };
+    const control = { x: from.x + dx / 2 + perpendicular.x, y: from.y + dy / 2 + perpendicular.y };
+    points = sampleQuadratic(from, control, to, 28);
+  } else {
+    const span = Math.max(72, Math.hypot(dx, dy) * 0.28);
+    const c1 = {
+      x: from.x + (anchors.sourceAnchor === "left" ? -span : anchors.sourceAnchor === "right" ? span : 0),
+      y: from.y + (anchors.sourceAnchor === "top" ? -span : anchors.sourceAnchor === "bottom" ? span : 0),
+    };
+    const c2 = {
+      x: to.x + (anchors.targetAnchor === "left" ? -span : anchors.targetAnchor === "right" ? span : 0),
+      y: to.y + (anchors.targetAnchor === "top" ? -span : anchors.targetAnchor === "bottom" ? span : 0),
+    };
+    points = sampleCubic(from, c1, c2, to, 28);
+  }
+
+  const labelPoint = points[Math.floor(points.length / 2)] || { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+  const end = points[points.length - 1] || to;
+  const prev = points[points.length - 2] || from;
+  headAngle = Math.atan2(end.y - prev.y, end.x - prev.x);
+
+  return { from, to, points, labelPoint, headAngle, sourceAnchor: anchors.sourceAnchor, targetAnchor: anchors.targetAnchor };
+}
+
+function drawPremiumConnector(
+  ctx: CanvasRenderingContext2D,
+  geometry: ReturnType<typeof getConnectorGeometry>,
+  options: {
+    color: string;
+    isSelected: boolean;
+    isHovered?: boolean;
+    label?: string;
+  }
+) {
+  const { points, labelPoint, headAngle } = geometry;
+  const { color, isSelected, isHovered, label } = options;
+  const stroke = isSelected ? "#FFFFFF" : color;
+
+  ctx.save();
+  ctx.strokeStyle = stroke;
+  ctx.fillStyle = stroke;
+  ctx.lineWidth = isSelected ? 2.8 : 2;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.shadowColor = isHovered || isSelected ? "rgba(255,255,255,0.45)" : "transparent";
+  ctx.shadowBlur = isHovered || isSelected ? 14 : 0;
+
+  ctx.beginPath();
+  if (points.length > 0) ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i += 1) {
+    ctx.lineTo(points[i].x, points[i].y);
   }
   ctx.stroke();
 
-  // Arrowhead pointing along the tangent at 'to'
-  const headLen = 10;
-  // For orthogonal routing, the final segment entering 'to' is vertical if isVertical, else horizontal
-  const angle = isVertical ? Math.atan2(dy, 0) : Math.atan2(0, dx);
+  const headLen = isSelected ? 12 : 10;
   ctx.beginPath();
-  ctx.moveTo(to.x, to.y);
-  ctx.lineTo(to.x - headLen * Math.cos(angle - Math.PI / 6), to.y - headLen * Math.sin(angle - Math.PI / 6));
-  ctx.moveTo(to.x, to.y);
-  ctx.lineTo(to.x - headLen * Math.cos(angle + Math.PI / 6), to.y - headLen * Math.sin(angle + Math.PI / 6));
+  ctx.moveTo(geometry.to.x, geometry.to.y);
+  ctx.lineTo(
+    geometry.to.x - headLen * Math.cos(headAngle - Math.PI / 6),
+    geometry.to.y - headLen * Math.sin(headAngle - Math.PI / 6)
+  );
+  ctx.moveTo(geometry.to.x, geometry.to.y);
+  ctx.lineTo(
+    geometry.to.x - headLen * Math.cos(headAngle + Math.PI / 6),
+    geometry.to.y - headLen * Math.sin(headAngle + Math.PI / 6)
+  );
   ctx.stroke();
+
+  if (label) {
+    const lines = label.split(" ").reduce<string[]>((acc, word) => {
+      const current = acc[acc.length - 1] || "";
+      if ((current + " " + word).trim().length > 20 && current) {
+        acc.push(word);
+      } else {
+        acc[acc.length - 1] = `${current} ${word}`.trim();
+      }
+      return acc;
+    }, [""]);
+    const finalLines = lines.filter(Boolean).slice(0, 3);
+    const midX = labelPoint.x;
+    const midY = labelPoint.y;
+    ctx.font = "bold 12px sans-serif";
+    let width = 0;
+    finalLines.forEach((line) => {
+      width = Math.max(width, ctx.measureText(line).width);
+    });
+    const blockHeight = finalLines.length * 15;
+    const rectX = midX - width / 2 - 8;
+    const rectY = midY - blockHeight / 2 - 4;
+    ctx.fillStyle = "#0F172A";
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.8)";
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(rectX, rectY, width + 16, blockHeight + 8, 8);
+    else ctx.rect(rectX, rectY, width + 16, blockHeight + 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#F8FAFC";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    let y = rectY + 6;
+    finalLines.forEach((line) => {
+      ctx.fillText(line, midX, y);
+      y += 15;
+    });
+  }
+
+  ctx.restore();
+}
+
+function getConnectorHitDistance(
+  geometry: ReturnType<typeof getConnectorGeometry>,
+  point: { x: number; y: number }
+) {
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < geometry.points.length - 1; i += 1) {
+    const a = geometry.points[i];
+    const b = geometry.points[i + 1];
+    const l2 = Math.hypot(b.x - a.x, b.y - a.y) ** 2;
+    if (l2 === 0) continue;
+    let t = ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const projected = { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
+    best = Math.min(best, Math.hypot(point.x - projected.x, point.y - projected.y));
+  }
+  return best;
+}
+
+function getBranchPlacement(
+  source: SystemNode,
+  direction: BranchDirection,
+  elements: SystemNode[]
+) {
+  const width = source.type === "node" ? source.width : Math.max(170, source.width);
+  const height = source.type === "node" ? source.height : Math.max(92, source.height);
+  const spacing = Math.max(128, Math.round(Math.max(source.width, source.height) * 1.15));
+  const sourceCenter = getNodeCenter(source);
+  const base = {
+    top: { x: sourceCenter.x - width / 2, y: source.y - height - spacing },
+    bottom: { x: sourceCenter.x - width / 2, y: source.y + source.height + spacing },
+    left: { x: source.x - width - spacing, y: sourceCenter.y - height / 2 },
+    right: { x: source.x + source.width + spacing, y: sourceCenter.y - height / 2 },
+  } satisfies Record<BranchDirection, { x: number; y: number }>;
+
+  const axis = direction === "left" || direction === "right" ? "x" : "y";
+  const step = 56;
+  let attempt = 0;
+
+  while (attempt < 12) {
+    const candidate = {
+      x: snapToGrid(base[direction].x + (axis === "x" ? (direction === "left" ? -attempt * step : attempt * step) : 0)),
+      y: snapToGrid(base[direction].y + (axis === "y" ? (direction === "top" ? -attempt * step : attempt * step) : 0)),
+      width,
+      height,
+    };
+
+    const overlaps = elements.some((el) => {
+      if (el.id === source.id || el.type === "arrow" || el.type === "pencil") return false;
+      return rectsOverlap(candidate, getNodeRect(el, 20));
+    });
+
+    if (!overlaps) return candidate;
+    attempt += 1;
+  }
+
+  return {
+    x: snapToGrid(base[direction].x),
+    y: snapToGrid(base[direction].y),
+    width,
+    height,
+  };
+}
+
+function getBranchAnchor(direction: BranchDirection): { sourceAnchor: AnchorSide; targetAnchor: AnchorSide; arrowDirection: "forward" | "backward" } {
+  if (direction === "top") return { sourceAnchor: "bottom", targetAnchor: "top", arrowDirection: "backward" };
+  if (direction === "bottom") return { sourceAnchor: "bottom", targetAnchor: "top", arrowDirection: "forward" };
+  if (direction === "left") return { sourceAnchor: "right", targetAnchor: "left", arrowDirection: "forward" };
+  return { sourceAnchor: "right", targetAnchor: "left", arrowDirection: "forward" };
+}
+
+function drawConnectionAnchors(
+  ctx: CanvasRenderingContext2D,
+  node: SystemNode,
+  active = false,
+  hovered = false
+) {
+  const anchors: Array<{ point: { x: number; y: number } }> = [
+    { point: getNodeAnchorPoint(node, "top") },
+    { point: getNodeAnchorPoint(node, "bottom") },
+    { point: getNodeAnchorPoint(node, "left") },
+    { point: getNodeAnchorPoint(node, "right") },
+  ];
+
+  anchors.forEach(({ point }) => {
+    ctx.save();
+    const glow = active ? "rgba(255,255,255,0.65)" : hovered ? "rgba(99,102,241,0.5)" : "rgba(255,255,255,0.2)";
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = active ? 16 : hovered ? 12 : 8;
+    ctx.fillStyle = active ? "#FFFFFF" : hovered ? "#A5B4FC" : "#CBD5E1";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, active ? 5.5 : 4.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(15, 23, 42, 0.9)";
+    ctx.stroke();
+    ctx.restore();
+  });
 }
 
 const AVAILABLE_ICONS = [
@@ -338,6 +631,7 @@ export default function CanvasPage() {
   // Magnetic arrow
   const [magnetTarget, setMagnetTarget] = React.useState<SystemNode | null>(null);
   const [arrowStartNodeId, setArrowStartNodeId] = React.useState<string | null>(null);
+  const hoveredNodeIdRef = React.useRef<string | null>(null);
 
   // Inline Text
   const [inlineText, setInlineText] = React.useState<{
@@ -447,6 +741,86 @@ export default function CanvasPage() {
       setSelectedIds(new Set([newNode.id]));
     }
   };
+
+  const handleBranchCreate = React.useCallback(
+    async (direction: BranchDirection) => {
+      if (isReadOnly || selectedIds.size !== 1) return;
+
+      const source = elements.find((el) => selectedIds.has(el.id));
+      if (!source || source.type === "arrow" || source.type === "pencil") return;
+
+      const placement = getBranchPlacement(source, direction, elements);
+      const relation = getBranchAnchor(direction);
+      const newNodeId = `branch-${Date.now()}-${Math.random()}`;
+      const arrowId = `branch-arrow-${Date.now()}-${Math.random()}`;
+      const cloneType = ["rectangle", "circle", "frame", "diamond", "triangle", "node", "image"].includes(source.type)
+        ? source.type
+        : "rectangle";
+      const newNode: SystemNode = {
+        id: newNodeId,
+        type: cloneType as Tool,
+        nodeType: source.nodeType,
+        lucideIcon: source.lucideIcon,
+        title: source.title ? `New ${source.title}` : "New node",
+        subtitle: source.subtitle,
+        text: source.text,
+        x: placement.x,
+        y: placement.y,
+        width: placement.width,
+        height: placement.height,
+        strokeColor: source.strokeColor || strokeColor,
+        fillColor: source.fillColor || fillColor,
+        strokeWidth: source.strokeWidth || 2,
+        createdAt: Date.now(),
+      };
+
+      const arrow: SystemNode = {
+        id: arrowId,
+        type: "arrow",
+        title: "",
+        text: "",
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        strokeColor: source.strokeColor || "#8B93FF",
+        fillColor: "transparent",
+        strokeWidth: 2,
+        startNodeId: relation.arrowDirection === "backward" ? newNodeId : source.id,
+        endNodeId: relation.arrowDirection === "backward" ? source.id : newNodeId,
+        sourceAnchor: relation.sourceAnchor,
+        targetAnchor: relation.targetAnchor,
+        connectorStyle: "orthogonal",
+        createdAt: Date.now(),
+      };
+
+      setHistory((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && JSON.stringify(last) === JSON.stringify(elements)) {
+          return prev;
+        }
+        return [...prev.slice(-49), elements];
+      });
+      setFuture([]);
+      setElements((prev) => [...prev, newNode, arrow]);
+      setSelectedIds(new Set([newNodeId]));
+      setInlineText({
+        id: newNodeId,
+        x: placement.x + placement.width / 2 - 100,
+        y: placement.y + placement.height / 2 - 20,
+        text: newNode.title,
+        isNew: false,
+      });
+
+      try {
+        await Promise.all([
+          addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newNode) }),
+          addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(arrow) }),
+        ]);
+      } catch {}
+    },
+    [addElementMutation, elements, fillColor, id, isReadOnly, selectedIds, strokeColor]
+  );
 
   // AI generation
   const handleSendAi = async (e: React.FormEvent) => {
@@ -562,15 +936,14 @@ export default function CanvasPage() {
           const startNode = elements.find((e) => e.id === el.startNodeId);
           const endNode = elements.find((e) => e.id === el.endNodeId);
           if (startNode && endNode) {
-            const from = { x: startNode.x + startNode.width / 2, y: startNode.y + startNode.height / 2 };
-            const to = { x: endNode.x + endNode.width / 2, y: endNode.y + endNode.height / 2 };
-            
-            const l2 = Math.hypot(to.x - from.x, to.y - from.y) ** 2;
-            if (l2 === 0) return Math.hypot(x - from.x, y - from.y) < 15;
-            let t = ((x - from.x) * (to.x - from.x) + (y - from.y) * (to.y - from.y)) / l2;
-            t = Math.max(0, Math.min(1, t));
-            const dist = Math.hypot(x - (from.x + t * (to.x - from.x)), y - (from.y + t * (to.y - from.y)));
-            return dist < 15;
+            const geometry = getConnectorGeometry(
+              startNode,
+              endNode,
+              el.connectorStyle || "orthogonal",
+              el.sourceAnchor,
+              el.targetAnchor
+            );
+            return getConnectorHitDistance(geometry, { x, y }) < 16;
           }
           return false;
         }
@@ -747,9 +1120,11 @@ export default function CanvasPage() {
   // ─── Mouse Move ─────────────────────────────────────────────────────────────
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x, y } = getCanvasPos(e);
+    const hovered = getNodeAt(x, y);
+    hoveredNodeIdRef.current = hovered?.id || null;
     
     if (isErasing) {
-      const target = getNodeAt(x, y);
+      const target = hovered;
       if (target) {
         removeElementMutation({ id: id as Id<"slates">, elementId: target.id });
         setSelectedIds((prev) => { const n = new Set(prev); n.delete(target.id); return n; });
@@ -1192,6 +1567,16 @@ export default function CanvasPage() {
   // ─── Render ──────────────────────────────────────────────────────────────────
   const renderElement = (ctx: CanvasRenderingContext2D, el: SystemNode, isSelected: boolean, allElements = elements) => {
     ctx.save();
+    const age = el.createdAt ? Date.now() - el.createdAt : Number.POSITIVE_INFINITY;
+    if (age < 220) {
+      const progress = Math.max(0.82, 0.92 + age / 220 * 0.08);
+      const centerX = el.x + el.width / 2;
+      const centerY = el.y + el.height / 2;
+      ctx.translate(centerX, centerY);
+      ctx.scale(progress, progress);
+      ctx.translate(-centerX, -centerY);
+      ctx.globalAlpha = Math.max(0.72, 0.7 + age / 220 * 0.3);
+    }
 
 
     // Magnetic/connected arrow
@@ -1199,76 +1584,20 @@ export default function CanvasPage() {
       const startNode = allElements.find((e) => e.id === el.startNodeId);
       const endNode = allElements.find((e) => e.id === el.endNodeId);
       if (startNode && endNode) {
-        const endCenter = getNodeCenter(endNode);
-        const startCenter = getNodeCenter(startNode);
-        const from = getNodeEdgePoint(startNode, endCenter);
-        const to = getNodeEdgePoint(endNode, startCenter);
-        drawMagneticArrow(ctx, from, to, el.strokeColor || el.color || "#6B7280", isSelected);
-        // Arrow label
-        if (el.text) {
-          const midX = (from.x + to.x) / 2;
-          const midY = (from.y + to.y) / 2;
-          ctx.save();
-          ctx.fillStyle = "#F8FAFC";
-          ctx.font = "bold 12px sans-serif";
-          ctx.textAlign = "center";
-          
-          const maxLineWidth = 130;
-          const words = el.text.split(' ');
-          const lines = [];
-          let currentLine = words[0] || '';
-
-          for (let i = 1; i < words.length; i++) {
-            const word = words[i];
-            const width = ctx.measureText(currentLine + " " + word).width;
-            if (width < maxLineWidth) {
-              currentLine += " " + word;
-            } else {
-              lines.push(currentLine);
-              currentLine = word;
-            }
-          }
-          if (currentLine) lines.push(currentLine);
-          // Limit label to max 3 lines to prevent tall blocks
-          const finalLines = lines.slice(0, 3);
-          if (lines.length > 3) finalLines[2] = finalLines[2] + "...";
-
-          // Calculate dimensions for background block
-          const blockHeight = finalLines.length * 15;
-          let blockWidth = 0;
-          finalLines.forEach(l => {
-            const w = ctx.measureText(l).width;
-            if (w > blockWidth) blockWidth = w;
-          });
-
-          // Position text so it is centered on midY
-          let startY = midY - (blockHeight / 2) + 10;
-          
-          // Draw solid opaque background badge to prevent text overlap
-          ctx.fillStyle = "#0F172A";
-          ctx.strokeStyle = "#334155";
-          ctx.lineWidth = 1;
-          const padX = 8, padY = 4;
-          const rectX = midX - blockWidth / 2 - padX;
-          const rectY = midY - (blockHeight / 2) - padY;
-          const rectW = blockWidth + padX * 2;
-          const rectH = blockHeight + padY * 2;
-
-          ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(rectX, rectY, rectW, rectH, 6);
-          else ctx.rect(rectX, rectY, rectW, rectH);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = "#F8FAFC";
-          finalLines.forEach((line) => {
-            ctx.fillText(line, midX, startY);
-            startY += 15;
-          });
-          
-          ctx.textAlign = "left";
-          ctx.restore();
-        }
+        const geometry = getConnectorGeometry(
+          startNode,
+          endNode,
+          el.connectorStyle || "orthogonal",
+          el.sourceAnchor,
+          el.targetAnchor
+        );
+        const connectorHovered = hoveredNodeIdRef.current === startNode.id || hoveredNodeIdRef.current === endNode.id;
+        drawPremiumConnector(ctx, geometry, {
+          color: el.strokeColor || el.color || "#6B7280",
+          isSelected,
+          isHovered: connectorHovered,
+          label: el.label || el.text || "",
+        });
       }
       ctx.restore();
       return;
@@ -1937,6 +2266,18 @@ export default function CanvasPage() {
       // 3. Draw non-arrows
       allEls.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, selIds.has(el.id), currentElements));
 
+      const activeSelected =
+        selIds.size === 1 ? currentElements.find((el) => selIds.has(el.id) && el.type !== "arrow" && el.type !== "pencil") : null;
+      const hoveredNodeId = hoveredNodeIdRef.current;
+      const hoveredNode = hoveredNodeId ? currentElements.find((el) => el.id === hoveredNodeId && el.type !== "arrow" && el.type !== "pencil") : null;
+
+      if (activeSelected) {
+        drawConnectionAnchors(ctx, activeSelected, true, false);
+      }
+      if (hoveredNode && hoveredNode.id !== activeSelected?.id) {
+        drawConnectionAnchors(ctx, hoveredNode, false, true);
+      }
+
       // 4. Magnet highlight
       if (magnet) {
         ctx.save();
@@ -2069,6 +2410,21 @@ export default function CanvasPage() {
         e.preventDefault();
         setIsCommandOpen(true);
       }
+      const selectedNode = selectedIds.size === 1
+        ? elements.find((el) => selectedIds.has(el.id) && el.type !== "arrow" && el.type !== "pencil")
+        : null;
+      if (selectedNode && !isReadOnly) {
+        if (e.key === "Tab") {
+          e.preventDefault();
+          void handleBranchCreate(e.shiftKey ? "top" : "bottom");
+          return;
+        }
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          void handleBranchCreate("right");
+          return;
+        }
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
         e.preventDefault();
         setSelectedIds(new Set(elements.map(el => el.id)));
@@ -2100,7 +2456,7 @@ export default function CanvasPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedIds, isReadOnly, id, history, future, elements, commitToHistory, updateElementsMutation]);
+  }, [selectedIds, isReadOnly, id, history, future, elements, commitToHistory, updateElementsMutation, handleBranchCreate]);
 
   const getCursor = () => {
     if (isReadOnly) return "default";
@@ -2114,6 +2470,32 @@ export default function CanvasPage() {
     if (activeTool === "select") return "default";
     return "crosshair";
   };
+
+  const selectedBranchNode =
+    selectedIds.size === 1
+      ? elements.find((el) => selectedIds.has(el.id) && el.type !== "arrow" && el.type !== "pencil")
+      : null;
+  const canvasScale = zoom / 100;
+  const branchHandlePositions = selectedBranchNode
+    ? {
+        top: {
+          left: (selectedBranchNode.x + selectedBranchNode.width / 2 + pan.x) * canvasScale - 15,
+          top: (selectedBranchNode.y + pan.y) * canvasScale - 18,
+        },
+        bottom: {
+          left: (selectedBranchNode.x + selectedBranchNode.width / 2 + pan.x) * canvasScale - 15,
+          top: (selectedBranchNode.y + selectedBranchNode.height + pan.y) * canvasScale - 2,
+        },
+        left: {
+          left: (selectedBranchNode.x + pan.x) * canvasScale - 18,
+          top: (selectedBranchNode.y + selectedBranchNode.height / 2 + pan.y) * canvasScale - 15,
+        },
+        right: {
+          left: (selectedBranchNode.x + selectedBranchNode.width + pan.x) * canvasScale - 2,
+          top: (selectedBranchNode.y + selectedBranchNode.height / 2 + pan.y) * canvasScale - 15,
+        },
+      }
+    : null;
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0A0A0A] text-white font-sans overflow-hidden select-none">
@@ -2472,11 +2854,35 @@ export default function CanvasPage() {
               </div>
             )}
 
+            {selectedBranchNode && !isReadOnly && branchHandlePositions && (
+              <div className="absolute inset-0 z-30 pointer-events-none">
+                {(["top", "bottom", "left", "right"] as BranchDirection[]).map((direction) => {
+                  const pos = branchHandlePositions[direction];
+                  return (
+                    <motion.button
+                      key={direction}
+                      type="button"
+                      onClick={() => void handleBranchCreate(direction)}
+                      className="pointer-events-auto absolute flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-[#111317]/90 text-white shadow-[0_12px_30px_rgba(0,0,0,0.45)] backdrop-blur-md"
+                      style={{ left: pos.left, top: pos.top }}
+                      whileHover={{ scale: 1.12 }}
+                      whileTap={{ scale: 0.94 }}
+                      aria-label={`Create ${direction} branch`}
+                      title={`Create ${direction} branch`}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </motion.button>
+                  );
+                })}
+              </div>
+            )}
+
             <canvas ref={canvasRef}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onDoubleClick={handleCanvasDoubleClick}
+              onMouseLeave={() => { hoveredNodeIdRef.current = null; }}
               onWheel={handleWheel}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleCanvasDrop}
