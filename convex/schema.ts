@@ -51,6 +51,7 @@ export default defineSchema({
     thumbnailIcon: v.string(),
     elements: v.optional(v.string()),
     documentText: v.optional(v.string()),
+    documentJson: v.optional(v.string()),
     // Legacy fields from pre-workspace schema (kept for backward compatibility)
     userId: v.optional(v.string()),
     isShared: v.optional(v.boolean()),
@@ -69,4 +70,3 @@ export default defineSchema({
   })
   .index("by_slateId", ["slateId"]),
 });
-

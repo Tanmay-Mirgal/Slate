@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-heading: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -106,5 +106,193 @@
     background-color: #0a0a0a;
     color: #ffffff;
     font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .doc-editor .ProseMirror {
+    min-height: 540px;
+    outline: none;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 15px;
+    line-height: 1.75;
+    letter-spacing: -0.01em;
+  }
+
+  .doc-editor .ProseMirror > * + * {
+    margin-top: 0.95rem;
+  }
+
+  .doc-editor .ProseMirror p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .doc-editor .ProseMirror h1,
+  .doc-editor .ProseMirror h2,
+  .doc-editor .ProseMirror h3,
+  .doc-editor .ProseMirror h4,
+  .doc-editor .ProseMirror h5,
+  .doc-editor .ProseMirror h6 {
+    color: #fff;
+    line-height: 1.15;
+    letter-spacing: -0.04em;
+    font-weight: 700;
+    scroll-margin-top: 6rem;
+  }
+
+  .doc-editor .ProseMirror h1 {
+    font-size: clamp(2rem, 4vw, 3.5rem);
+  }
+
+  .doc-editor .ProseMirror h2 {
+    font-size: clamp(1.55rem, 3vw, 2.25rem);
+  }
+
+  .doc-editor .ProseMirror h3 {
+    font-size: 1.35rem;
+  }
+
+  .doc-editor .ProseMirror h4 {
+    font-size: 1.15rem;
+  }
+
+  .doc-editor .ProseMirror h5,
+  .doc-editor .ProseMirror h6 {
+    font-size: 1rem;
+  }
+
+  .doc-editor .ProseMirror blockquote {
+    margin: 0;
+    border-left: 2px solid rgba(255, 255, 255, 0.16);
+    padding-left: 1rem;
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  .doc-editor .ProseMirror ul,
+  .doc-editor .ProseMirror ol {
+    padding-left: 1.35rem;
+    margin: 0.4rem 0;
+  }
+
+  .doc-editor .ProseMirror li {
+    margin-top: 0.35rem;
+  }
+
+  .doc-editor .ProseMirror li > p {
+    margin: 0;
+  }
+
+  .doc-editor .ProseMirror code:not(pre code) {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0.45rem;
+    padding: 0.12rem 0.35rem;
+    font-family: var(--font-mono), monospace;
+    font-size: 0.9em;
+  }
+
+  .doc-editor .ProseMirror pre {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: #0b0f15;
+    margin: 1rem 0;
+    padding-top: 2.4rem;
+  }
+
+  .doc-editor .ProseMirror pre::before {
+    content: "Code";
+    position: absolute;
+    top: 0.75rem;
+    left: 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 0.25rem 0.55rem;
+    text-transform: uppercase;
+  }
+
+  .doc-editor .ProseMirror pre code {
+    display: block;
+    padding: 1rem;
+    font-family: "IBM Plex Mono", "Geist Mono", ui-monospace, monospace;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+    color: #e5e7eb;
+  }
+
+  .doc-editor .ProseMirror table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin: 1rem 0;
+  }
+
+  .doc-editor .ProseMirror th,
+  .doc-editor .ProseMirror td {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.7rem 0.8rem;
+    vertical-align: top;
+    text-align: left;
+  }
+
+  .doc-editor .ProseMirror th {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .doc-editor .ProseMirror hr {
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 1.3rem 0;
+  }
+
+  .doc-editor .ProseMirror img {
+    max-width: 100%;
+    display: block;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin: 1rem 0;
+  }
+
+  .doc-editor .ProseMirror a.doc-link {
+    color: #f8fafc;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+    text-decoration-color: rgba(255, 255, 255, 0.4);
+  }
+
+  .doc-editor .ProseMirror p.is-editor-empty:first-child::before {
+    color: rgba(255, 255, 255, 0.35);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .doc-editor .ProseMirror .task-list-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    list-style: none;
+  }
+
+  .doc-editor .ProseMirror .task-list-item > label {
+    margin-top: 0.18rem;
+  }
+
+  .doc-editor .ProseMirror .tableWrapper {
+    overflow-x: auto;
   }
 }

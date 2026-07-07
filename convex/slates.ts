@@ -322,6 +322,7 @@ export const updateDocument = mutation({
   args: {
     id: v.id("slates"),
     documentText: v.string(),
+    documentJson: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -335,6 +336,7 @@ export const updateDocument = mutation({
 
     await ctx.db.patch(args.id, {
       documentText: args.documentText,
+      documentJson: args.documentJson,
       lastEdited: Date.now(),
     });
 

@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -64,6 +65,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { CommandPalette } from "@/components/CommandPalette";
+
+const RichDocumentEditor = dynamic(
+  () => import("@/components/editor/editor").then((mod) => mod.DocumentEditor),
+  { ssr: false }
+);
 
 export type ViewMode = "document" | "both" | "canvas";
 export type Tool =
@@ -294,10 +300,6 @@ export default function CanvasPage() {
     }
   };
 
-  const [docText, setDocText] = React.useState<string>(
-    "# System Architecture & Low Level Design\n\n## 1. Overview\nThis slate contains the low-level design diagrams and component mappings for your application.\n\n## 2. Components\n- **Client UI**: Next.js 16 App Router\n- **Backend**: Convex Cloud Realtime Functions\n- **Authentication**: Clerk OAuth Provider\n- **Database**: Convex Document DB\n"
-  );
-
   const [elements, setElements] = React.useState<SystemNode[]>([]);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [clipboard, setClipboard] = React.useState<SystemNode[]>([]);
@@ -365,21 +367,21 @@ export default function CanvasPage() {
     }
   }, [slate?.elements]);
 
-  React.useEffect(() => {
-    if (slate?.documentText && slate.documentText !== docText) {
-      setDocText(slate.documentText);
-    }
-  }, [slate?.documentText]);
-
-  // Save doc
-  const saveDocToConvex = async (text: string) => {
-    if (!id || isReadOnly) return;
-    setIsSaving(true);
-    try {
-      await updateDocumentMutation({ id: id as Id<"slates">, documentText: text });
-    } catch (e) {}
-    finally { setTimeout(() => setIsSaving(false), 300); }
-  };
+  const handlePersistDocument = React.useCallback(
+    async (payload: { markdown: string; html: string; json: string }) => {
+      if (!id || isReadOnly) return;
+      setIsSaving(true);
+      try {
+        await updateDocumentMutation({
+          id: id as Id<"slates">,
+          documentText: payload.markdown,
+          documentJson: payload.json,
+        });
+      } catch (e) {}
+      finally { setTimeout(() => setIsSaving(false), 300); }
+    },
+    [id, isReadOnly, updateDocumentMutation]
+  );
 
   const broadcastPresence = (x: number, y: number, currentDrawing?: SystemNode | null) => {
     if (!id || !myUserId) return;
@@ -2404,15 +2406,17 @@ export default function CanvasPage() {
 
         {/* MARKDOWN EDITOR */}
         {(viewMode === "document" || viewMode === "both") && (
-          <div className={`h-full border-r border-[#2B2B2B] bg-[#0A0A0A] flex flex-col p-6 overflow-y-auto ${viewMode === "both" ? "w-1/2" : "w-full"}`}>
-            <div className="flex items-center justify-between mb-4 border-b border-[#2B2B2B] pb-3">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-white flex items-center gap-1.5"><FileText className="w-4 h-4" />System Documentation</span>
-              <span className="text-[10px] font-semibold text-[#808080]">{isReadOnly ? "Read Only" : "Auto-saving markdown"}</span>
+          <div className={`h-full border-r border-[#2B2B2B] bg-[#0A0A0A] overflow-y-auto ${viewMode === "both" ? "w-1/2" : "w-full"}`}>
+            <div className="h-full p-4 sm:p-6">
+              <RichDocumentEditor
+                key={slate?._id ? String(slate._id) : "document-editor"}
+                initialMarkdown={slate?.documentText || undefined}
+                initialJson={slate?.documentJson || undefined}
+                readOnly={isReadOnly}
+                onPersist={handlePersistDocument}
+                onSearchCommand={() => setIsCommandOpen(true)}
+              />
             </div>
-            <textarea value={docText} readOnly={isReadOnly}
-              onChange={(e) => { setDocText(e.target.value); saveDocToConvex(e.target.value); }}
-              placeholder="Write system documentation here..."
-              className="w-full h-full bg-transparent text-sm text-[#C5C5C5] outline-none resize-none font-mono leading-relaxed placeholder-[#666666] p-0 border-none focus:ring-0" />
           </div>
         )}
 
