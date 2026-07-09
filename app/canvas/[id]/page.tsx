@@ -2582,7 +2582,12 @@ export default function CanvasPage() {
 
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement || 
+        target instanceof HTMLTextAreaElement || 
+        target.isContentEditable
+      ) return;
       
       // Undo / Redo
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
