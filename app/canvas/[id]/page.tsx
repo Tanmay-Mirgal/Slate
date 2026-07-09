@@ -102,6 +102,8 @@ export const defaultGridPrefs: GridPreferences = {
   color: '#ffffff',
   snapStrength: 10,
 };
+export type Tool = "select" | "hand" | "pencil" | "rectangle" | "circle" | "arrow" | "line" | "eraser" | "text" | "image" | "node" | "frame" | "diamond" | "triangle";
+export type ViewMode = "canvas" | "document" | "split";
 
 export interface SystemNode {
   id: string;

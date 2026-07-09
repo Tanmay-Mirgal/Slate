@@ -34,7 +34,7 @@ export const Callout = Node.create({
   },
 });
 
-function CalloutComponent(props: any) {
+function CalloutComponent() {
   return (
     <NodeViewWrapper className="callout-block flex gap-3 p-4 my-4 rounded-xl border border-white/10 bg-blue-500/10 text-white">
       <div className="flex-shrink-0 mt-0.5 text-blue-400" contentEditable={false}>

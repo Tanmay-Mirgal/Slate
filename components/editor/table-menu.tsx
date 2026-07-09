@@ -16,7 +16,6 @@ export function TableBubbleMenu({ editor }: TableBubbleMenuProps) {
     <BubbleMenu
       editor={editor}
       shouldShow={({ editor }) => editor.isActive('table')}
-      tippyOptions={{ duration: 100, placement: "bottom" }}
       className="flex items-center gap-1 p-1 bg-[#1A1A1A] border border-[#2B2B2B] rounded-xl shadow-xl overflow-hidden"
     >
       <button

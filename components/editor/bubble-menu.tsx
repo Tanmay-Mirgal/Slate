@@ -17,7 +17,6 @@ export function DocumentBubbleMenu({ editor, onOpenLinkDialog }: DocumentBubbleM
   return (
     <BubbleMenu
       editor={editor}
-      tippyOptions={{ duration: 100, placement: "top" }}
       className="flex items-center gap-1 p-1 bg-[#1A1A1A] border border-[#2B2B2B] rounded-xl shadow-xl overflow-hidden"
     >
       <button

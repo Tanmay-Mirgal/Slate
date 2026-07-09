@@ -1,5 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core';
-import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent } from '@tiptap/react';
+import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, NodeViewProps } from '@tiptap/react';
 import * as React from 'react';
 
 export const ColumnBlock = Node.create({
@@ -24,7 +24,7 @@ export const ColumnBlock = Node.create({
   }
 });
 
-function ColumnBlockComponent(props: any) {
+function ColumnBlockComponent(props: NodeViewProps) {
   return (
     <NodeViewWrapper className="flex gap-4 my-4 w-full">
       <NodeViewContent className="flex flex-1 gap-4 w-full" />
@@ -53,7 +53,7 @@ export const Column = Node.create({
   }
 });
 
-function ColumnComponent(props: any) {
+function ColumnComponent() {
   return (
     <NodeViewWrapper className="flex-1 min-w-0 border border-transparent hover:border-white/10 rounded-md p-1 transition-colors">
       <NodeViewContent className="column-content" />

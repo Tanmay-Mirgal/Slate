@@ -10,7 +10,7 @@ interface PromptCardProps {
   delay?: number;
 }
 
-export function PromptCard({ icon: Icon, title, description, onClick, delay = 0 }: PromptCardProps) {
+export function PromptCard({ icon: Icon, title, onClick, delay = 0 }: Omit<PromptCardProps, 'description'>) {
   return (
     <motion.button
       type="button"

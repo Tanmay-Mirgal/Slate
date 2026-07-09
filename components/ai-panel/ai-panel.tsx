@@ -38,13 +38,13 @@ const ALL_PROMPTS = [
 export function AiPanel({ isOpen, onClose, onGenerate, aiMessages, setAiMessages, isGenerating, setIsGenerating }: AiPanelProps) {
   const [input, setInput] = React.useState("");
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
-  const abortControllerRef = React.useRef<AbortController | null>(null);
+
   const [randomPrompts, setRandomPrompts] = React.useState<typeof ALL_PROMPTS>([]);
 
   React.useEffect(() => {
     if (isOpen) {
       const shuffled = [...ALL_PROMPTS].sort(() => 0.5 - Math.random());
-      setRandomPrompts(shuffled.slice(0, 3));
+      setTimeout(() => setRandomPrompts(shuffled.slice(0, 3)), 0);
     }
   }, [isOpen]);
 
@@ -80,7 +80,7 @@ export function AiPanel({ isOpen, onClose, onGenerate, aiMessages, setAiMessages
         };
         return newMsgs;
       });
-    } catch (err) {
+    } catch {
       setAiMessages((prev) => {
         const newMsgs = [...prev];
         newMsgs[newMsgs.length - 1] = { 
@@ -148,7 +148,6 @@ export function AiPanel({ isOpen, onClose, onGenerate, aiMessages, setAiMessages
                       delay={0.1 * (i + 1)} 
                       icon={p.icon} 
                       title={p.title} 
-                      description={p.description} 
                       onClick={() => handleSubmit(undefined, p.prompt)} 
                     />
                   ))}

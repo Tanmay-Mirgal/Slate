@@ -1,5 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core';
-import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent } from '@tiptap/react';
+import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, NodeViewProps } from '@tiptap/react';
 import { ChevronRight } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '@/lib/utils';
@@ -35,7 +35,7 @@ export const Toggle = Node.create({
   },
 });
 
-function ToggleComponent(props: any) {
+function ToggleComponent(props: NodeViewProps) {
   return (
     <NodeViewWrapper className="toggle-block my-2">
       <div className="flex items-start gap-1">

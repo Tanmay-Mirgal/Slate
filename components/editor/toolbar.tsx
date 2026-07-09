@@ -354,7 +354,7 @@ export function DocumentToolbar({
             type="button"
             variant="ghost"
             size="icon"
-            className={cn(blockButtonClass, isActive(editor, { textAlign: "left" }) && "bg-white text-black")}
+            className={cn(blockButtonClass, editor?.isActive({ textAlign: "left" }) && "bg-white text-black")}
             onClick={() => editor.chain().focus().setTextAlign("left").run()}
             aria-label="Align Left"
           >
@@ -364,7 +364,7 @@ export function DocumentToolbar({
             type="button"
             variant="ghost"
             size="icon"
-            className={cn(blockButtonClass, isActive(editor, { textAlign: "center" }) && "bg-white text-black")}
+            className={cn(blockButtonClass, editor?.isActive({ textAlign: "center" }) && "bg-white text-black")}
             onClick={() => editor.chain().focus().setTextAlign("center").run()}
             aria-label="Align Center"
           >
@@ -374,7 +374,7 @@ export function DocumentToolbar({
             type="button"
             variant="ghost"
             size="icon"
-            className={cn(blockButtonClass, isActive(editor, { textAlign: "right" }) && "bg-white text-black")}
+            className={cn(blockButtonClass, editor?.isActive({ textAlign: "right" }) && "bg-white text-black")}
             onClick={() => editor.chain().focus().setTextAlign("right").run()}
             aria-label="Align Right"
           >

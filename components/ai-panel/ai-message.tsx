@@ -32,12 +32,13 @@ export function AiMessage({ role, text, isStreaming }: AiMessageProps) {
         return () => clearInterval(interval);
       } else {
         // Normal text streaming
-        setDisplayedText("");
         const words = text.split(" ");
         let i = 0;
+        let current = "";
         const interval = setInterval(() => {
           if (i < words.length) {
-            setDisplayedText((prev) => (prev ? prev + " " + words[i] : words[i]));
+            current = current ? current + " " + words[i] : words[i];
+            setDisplayedText(current);
             i++;
           } else {
             clearInterval(interval);
@@ -46,7 +47,7 @@ export function AiMessage({ role, text, isStreaming }: AiMessageProps) {
         return () => clearInterval(interval);
       }
     } else {
-      setDisplayedText(text);
+      setTimeout(() => setDisplayedText(text), 0);
     }
   }, [role, text, isStreaming]);
 
