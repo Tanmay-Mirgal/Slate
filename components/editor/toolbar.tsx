@@ -81,6 +81,31 @@ export function DocumentToolbar({
             type="button"
             variant="ghost"
             size="icon"
+            className={blockButtonClass}
+            onClick={() => editor.chain().focus().undo().run()}
+            disabled={!editor.can().undo()}
+            aria-label="Undo"
+          >
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={blockButtonClass}
+            onClick={() => editor.chain().focus().redo().run()}
+            disabled={!editor.can().redo()}
+            aria-label="Redo"
+          >
+            <Redo className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-1 rounded-2xl border border-white/8 bg-white/5 p-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             className={cn(blockButtonClass, isActive(editor, "bold") && "bg-white text-black")}
             onClick={() => editor.chain().focus().toggleBold().run()}
             aria-label="Bold"
@@ -117,16 +142,41 @@ export function DocumentToolbar({
           >
             <Strikethrough className="h-4 w-4" />
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={cn(blockButtonClass, isActive(editor, "highlight") && "bg-white text-black")}
-            onClick={() => editor.chain().focus().toggleHighlight().run()}
-            aria-label="Highlight"
-          >
-            <Highlighter className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn("inline-flex items-center justify-center", blockButtonClass, isActive(editor, "highlight") && "bg-white text-black")}
+              aria-label="Highlight"
+            >
+              <Highlighter className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48 p-2 border-white/10 bg-[#101114] text-white">
+              <DropdownMenuLabel className="text-xs text-white/45">Highlight Color</DropdownMenuLabel>
+              <div className="grid grid-cols-4 gap-1 mb-2">
+                {[
+                  { name: 'Yellow', color: '#fef08a' },
+                  { name: 'Green', color: '#bbf7d0' },
+                  { name: 'Blue', color: '#bfdbfe' },
+                  { name: 'Pink', color: '#fbcfe8' },
+                  { name: 'Orange', color: '#fed7aa' },
+                  { name: 'Purple', color: '#e9d5ff' },
+                  { name: 'Red', color: '#fecaca' },
+                  { name: 'Gray', color: '#e5e7eb' },
+                ].map((c) => (
+                  <button
+                    key={c.color}
+                    onClick={() => editor.chain().focus().toggleHighlight({ color: c.color }).run()}
+                    className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center hover:scale-110 transition-transform"
+                    style={{ backgroundColor: c.color }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+              <DropdownMenuSeparator className="bg-white/8" />
+              <DropdownMenuItem onClick={() => editor.chain().focus().unsetHighlight().run()}>
+                Remove highlight
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             variant="ghost"
@@ -280,15 +330,55 @@ export function DocumentToolbar({
           >
             <Code2 className="h-4 w-4" />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn("inline-flex items-center justify-center", blockButtonClass, isActive(editor, "table") && "bg-white text-black")}
+              aria-label="Table"
+            >
+              <Table2 className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44 border-white/10 bg-[#101114] text-white p-2">
+              <DropdownMenuLabel className="text-xs text-white/45">Insert Table</DropdownMenuLabel>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()}>2x2</Button>
+                <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>3x3</Button>
+                <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 4, cols: 4, withHeaderRow: true }).run()}>4x4</Button>
+                <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 5, cols: 5, withHeaderRow: true }).run()}>5x5</Button>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex items-center gap-1 rounded-2xl border border-white/8 bg-white/5 p-1">
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className={blockButtonClass}
-            onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-            aria-label="Table"
+            className={cn(blockButtonClass, isActive(editor, { textAlign: "left" }) && "bg-white text-black")}
+            onClick={() => editor.chain().focus().setTextAlign("left").run()}
+            aria-label="Align Left"
           >
-            <Table2 className="h-4 w-4" />
+            <AlignLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(blockButtonClass, isActive(editor, { textAlign: "center" }) && "bg-white text-black")}
+            onClick={() => editor.chain().focus().setTextAlign("center").run()}
+            aria-label="Align Center"
+          >
+            <AlignCenter className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(blockButtonClass, isActive(editor, { textAlign: "right" }) && "bg-white text-black")}
+            onClick={() => editor.chain().focus().setTextAlign("right").run()}
+            aria-label="Align Right"
+          >
+            <AlignRight className="h-4 w-4" />
           </Button>
         </div>
 

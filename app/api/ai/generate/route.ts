@@ -1111,9 +1111,9 @@ function getNodeDimensions(node: any): { w: number; h: number; shape: string } {
 function resolveOverlaps(
   placedNodes: { id: string; nodeId: string; x: number; y: number; w: number; h: number; element: any }[]
 ) {
-  const MARGIN_X = 160; // Strict clearance between node bounding boxes horizontally
-  const MARGIN_Y = 140; // Strict clearance between node bounding boxes vertically
-  const MAX_ITERATIONS = 40;
+  const MARGIN_X = 260; // Strict clearance between node bounding boxes horizontally
+  const MARGIN_Y = 220; // Strict clearance between node bounding boxes vertically
+  const MAX_ITERATIONS = 60;
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     let hasShift = false;

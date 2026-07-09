@@ -223,12 +223,18 @@ function parseBlocks(tokens: Token[], startIndex = 0, endIndex = tokens.length):
     if (token.type === "bullet_list_open" || token.type === "ordered_list_open") {
       const close = findMatchingClose(tokens, i, token.type, token.type.replace("_open", "_close"));
       const listItems = parseListItems(tokens, i + 1, close);
+      const isTaskList = listItems.some(item => item.type === "taskItem");
+      
+      const finalItems = isTaskList 
+        ? listItems.map(item => item.type === "taskItem" ? item : { ...item, type: "taskItem", attrs: { checked: false } })
+        : listItems;
+
       result.push({
-        type: token.type === "bullet_list_open" ? "bulletList" : "orderedList",
-        attrs: token.type === "ordered_list_open"
+        type: isTaskList ? "taskList" : (token.type === "bullet_list_open" ? "bulletList" : "orderedList"),
+        attrs: token.type === "ordered_list_open" && !isTaskList
           ? { start: Number(token.attrGet("start") || token.attrGet("order") || 1) }
           : undefined,
-        content: listItems,
+        content: finalItems,
       });
       i = close;
       continue;
@@ -295,6 +301,16 @@ function parseListItems(tokens: Token[], startIndex: number, endIndex: number): 
       const firstText = inline?.children?.[0];
       return Boolean(firstText && firstText.type === "text" && /^\[( |x|X)\]\s+/.test(firstText.content));
     });
+
+    if (isTask) {
+      const inline = innerTokens.find((inner) => inner.type === "inline");
+      if (inline && inline.children) {
+        const firstText = inline.children[0];
+        if (firstText && firstText.type === "text") {
+          firstText.content = firstText.content.replace(/^\[( |x|X)\]\s+/, "");
+        }
+      }
+    }
 
     const content = parseBlocks(innerTokens);
 

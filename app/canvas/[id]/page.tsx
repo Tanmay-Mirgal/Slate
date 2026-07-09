@@ -57,6 +57,7 @@ import * as LucideReactIcons from "lucide-react";
 import { icons as LucideCoreIcons } from "lucide";
 
 import { Button } from "@/components/ui/button";
+import { AiPanel } from "@/components/ai-panel/ai-panel";
 import {
   Dialog,
   DialogContent,
@@ -567,6 +568,7 @@ export default function CanvasPage() {
   const [activeTool, setActiveTool] = React.useState<Tool>("select");
   const [zoom, setZoom] = React.useState<number>(100);
   const [isAiChatOpen, setIsAiChatOpen] = React.useState<boolean>(false);
+  const [isGenerating, setIsGenerating] = React.useState(false);
   const [isInsertMenuOpen, setIsInsertMenuOpen] = React.useState<boolean>(false);
   const [contextMenu, setContextMenu] = React.useState<{ x: number, y: number } | null>(null);
   const [insertCategory, setInsertCategory] = React.useState<"main" | "icons" | "shapes" | "diagrams">("main");
@@ -672,7 +674,7 @@ export default function CanvasPage() {
   // AI Chat
   const [aiInput, setAiInput] = React.useState("");
   const [aiMessages, setAiMessages] = React.useState<{ role: "user" | "assistant"; text: string }[]>([
-    { role: "assistant", text: "Hello! I am Slate AI powered by Groq. Type a system description (e.g., 'E-commerce microservices with PostgreSQL & Redis') or 'Login flowchart' to generate connected architecture nodes on your canvas!" },
+    { role: "assistant", text: "Hello! I am Slate AI. Type a system description (e.g., 'E-commerce microservices with PostgreSQL & Redis') or 'Login flowchart' to generate connected architecture nodes on your canvas!" },
   ]);
 
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -682,6 +684,13 @@ export default function CanvasPage() {
   React.useEffect(() => {
     if (searchParams.get("ai") === "true") setIsAiChatOpen(true);
   }, [searchParams]);
+
+  // Reset chat when drawer closes
+  React.useEffect(() => {
+    if (!isAiChatOpen) {
+      setAiMessages([{ role: "assistant", text: "Hello! I am Slate AI. Type a system description (e.g., 'E-commerce microservices with PostgreSQL & Redis') or 'Login flowchart' to generate connected architecture nodes on your canvas!" }]);
+    }
+  }, [isAiChatOpen]);
 
   // Sync from Convex
   React.useEffect(() => {
@@ -869,14 +878,7 @@ export default function CanvasPage() {
   };
 
   // AI generation
-  const handleSendAi = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiInput.trim()) return;
-    const userPrompt = aiInput.trim();
-    setAiInput("");
-    setAiMessages((prev) => [...prev, { role: "user", text: userPrompt }]);
-    setAiMessages((prev) => [...prev, { role: "assistant", text: "⚡ Generating architectural nodes for your canvas using Slate Groq AI..." }]);
-
+  const handleGenerateAi = async (userPrompt: string) => {
     try {
       const res = await fetch("/api/ai/generate", {
         method: "POST",
@@ -890,7 +892,7 @@ export default function CanvasPage() {
         const nodeElements = data.elements.filter((el: any) => el.type !== "arrow");
         const arrowElements = data.elements.filter((el: any) => el.type === "arrow");
 
-                let offsetX = 0;
+        let offsetX = 0;
         let offsetY = 0;
         if (elements.length > 0) {
           let maxX = -Infinity;
@@ -949,12 +951,10 @@ export default function CanvasPage() {
             await addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(arrowNode) });
           }
         }
-
-        setAiMessages((prev) => [...prev, { role: "assistant", text: `🎉 Successfully generated ${newNodes.length} nodes and ${arrowElements.length} connections on your whiteboard!` }]);
       }
     } catch (err) {
       console.error("AI diagram generation error", err);
-      setAiMessages((prev) => [...prev, { role: "assistant", text: "❌ Failed generating AI diagram. Please check your GROQ_API_KEY." }]);
+      throw err;
     }
   };
 
@@ -3133,26 +3133,15 @@ export default function CanvasPage() {
         )}
 
         {/* AI CHAT DRAWER */}
-        {isAiChatOpen && (
-          <aside className="absolute top-0 right-0 h-full w-80 bg-[#101010] border-l border-[#2B2B2B] shadow-2xl z-50 flex flex-col justify-between">
-            <div className="p-4 border-b border-[#2B2B2B] flex items-center justify-between">
-              <span className="font-bold text-sm text-white flex items-center gap-2"><Sparkles className="w-4 h-4 text-white" />Slate Architecture AI</span>
-              <button onClick={() => setIsAiChatOpen(false)} className="p-1 text-[#808080] hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
-              {aiMessages.map((msg, idx) => (
-                <div key={idx} className={`p-3 rounded-xl ${msg.role === "user" ? "bg-white text-black border border-white/40 ml-6 font-medium" : "bg-[#141414] border border-[#2B2B2B] text-[#C5C5C5] mr-6"}`}>
-                  {msg.text}
-                </div>
-              ))}
-            </div>
-            <form onSubmit={handleSendAi} className="p-3 border-t border-[#2B2B2B] flex items-center gap-2">
-              <input type="text" placeholder="Ask AI to design system..." value={aiInput} onChange={(e) => setAiInput(e.target.value)}
-                className="w-full bg-[#141414] border border-[#2B2B2B] rounded-xl px-3 py-2 text-xs text-white outline-none placeholder-[#666666]" />
-              <button type="submit" className="p-2 rounded-xl bg-white text-black hover:bg-[#E5E5E5] cursor-pointer"><Send className="w-3.5 h-3.5" /></button>
-            </form>
-          </aside>
-        )}
+        <AiPanel
+          isOpen={isAiChatOpen}
+          onClose={() => setIsAiChatOpen(false)}
+          onGenerate={handleGenerateAi}
+          aiMessages={aiMessages}
+          setAiMessages={setAiMessages}
+          isGenerating={isGenerating}
+          setIsGenerating={setIsGenerating}
+        />
         {contextMenu && (
             <div 
               className="fixed z-[100] bg-[#141414] border border-[#2B2B2B] rounded-xl shadow-2xl overflow-hidden py-1.5 w-48"

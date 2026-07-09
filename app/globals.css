@@ -110,7 +110,7 @@
 }
 
 @layer components {
-  .doc-editor .ProseMirror {
+  .doc-editor {
     min-height: 540px;
     outline: none;
     color: rgba(255, 255, 255, 0.92);
@@ -119,21 +119,21 @@
     letter-spacing: -0.01em;
   }
 
-  .doc-editor .ProseMirror > * + * {
+  .doc-editor > * + * {
     margin-top: 0.95rem;
   }
 
-  .doc-editor .ProseMirror p {
+  .doc-editor p {
     margin: 0;
     color: rgba(255, 255, 255, 0.9);
   }
 
-  .doc-editor .ProseMirror h1,
-  .doc-editor .ProseMirror h2,
-  .doc-editor .ProseMirror h3,
-  .doc-editor .ProseMirror h4,
-  .doc-editor .ProseMirror h5,
-  .doc-editor .ProseMirror h6 {
+  .doc-editor h1,
+  .doc-editor h2,
+  .doc-editor h3,
+  .doc-editor h4,
+  .doc-editor h5,
+  .doc-editor h6 {
     color: #fff;
     line-height: 1.15;
     letter-spacing: -0.04em;
@@ -141,49 +141,49 @@
     scroll-margin-top: 6rem;
   }
 
-  .doc-editor .ProseMirror h1 {
+  .doc-editor h1 {
     font-size: clamp(2rem, 4vw, 3.5rem);
   }
 
-  .doc-editor .ProseMirror h2 {
+  .doc-editor h2 {
     font-size: clamp(1.55rem, 3vw, 2.25rem);
   }
 
-  .doc-editor .ProseMirror h3 {
+  .doc-editor h3 {
     font-size: 1.35rem;
   }
 
-  .doc-editor .ProseMirror h4 {
+  .doc-editor h4 {
     font-size: 1.15rem;
   }
 
-  .doc-editor .ProseMirror h5,
-  .doc-editor .ProseMirror h6 {
+  .doc-editor h5,
+  .doc-editor h6 {
     font-size: 1rem;
   }
 
-  .doc-editor .ProseMirror blockquote {
+  .doc-editor blockquote {
     margin: 0;
     border-left: 2px solid rgba(255, 255, 255, 0.16);
     padding-left: 1rem;
     color: rgba(255, 255, 255, 0.78);
   }
 
-  .doc-editor .ProseMirror ul,
-  .doc-editor .ProseMirror ol {
+  .doc-editor ul,
+  .doc-editor ol {
     padding-left: 1.35rem;
     margin: 0.4rem 0;
   }
 
-  .doc-editor .ProseMirror li {
+  .doc-editor li {
     margin-top: 0.35rem;
   }
 
-  .doc-editor .ProseMirror li > p {
+  .doc-editor li > p {
     margin: 0;
   }
 
-  .doc-editor .ProseMirror code:not(pre code) {
+  .doc-editor code:not(pre code) {
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.05);
     border-radius: 0.45rem;
@@ -192,7 +192,7 @@
     font-size: 0.9em;
   }
 
-  .doc-editor .ProseMirror pre {
+  .doc-editor pre {
     position: relative;
     overflow: hidden;
     border-radius: 1rem;
@@ -202,7 +202,7 @@
     padding-top: 2.4rem;
   }
 
-  .doc-editor .ProseMirror pre::before {
+  .doc-editor pre::before {
     content: "Code";
     position: absolute;
     top: 0.75rem;
@@ -218,7 +218,7 @@
     text-transform: uppercase;
   }
 
-  .doc-editor .ProseMirror pre code {
+  .doc-editor pre code {
     display: block;
     padding: 1rem;
     font-family: "IBM Plex Mono", "Geist Mono", ui-monospace, monospace;
@@ -229,7 +229,7 @@
     color: #e5e7eb;
   }
 
-  .doc-editor .ProseMirror table {
+  .doc-editor table {
     width: 100%;
     border-collapse: collapse;
     overflow: hidden;
@@ -238,27 +238,27 @@
     margin: 1rem 0;
   }
 
-  .doc-editor .ProseMirror th,
-  .doc-editor .ProseMirror td {
+  .doc-editor th,
+  .doc-editor td {
     border: 1px solid rgba(255, 255, 255, 0.08);
     padding: 0.7rem 0.8rem;
     vertical-align: top;
     text-align: left;
   }
 
-  .doc-editor .ProseMirror th {
+  .doc-editor th {
     background: rgba(255, 255, 255, 0.05);
     color: #fff;
     font-weight: 600;
   }
 
-  .doc-editor .ProseMirror hr {
+  .doc-editor hr {
     border: 0;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     margin: 1.3rem 0;
   }
 
-  .doc-editor .ProseMirror img {
+  .doc-editor img {
     max-width: 100%;
     display: block;
     border-radius: 1rem;
@@ -266,14 +266,14 @@
     margin: 1rem 0;
   }
 
-  .doc-editor .ProseMirror a.doc-link {
+  .doc-editor a.doc-link {
     color: #f8fafc;
     text-decoration: underline;
     text-underline-offset: 0.18em;
     text-decoration-color: rgba(255, 255, 255, 0.4);
   }
 
-  .doc-editor .ProseMirror p.is-editor-empty:first-child::before {
+  .doc-editor p.is-editor-empty:first-child::before {
     color: rgba(255, 255, 255, 0.35);
     content: attr(data-placeholder);
     float: left;
@@ -281,18 +281,26 @@
     pointer-events: none;
   }
 
-  .doc-editor .ProseMirror .task-list-item {
+  .doc-editor .task-list-item {
     display: flex;
     align-items: flex-start;
     gap: 0.6rem;
     list-style: none;
   }
 
-  .doc-editor .ProseMirror .task-list-item > label {
+  .doc-editor .task-list-item > label {
     margin-top: 0.18rem;
   }
 
-  .doc-editor .ProseMirror .tableWrapper {
+  .doc-editor .tableWrapper {
     overflow-x: auto;
   }
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.mask-edges { -webkit-mask-image: linear-gradient(to right, transparent, black 15px, black calc(100% - 15px), transparent); mask-image: linear-gradient(to right, transparent, black 15px, black calc(100% - 15px), transparent); }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }

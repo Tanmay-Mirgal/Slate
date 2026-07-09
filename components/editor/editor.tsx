@@ -19,15 +19,23 @@ import HorizontalRule from "@tiptap/extension-horizontal-rule";
 import Image from "@tiptap/extension-image";
 import Typography from "@tiptap/extension-typography";
 import Gapcursor from "@tiptap/extension-gapcursor";
+import Dropcursor from "@tiptap/extension-dropcursor";
+import Color from "@tiptap/extension-color";
+import { TextStyle } from "@tiptap/extension-text-style";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
-import { CheckSquare, FileText, Heading1, ImagePlus, Search, Sparkles, Table2, Type } from "lucide-react";
+import { Callout } from "@/components/editor/extensions/callout";
+import { Toggle } from "@/components/editor/extensions/toggle";
+import { ColumnBlock, Column } from "@/components/editor/extensions/columns";
+import { CheckSquare, FileText, Heading1, ImagePlus, Search, Sparkles, Table2, Type, Info, Columns2, ListTree } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DocumentEditorProvider } from "@/components/editor/editor-provider";
 import { DocumentToolbar } from "@/components/editor/toolbar";
+import { DocumentBubbleMenu } from "@/components/editor/bubble-menu";
+import { TableBubbleMenu } from "@/components/editor/table-menu";
 import { SlashMenu, type SlashCommandItem } from "@/components/editor/slash-menu";
 import {
   DEFAULT_DOCUMENT_CONTENT,
@@ -243,13 +251,29 @@ function makeSlashItems(editor: Editor, callbacks: { onOpenImageDialog: () => vo
     {
       id: "callout",
       title: "Callout",
-      description: "Insert a highlighted note block",
-      icon: Sparkles,
+      description: "Make text stand out",
+      icon: Info,
       category: "blocks",
-      keywords: ["callout", "note", "info"],
-      action: () => {
-        editor.chain().focus().toggleBlockquote().insertContent("Callout").run();
-      },
+      keywords: ["callout", "info", "notice"],
+      action: () => editor.chain().focus().insertContent('<div data-type="callout"><p></p></div>').run(),
+    },
+    {
+      id: "toggle",
+      title: "Toggle list",
+      description: "Toggles can hide and show content",
+      icon: ListTree,
+      category: "blocks",
+      keywords: ["toggle", "collapse", "expand"],
+      action: () => editor.chain().focus().insertContent('<div data-type="toggle"><p></p></div>').run(),
+    },
+    {
+      id: "columns",
+      title: "2 Columns",
+      description: "Create a two column layout",
+      icon: Columns2,
+      category: "blocks",
+      keywords: ["columns", "layout", "grid"],
+      action: () => editor.chain().focus().insertContent('<div data-type="columnBlock"><div data-type="column"><p></p></div><div data-type="column"><p></p></div></div>').run(),
     },
     {
       id: "search",
@@ -387,6 +411,8 @@ export function DocumentEditor({
           heading: { levels: [1, 2, 3, 4, 5, 6] },
           codeBlock: false,
           horizontalRule: false,
+          dropcursor: false,
+          gapcursor: false,
         }),
         Placeholder.configure({
           placeholder: "Press '/' for commands",
@@ -427,6 +453,16 @@ export function DocumentEditor({
         }),
         Typography,
         Gapcursor,
+        Dropcursor.configure({
+          color: '#ffffff',
+          width: 2,
+        }),
+        TextStyle,
+        Color,
+        Callout,
+        Toggle,
+        ColumnBlock,
+        Column,
         CodeBlockLowlight.configure({
           lowlight,
         }),
@@ -646,8 +682,15 @@ export function DocumentEditor({
           onExportMarkdown={exportMarkdown}
           onExportHtml={exportHtml}
           onExportJson={exportJson}
-          onPrintPdf={printPdf}
+          onPrintPdf={() => window.print()}
         />
+
+        {!readOnly && (
+          <>
+            <DocumentBubbleMenu editor={editor} onOpenLinkDialog={openLinkDialog} />
+            <TableBubbleMenu editor={editor} />
+          </>
+        )}
 
         <div className="relative flex-1 overflow-auto px-4 py-6">
           <div className="mx-auto w-full max-w-[1100px]">
