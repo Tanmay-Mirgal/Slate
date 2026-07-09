@@ -128,6 +128,7 @@ export interface SystemNode {
   color?: string;
   imageSrc?: string;
   createdAt?: number;
+  layerIndex?: number;
 }
 
 type BranchDirection = "top" | "bottom" | "left" | "right";
@@ -567,6 +568,7 @@ export default function CanvasPage() {
   const [zoom, setZoom] = React.useState<number>(100);
   const [isAiChatOpen, setIsAiChatOpen] = React.useState<boolean>(false);
   const [isInsertMenuOpen, setIsInsertMenuOpen] = React.useState<boolean>(false);
+  const [contextMenu, setContextMenu] = React.useState<{ x: number, y: number } | null>(null);
   const [insertCategory, setInsertCategory] = React.useState<"main" | "icons" | "shapes" | "diagrams">("main");
   const [iconSearchQuery, setIconSearchQuery] = React.useState("");
   const [isShareModalOpen, setIsShareModalOpen] = React.useState<boolean>(false);
@@ -728,6 +730,7 @@ export default function CanvasPage() {
           id: inlineText.id, type: "text", title: trimmed, text: trimmed,
           x: inlineText.x, y: inlineText.y, width: 140, height: 30,
           strokeColor: strokeColor || "#FFFFFF", fillColor: "transparent", strokeWidth: 2,
+          layerIndex: getNextLayerIndex(),
         };
         setElements(prev => [...prev, newEl]); // Optimistic update
         addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newEl) });
@@ -763,11 +766,12 @@ export default function CanvasPage() {
     setIsSaving(true);
     try {
       await addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newNode) });
+      setContextMenu(null);
+      setSelectedIds(new Set([newNode.id]));
     } catch (e) {}
     finally {
       setIsSaving(false);
       setIsInsertMenuOpen(false);
-      setSelectedIds(new Set([newNode.id]));
     }
   };
 
@@ -850,6 +854,19 @@ export default function CanvasPage() {
     },
     [addElementMutation, elements, fillColor, id, isReadOnly, selectedIds, strokeColor]
   );
+
+  const duplicateElement = async () => {
+    if (selectedIds.size === 0) return;
+    const toDuplicate = elements.filter(el => selectedIds.has(el.id));
+    const newIds = new Set<string>();
+    for (const el of toDuplicate) {
+        const newId = `dup-${Date.now()}-${Math.random()}`;
+        newIds.add(newId);
+        const newEl = { ...el, id: newId, x: el.x + 20, y: el.y + 20 };
+        await addElementMutation({ id: id as Id<"slates">, element: JSON.stringify(newEl) });
+    }
+    setSelectedIds(newIds);
+  };
 
   // AI generation
   const handleSendAi = async (e: React.FormEvent) => {
@@ -950,11 +967,113 @@ export default function CanvasPage() {
       y: (e.clientY - rect.top) / (zoom / 100) - pan.y,
     };
   };
+  
+  const getNextLayerIndex = () => {
+    if (elements.length === 0) return 0;
+    return Math.max(...elements.map(e => e.layerIndex ?? 0)) + 1;
+  };
+
+  // ─── Layer Management ────────────────────────────────────────────────────────
+  const updateLayerIndexes = React.useCallback((updates: { id: string, layerIndex: number }[]) => {
+    setElements(prev => {
+      const next = [...prev];
+      updates.forEach(u => {
+        const el = next.find(e => e.id === u.id);
+        if (el) el.layerIndex = u.layerIndex;
+      });
+      return next;
+    });
+    updateMultipleElementsMutation({
+      id: id as Id<"slates">,
+      updatesList: JSON.stringify(updates.map(u => ({ id: u.id, updates: { layerIndex: u.layerIndex } })))
+    });
+  }, [id, updateMultipleElementsMutation]);
+
+  const bringToFront = React.useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const sorted = [...elements].sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+    const highest = sorted.length > 0 ? (sorted[sorted.length - 1].layerIndex ?? 0) : 0;
+    
+    const selectedSorted = Array.from(selectedIds)
+      .map(sid => elements.find(e => e.id === sid))
+      .filter((e): e is SystemNode => Boolean(e))
+      .sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+      
+    const updates = selectedSorted.map((el, idx) => ({ id: el.id, layerIndex: highest + 1 + idx }));
+    updateLayerIndexes(updates);
+  }, [elements, selectedIds, updateLayerIndexes]);
+
+  const sendToBack = React.useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const sorted = [...elements].sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+    const lowest = sorted.length > 0 ? (sorted[0].layerIndex ?? 0) : 0;
+    
+    const selectedSorted = Array.from(selectedIds)
+      .map(sid => elements.find(e => e.id === sid))
+      .filter((e): e is SystemNode => Boolean(e))
+      .sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+      
+    const updates = selectedSorted.map((el, idx) => ({ id: el.id, layerIndex: lowest - selectedSorted.length + idx }));
+    updateLayerIndexes(updates);
+  }, [elements, selectedIds, updateLayerIndexes]);
+
+  const bringForward = React.useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const sorted = [...elements].sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+    
+    const selectedSorted = Array.from(selectedIds)
+      .map(sid => elements.find(e => e.id === sid))
+      .filter((e): e is SystemNode => Boolean(e))
+      .sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+      
+    const highestSelected = selectedSorted[selectedSorted.length - 1];
+    const highestSelectedIndex = sorted.findIndex(e => e.id === highestSelected.id);
+    
+    let aboveElIndex = highestSelectedIndex + 1;
+    while (aboveElIndex < sorted.length && selectedIds.has(sorted[aboveElIndex].id)) aboveElIndex++;
+    
+    const aboveEl = sorted[aboveElIndex];
+    if (!aboveEl) return;
+    
+    const nextAboveEl = sorted[aboveElIndex + 1];
+    const upperLimit = nextAboveEl && !selectedIds.has(nextAboveEl.id) ? (nextAboveEl.layerIndex ?? 0) : (aboveEl.layerIndex ?? 0) + 1;
+    
+    const step = (upperLimit - (aboveEl.layerIndex ?? 0)) / (selectedSorted.length + 1);
+    const updates = selectedSorted.map((el, idx) => ({ id: el.id, layerIndex: (aboveEl.layerIndex ?? 0) + step * (idx + 1) }));
+    updateLayerIndexes(updates);
+  }, [elements, selectedIds, updateLayerIndexes]);
+
+  const sendBackward = React.useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const sorted = [...elements].sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+    
+    const selectedSorted = Array.from(selectedIds)
+      .map(sid => elements.find(e => e.id === sid))
+      .filter((e): e is SystemNode => Boolean(e))
+      .sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+      
+    const lowestSelected = selectedSorted[0];
+    const lowestSelectedIndex = sorted.findIndex(e => e.id === lowestSelected.id);
+    
+    let belowElIndex = lowestSelectedIndex - 1;
+    while (belowElIndex >= 0 && selectedIds.has(sorted[belowElIndex].id)) belowElIndex--;
+    
+    const belowEl = sorted[belowElIndex];
+    if (!belowEl) return;
+    
+    const nextBelowEl = sorted[belowElIndex - 1];
+    const lowerLimit = nextBelowEl && !selectedIds.has(nextBelowEl.id) ? (nextBelowEl.layerIndex ?? 0) : (belowEl.layerIndex ?? 0) - 1;
+    
+    const step = ((belowEl.layerIndex ?? 0) - lowerLimit) / (selectedSorted.length + 1);
+    const updates = selectedSorted.map((el, idx) => ({ id: el.id, layerIndex: lowerLimit + step * (idx + 1) }));
+    updateLayerIndexes(updates);
+  }, [elements, selectedIds, updateLayerIndexes]);
 
   // ─── Get node under cursor ───────────────────────────────────────────────────
   const getNodeAt = (x: number, y: number): SystemNode | null => {
+    const sorted = [...elements].sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
     return (
-      [...elements].reverse().find((el) => {
+      sorted.reverse().find((el) => {
         // 1. Pencil hit test
         if (el.type === "pencil" && el.points) {
           return el.points.some(p => Math.hypot(p.x - x, p.y - y) < 15);
@@ -1125,6 +1244,7 @@ export default function CanvasPage() {
         x, y, width: 0, height: 0,
         strokeColor, fillColor: "transparent", strokeWidth: 2,
         startNodeId: magnet ? magnet.id : undefined,
+        layerIndex: getNextLayerIndex(),
       };
       setCurrentElement(initArrow);
       return;
@@ -1135,12 +1255,14 @@ export default function CanvasPage() {
         id: newId, type: "pencil", title: "",
         x, y, width: 0, height: 0,
         points: [{ x, y }], strokeColor, fillColor: "transparent", strokeWidth: 3,
+        layerIndex: getNextLayerIndex(),
       });
     } else {
       setCurrentElement({
         id: newId, type: activeTool, title: "",
         x, y, width: 0, height: 0,
         strokeColor, fillColor, strokeWidth: 2,
+        layerIndex: getNextLayerIndex(),
       });
     }
     broadcastPresence(x, y, currentElement);
@@ -1371,7 +1493,8 @@ export default function CanvasPage() {
         newEl = {
           id: newId, type: tool as Tool, title: "", text: "",
           x: x - 50, y: y - 50, width: 100, height: 100,
-          strokeColor, fillColor: "transparent", strokeWidth: 2
+          strokeColor, fillColor: "transparent", strokeWidth: 2,
+          layerIndex: getNextLayerIndex(),
         };
       } else if (tool === "text") {
         setInlineText({ id: newId, x, y, text: "", isNew: true });
@@ -1383,7 +1506,8 @@ export default function CanvasPage() {
         newEl = {
           id: newId, type: tool as Tool, title: "",
           x: x - 60, y: y - 40, width: 120, height: 80,
-          strokeColor, fillColor, strokeWidth: 2
+          strokeColor, fillColor, strokeWidth: 2,
+          layerIndex: getNextLayerIndex(),
         };
       }
 
@@ -1405,7 +1529,8 @@ export default function CanvasPage() {
         id: newId, type: "node", title: iconName, subtitle: "Icon",
         x: x - 40, y: y - 40, width: 80, height: 80,
         strokeColor: "#FFFFFF", fillColor: "transparent", strokeWidth: 1.5,
-        nodeType: "icon", lucideIcon: iconName
+        nodeType: "icon", lucideIcon: iconName,
+        layerIndex: getNextLayerIndex(),
       };
       await addElementMutation({ id: id as any, element: JSON.stringify(newEl) });
       setIsInsertMenuOpen(false);
@@ -1519,8 +1644,7 @@ export default function CanvasPage() {
     ctx.translate(-minX, -minY);
 
     // Draw elements
-    elementsToExport.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, false));
-    elementsToExport.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, false));
+    elementsToExport.sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0)).forEach((el) => renderElement(ctx, el, false));
 
     ctx.restore();
 
@@ -1586,6 +1710,7 @@ export default function CanvasPage() {
           x: -pan.x + 100, y: -pan.y + 100, width: 200, height: 200,
           strokeColor: "#000", fillColor: "transparent", strokeWidth: 1,
           imageSrc: ev.target.result as string,
+          layerIndex: getNextLayerIndex(),
         };
         await addElementMutation({ id: id as any, element: JSON.stringify(newEl) });
       }
@@ -2339,15 +2464,14 @@ export default function CanvasPage() {
           height: 30,
           strokeColor: "#FFFFFF",
           fillColor: "transparent",
-          strokeWidth: 2
+          strokeWidth: 2,
+          layerIndex: getNextLayerIndex(),
         });
       }
 
-      // 2. Draw arrows first (behind nodes)
-      allEls.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, selIds.has(el.id), currentElements));
-      
-      // 3. Draw non-arrows
-      allEls.filter((el) => el.type !== "arrow").forEach((el) => renderElement(ctx, el, selIds.has(el.id), currentElements));
+      // 2. Draw all elements sorted by layerIndex
+      const sortedEls = [...allEls].sort((a, b) => (a.layerIndex ?? 0) - (b.layerIndex ?? 0));
+      sortedEls.forEach((el) => renderElement(ctx, el, selIds.has(el.id), currentElements));
 
       const activeSelected =
         selIds.size === 1 ? currentElements.find((el) => selIds.has(el.id) && el.type !== "arrow" && el.type !== "pencil") : null;
@@ -2536,10 +2660,20 @@ export default function CanvasPage() {
       if (e.key === "Escape") { setSelectedIds(new Set()); setSelectionNet(null); setNetStart(null); }
       if (e.key === "+") setZoom((z) => Math.min(300, z + 10));
       if (e.key === "-") setZoom((z) => Math.max(10, z - 10));
+      
+      // Layer shortcuts
+      if ((e.metaKey || e.ctrlKey) && e.key === "]") {
+        e.preventDefault();
+        e.shiftKey ? bringToFront() : bringForward();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "[") {
+        e.preventDefault();
+        e.shiftKey ? sendToBack() : sendBackward();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedIds, isReadOnly, id, history, future, elements, commitToHistory, updateElementsMutation, handleBranchCreate]);
+  }, [selectedIds, isReadOnly, id, history, future, elements, commitToHistory, updateElementsMutation, handleBranchCreate, bringToFront, bringForward, sendToBack, sendBackward]);
 
   const getCursor = () => {
     if (isReadOnly) return "default";
@@ -2583,7 +2717,7 @@ export default function CanvasPage() {
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0A0A0A] text-white font-sans overflow-hidden select-none">
       <CommandPalette open={isCommandOpen} onOpenChange={setIsCommandOpen} onNewSlate={() => setIsInsertMenuOpen(true)} />{/* MAIN BODY */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative" onClick={() => { if (contextMenu) setContextMenu(null); }}>
 
         {/* FLOATING UI SHELL */}
         {!isUiHidden && (
@@ -2954,8 +3088,6 @@ export default function CanvasPage() {
               );
             })()}
 
-            {/* Selected count badge removed as per user request */}
-
             {/* Snap hint */}
             {activeTool === "arrow" && !isReadOnly && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-full bg-[#101010] border border-[#2B2B2B] text-[#808080] text-[10px] font-medium">
@@ -2991,7 +3123,7 @@ export default function CanvasPage() {
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
               onDoubleClick={handleCanvasDoubleClick}
-              onMouseLeave={() => { hoveredNodeIdRef.current = null; }}
+              onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY }); }}
               onWheel={handleWheel}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleCanvasDrop}
@@ -3021,6 +3153,38 @@ export default function CanvasPage() {
             </form>
           </aside>
         )}
+        {contextMenu && (
+            <div 
+              className="fixed z-[100] bg-[#141414] border border-[#2B2B2B] rounded-xl shadow-2xl overflow-hidden py-1.5 w-48"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              onContextMenu={e => e.preventDefault()}
+            >
+              <button className="w-full text-left px-3 py-1.5 text-sm text-white hover:bg-[#2B2B2B] flex items-center justify-between" onClick={() => { bringToFront(); setContextMenu(null); }}>
+                <span>Bring To Front</span><span className="text-xs text-white/40">⇧⌘]</span>
+              </button>
+              <button className="w-full text-left px-3 py-1.5 text-sm text-white hover:bg-[#2B2B2B] flex items-center justify-between" onClick={() => { bringForward(); setContextMenu(null); }}>
+                <span>Bring Forward</span><span className="text-xs text-white/40">⌘]</span>
+              </button>
+              <div className="h-px bg-[#2B2B2B] my-1.5 mx-2" />
+              <button className="w-full text-left px-3 py-1.5 text-sm text-white hover:bg-[#2B2B2B] flex items-center justify-between" onClick={() => { sendBackward(); setContextMenu(null); }}>
+                <span>Send Backward</span><span className="text-xs text-white/40">⌘[</span>
+              </button>
+              <button className="w-full text-left px-3 py-1.5 text-sm text-white hover:bg-[#2B2B2B] flex items-center justify-between" onClick={() => { sendToBack(); setContextMenu(null); }}>
+                <span>Send To Back</span><span className="text-xs text-white/40">⇧⌘[</span>
+              </button>
+              <div className="h-px bg-[#2B2B2B] my-1.5 mx-2" />
+              <button className="w-full text-left px-3 py-1.5 text-sm text-white hover:bg-[#2B2B2B] flex items-center justify-between" onClick={() => { duplicateElement(); setContextMenu(null); }}>
+                <span>Duplicate</span><span className="text-xs text-white/40">⌘D</span>
+              </button>
+              <button className="w-full text-left px-3 py-1.5 text-sm text-red-500 hover:bg-[#2B2B2B] flex items-center justify-between" onClick={() => { 
+                selectedIds.forEach((sid) => removeElementMutation({ id: id as Id<"slates">, elementId: sid }));
+                setSelectedIds(new Set());
+                setContextMenu(null); 
+              }}>
+                <span>Delete</span><span className="text-xs text-red-500/40">Del</span>
+              </button>
+            </div>
+          )}
       </div>
     </div>
   );
