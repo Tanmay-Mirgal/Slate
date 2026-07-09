@@ -16,7 +16,7 @@ import TableHeader from "@tiptap/extension-table-header";
 import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
 import HorizontalRule from "@tiptap/extension-horizontal-rule";
-import Image from "@tiptap/extension-image";
+import { ImageWithCaption } from "@/components/editor/extensions/image-with-caption";
 import Typography from "@tiptap/extension-typography";
 import Gapcursor from "@tiptap/extension-gapcursor";
 import Dropcursor from "@tiptap/extension-dropcursor";
@@ -27,15 +27,17 @@ import { common, createLowlight } from "lowlight";
 import { Callout } from "@/components/editor/extensions/callout";
 import { Toggle } from "@/components/editor/extensions/toggle";
 import { ColumnBlock, Column } from "@/components/editor/extensions/columns";
-import { CheckSquare, FileText, Heading1, ImagePlus, Search, Sparkles, Table2, Type, Info, Columns2, ListTree } from "lucide-react";
+import { CheckSquare, FileText, Heading1, ImagePlus, Search, Sparkles, Table2, Type, Info, Columns2, ListTree, UploadCloud } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { DocumentEditorProvider } from "@/components/editor/editor-provider";
 import { DocumentToolbar } from "@/components/editor/toolbar";
 import { DocumentBubbleMenu } from "@/components/editor/bubble-menu";
 import { TableBubbleMenu } from "@/components/editor/table-menu";
+import { ImageBubbleMenu } from "@/components/editor/image-menu";
 import { SlashMenu, type SlashCommandItem } from "@/components/editor/slash-menu";
 import {
   DEFAULT_DOCUMENT_CONTENT,
@@ -299,6 +301,7 @@ export function DocumentEditor({
   const [isImageDialogOpen, setIsImageDialogOpen] = React.useState(false);
   const [imageUrl, setImageUrl] = React.useState("");
   const [imageAlt, setImageAlt] = React.useState("");
+  const [isDraggingImage, setIsDraggingImage] = React.useState(false);
   const [saveState, setSaveState] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
   const [slashState, setSlashState] = React.useState<SlashState>({
     open: false,
@@ -443,7 +446,7 @@ export function DocumentEditor({
           types: ["heading", "paragraph"],
         }),
         HorizontalRule,
-        Image.configure({
+        ImageWithCaption.configure({
           inline: true,
           allowBase64: true,
           HTMLAttributes: {
@@ -577,20 +580,32 @@ export function DocumentEditor({
     }
   }, [editor, initialContent]);
 
+  const downloadFile = (content: string, filename: string, type: string) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const exportMarkdown = React.useCallback(() => {
     if (!editor) return;
     const markdown = tiptapContentToMarkdown(editor.getJSON());
-    void navigator.clipboard.writeText(markdown);
+    downloadFile(markdown, "document.md", "text/markdown");
   }, [editor]);
 
   const exportHtml = React.useCallback(() => {
     if (!editor) return;
-    void navigator.clipboard.writeText(editor.getHTML());
+    downloadFile(editor.getHTML(), "document.html", "text/html");
   }, [editor]);
 
   const exportJson = React.useCallback(() => {
     if (!editor) return;
-    void navigator.clipboard.writeText(JSON.stringify(editor.getJSON(), null, 2));
+    downloadFile(JSON.stringify(editor.getJSON(), null, 2), "document.json", "application/json");
   }, [editor]);
 
   const executeSlashItem = React.useCallback(
@@ -638,6 +653,26 @@ export function DocumentEditor({
     setImageAlt("");
     setIsImageDialogOpen(false);
   }, [editor, imageAlt, imageUrl]);
+
+  const handleImageFile = React.useCallback((file: File) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) return;
+      setImageUrl(result);
+      if (!imageAlt) setImageAlt(file.name.split(".")[0]);
+    };
+    reader.readAsDataURL(file);
+  }, [imageAlt]);
+
+  const handleImageDrop = React.useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingImage(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleImageFile(file);
+  }, [handleImageFile]);
 
   if (!editor) {
     return (
@@ -690,6 +725,7 @@ export function DocumentEditor({
           <>
             <DocumentBubbleMenu editor={editor} onOpenLinkDialog={openLinkDialog} />
             <TableBubbleMenu editor={editor} />
+            <ImageBubbleMenu editor={editor} />
           </>
         )}
 
@@ -741,28 +777,79 @@ export function DocumentEditor({
             <DialogHeader>
               <DialogTitle>Insert image</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <Input
-                value={imageUrl}
-                onChange={(event) => setImageUrl(event.target.value)}
-                placeholder="https://images.example.com/preview.png"
-                className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
-              />
-              <Input
-                value={imageAlt}
-                onChange={(event) => setImageAlt(event.target.value)}
-                placeholder="Alt text"
-                className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
-              />
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" onClick={() => setIsImageDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={applyImage}>
-                  Insert
-                </Button>
-              </div>
-            </div>
+            <Tabs defaultValue="device" className="w-full">
+              <TabsList className="w-full grid grid-cols-2 bg-white/5 border border-white/10 mb-4">
+                <TabsTrigger value="device">Device</TabsTrigger>
+                <TabsTrigger value="link">Link</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="device" className="space-y-4 outline-none">
+                <div 
+                  className={cn(
+                    "border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
+                    isDraggingImage ? "border-white/50 bg-white/5" : "border-white/20 hover:bg-white/5 hover:border-white/30"
+                  )}
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingImage(true); }}
+                  onDragLeave={() => setIsDraggingImage(false)}
+                  onDrop={handleImageDrop}
+                  onClick={() => document.getElementById('image-upload-input')?.click()}
+                >
+                  <UploadCloud className="h-8 w-8 text-white/50 mb-3" />
+                  <p className="text-sm font-medium mb-1">Click to upload or drag and drop</p>
+                  <p className="text-xs text-white/50">SVG, PNG, JPG or GIF</p>
+                  <input 
+                    id="image-upload-input" 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageFile(file);
+                    }}
+                  />
+                </div>
+                {imageUrl && imageUrl.startsWith('data:') && (
+                  <div className="rounded border border-white/10 overflow-hidden bg-white/5 p-2 flex items-center gap-3">
+                    <img src={imageUrl} alt="Preview" className="h-10 w-10 object-cover rounded" />
+                    <span className="text-sm text-white/70 truncate flex-1">{imageAlt || 'Selected image'}</span>
+                    <Button variant="ghost" size="sm" onClick={() => { setImageUrl(""); setImageAlt(""); }} className="h-8 px-2 text-white/50 hover:text-white">Clear</Button>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="ghost" onClick={() => setIsImageDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={applyImage} disabled={!imageUrl || !imageUrl.startsWith('data:')}>
+                    Insert
+                  </Button>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="link" className="space-y-4 outline-none">
+                <div className="space-y-4">
+                  <Input
+                    value={imageUrl.startsWith('http') ? imageUrl : ''}
+                    onChange={(event) => setImageUrl(event.target.value)}
+                    placeholder="https://images.example.com/preview.png"
+                    className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                  />
+                  <Input
+                    value={imageAlt}
+                    onChange={(event) => setImageAlt(event.target.value)}
+                    placeholder="Alt text"
+                    className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={() => setIsImageDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={applyImage} disabled={!imageUrl.startsWith('http')}>
+                      Insert
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </DialogContent>
         </Dialog>
       </div>
