@@ -317,17 +317,17 @@ export function DocumentEditor({
   );
 
   const persist = useDebouncedCallback(async (editor: Editor) => {
-    if (readOnly) return;
-
-    const json = editor.getJSON();
-    const markdown = tiptapContentToMarkdown(json);
-    const html = editor.getHTML();
-
-    setSaveState("saving");
-    const requestId = Date.now();
-    saveInFlightRef.current = requestId;
+    if (readOnly || editor.isDestroyed) return;
 
     try {
+      const json = editor.getJSON();
+      const markdown = tiptapContentToMarkdown(json);
+      const html = editor.getHTML();
+
+      setSaveState("saving");
+      const requestId = Date.now();
+      saveInFlightRef.current = requestId;
+
       await onPersist({
         markdown,
         html,
@@ -337,9 +337,8 @@ export function DocumentEditor({
         setSaveState("saved");
       }
     } catch {
-      if (saveInFlightRef.current === requestId) {
-        setSaveState("error");
-      }
+      // either extracting HTML/JSON failed (editor destroyed mid-flight) or onPersist failed
+      setSaveState("error");
     }
   }, 550);
 
@@ -567,13 +566,15 @@ export function DocumentEditor({
     : [];
 
   React.useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
 
     const source = JSON.stringify(initialContent);
     if (source === lastSourceRef.current) return;
 
     lastSourceRef.current = source;
-    editor.commands.setContent(initialContent, { emitUpdate: false });
+    if (editor.commands) {
+      editor.commands.setContent(initialContent, { emitUpdate: false });
+    }
   }, [editor, initialContent]);
 
   const exportMarkdown = React.useCallback(() => {

@@ -37,6 +37,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuGroup,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -150,31 +151,33 @@ export function DocumentToolbar({
               <Highlighter className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48 p-2 border-white/10 bg-[#101114] text-white">
-              <DropdownMenuLabel className="text-xs text-white/45">Highlight Color</DropdownMenuLabel>
-              <div className="grid grid-cols-4 gap-1 mb-2">
-                {[
-                  { name: 'Yellow', color: '#fef08a' },
-                  { name: 'Green', color: '#bbf7d0' },
-                  { name: 'Blue', color: '#bfdbfe' },
-                  { name: 'Pink', color: '#fbcfe8' },
-                  { name: 'Orange', color: '#fed7aa' },
-                  { name: 'Purple', color: '#e9d5ff' },
-                  { name: 'Red', color: '#fecaca' },
-                  { name: 'Gray', color: '#e5e7eb' },
-                ].map((c) => (
-                  <button
-                    key={c.color}
-                    onClick={() => editor.chain().focus().toggleHighlight({ color: c.color }).run()}
-                    className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center hover:scale-110 transition-transform"
-                    style={{ backgroundColor: c.color }}
-                    title={c.name}
-                  />
-                ))}
-              </div>
-              <DropdownMenuSeparator className="bg-white/8" />
-              <DropdownMenuItem onClick={() => editor.chain().focus().unsetHighlight().run()}>
-                Remove highlight
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-white/45">Highlight Color</DropdownMenuLabel>
+                <div className="grid grid-cols-4 gap-1 mb-2">
+                  {[
+                    { name: 'Yellow', color: '#fef08a' },
+                    { name: 'Green', color: '#bbf7d0' },
+                    { name: 'Blue', color: '#bfdbfe' },
+                    { name: 'Pink', color: '#fbcfe8' },
+                    { name: 'Orange', color: '#fed7aa' },
+                    { name: 'Purple', color: '#e9d5ff' },
+                    { name: 'Red', color: '#fecaca' },
+                    { name: 'Gray', color: '#e5e7eb' },
+                  ].map((c) => (
+                    <button
+                      key={c.color}
+                      onClick={() => editor.chain().focus().toggleHighlight({ color: c.color }).run()}
+                      className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center hover:scale-110 transition-transform"
+                      style={{ backgroundColor: c.color }}
+                      title={c.name}
+                    />
+                  ))}
+                </div>
+                <DropdownMenuSeparator className="bg-white/8" />
+                <DropdownMenuItem onClick={() => editor.chain().focus().unsetHighlight().run()}>
+                  Remove highlight
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -195,15 +198,17 @@ export function DocumentToolbar({
               Paragraph
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-44 border-white/10 bg-[#101114] text-white">
-              <DropdownMenuLabel className="text-xs text-white/45">Text style</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-white/8" />
-              <DropdownMenuItem onClick={() => editor.chain().focus().setParagraph().run()}>Paragraph</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>Heading 1</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>Heading 2</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>Heading 3</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}>Heading 4</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 5 }).run()}>Heading 5</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 6 }).run()}>Heading 6</DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-white/45">Text style</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/8" />
+                <DropdownMenuItem onClick={() => editor.chain().focus().setParagraph().run()}>Paragraph</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>Heading 1</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>Heading 2</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>Heading 3</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}>Heading 4</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 5 }).run()}>Heading 5</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 6 }).run()}>Heading 6</DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -338,13 +343,15 @@ export function DocumentToolbar({
               <Table2 className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-44 border-white/10 bg-[#101114] text-white p-2">
-              <DropdownMenuLabel className="text-xs text-white/45">Insert Table</DropdownMenuLabel>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()}>2x2</Button>
-                <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>3x3</Button>
-                <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 4, cols: 4, withHeaderRow: true }).run()}>4x4</Button>
-                <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 5, cols: 5, withHeaderRow: true }).run()}>5x5</Button>
-              </div>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-white/45">Insert Table</DropdownMenuLabel>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 2, cols: 2, withHeaderRow: true }).run()}>2x2</Button>
+                  <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>3x3</Button>
+                  <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 4, cols: 4, withHeaderRow: true }).run()}>4x4</Button>
+                  <Button variant="outline" size="sm" onClick={() => editor.chain().focus().insertTable({ rows: 5, cols: 5, withHeaderRow: true }).run()}>5x5</Button>
+                </div>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -462,13 +469,15 @@ export function DocumentToolbar({
               Export
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 border-white/10 bg-[#101114] text-white">
-              <DropdownMenuLabel className="text-xs text-white/45">Export document</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-white/8" />
-              <DropdownMenuItem onClick={onExportMarkdown}>Markdown</DropdownMenuItem>
-              <DropdownMenuItem onClick={onExportHtml}>HTML</DropdownMenuItem>
-              <DropdownMenuItem onClick={onExportJson}>JSON</DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-white/8" />
-              <DropdownMenuItem onClick={onPrintPdf}>Print / PDF</DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-white/45">Export document</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/8" />
+                <DropdownMenuItem onClick={onExportMarkdown}>Markdown</DropdownMenuItem>
+                <DropdownMenuItem onClick={onExportHtml}>HTML</DropdownMenuItem>
+                <DropdownMenuItem onClick={onExportJson}>JSON</DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/8" />
+                <DropdownMenuItem onClick={onPrintPdf}>Print / PDF</DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

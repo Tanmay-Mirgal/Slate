@@ -234,13 +234,13 @@
     border-collapse: collapse;
     overflow: hidden;
     border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     margin: 1rem 0;
   }
 
   .doc-editor th,
   .doc-editor td {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     padding: 0.7rem 0.8rem;
     vertical-align: top;
     text-align: left;
