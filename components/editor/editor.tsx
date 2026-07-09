@@ -612,19 +612,8 @@ export function DocumentEditor({
 
   return (
     <DocumentEditorProvider editor={editor} readOnly={readOnly}>
-      <div className="relative flex h-full min-h-[600px] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.06),_transparent_40%),linear-gradient(180deg,#0c0d10_0%,#090a0c_100%)]">
-        <div className="flex items-center justify-between gap-4 border-b border-white/8 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white">
-              <FileText className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-white">System Documentation</div>
-              <div className="text-[11px] text-white/45">
-                {readOnly ? "View-only document" : "Rich text editor with markdown paste support"}
-              </div>
-            </div>
-          </div>
+      <div className="relative flex h-full min-h-[600px] flex-col overflow-hidden bg-transparent">
+        <div className="flex items-center justify-end gap-4 px-4 py-3 bg-transparent">
 
           <div className="flex items-center gap-2">
             <span
@@ -661,8 +650,8 @@ export function DocumentEditor({
         />
 
         <div className="relative flex-1 overflow-auto px-4 py-6">
-          <div className="mx-auto w-full max-w-[880px]">
-            <div className="editor-shell rounded-[28px] border border-white/8 bg-[#0b0c0f]/65 px-5 py-6 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:px-8 sm:py-8">
+          <div className="mx-auto w-full max-w-[1100px]">
+            <div className="editor-shell pb-32 pt-8">
               <EditorContent editor={editor} />
             </div>
           </div>

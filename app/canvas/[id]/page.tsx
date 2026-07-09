@@ -2872,8 +2872,7 @@ export default function CanvasPage() {
         {/* MARKDOWN EDITOR */}
         {viewMode === "document" && (
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="h-full w-full bg-[#0A0A0A] overflow-y-auto flex justify-center">
-            <div className="w-full max-w-4xl bg-[#0A0A0A] shadow-[0_0_40px_rgba(0,0,0,0.5)] border-x border-[#1A1A1A]">
-            <div className="h-full p-4 sm:p-6">
+            <div className="w-full h-full">
               <RichDocumentEditor
                 key={slate?._id ? String(slate._id) : "document-editor"}
                 initialMarkdown={slate?.documentText || undefined}
@@ -2883,7 +2882,6 @@ export default function CanvasPage() {
                 onSearchCommand={() => setIsCommandOpen(true)}
               />
             </div>
-          </div>
           </motion.div>
         )}
 
