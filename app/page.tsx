@@ -132,7 +132,7 @@ export default function LandingPage() {
           </div>
           <div className="relative w-full max-w-7xl max-h-[85vh] overflow-auto rounded-2xl border border-[#2B2B2B] bg-[#0D0D0D] p-2 shadow-2xl">
             <Image
-              src="/demo.svg"
+              src="/demo.png"
               alt="Slate Architecture High Resolution Fullscreen Preview"
               width={2500}
               height={1400}
@@ -215,36 +215,40 @@ export default function LandingPage() {
       </header>
 
       {/* HERO SECTION */}
-      <section className="pt-36 pb-16 px-6 max-w-5xl mx-auto text-center flex flex-col items-center">
+      <section className="relative pt-40 pb-20 px-6 max-w-6xl mx-auto text-center flex flex-col items-center">
         
+        {/* Background Glowing Orbs for Premium Vibe */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-purple-600/20 blur-[120px] rounded-[100%] pointer-events-none -z-10" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[300px] bg-blue-500/20 blur-[100px] rounded-[100%] pointer-events-none -z-10" />
+
         {/* Simple Pill Tag */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#2B2B2B] bg-[#141414] text-xs font-medium text-[#C5C5C5] mb-6">
-          <Sparkles className="w-3.5 h-3.5 text-white" />
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/[0.03] backdrop-blur-md shadow-[0_0_20px_rgba(255,255,255,0.05)] text-xs font-medium text-[#E0E0E0] mb-8 hover:bg-white/[0.05] transition-colors cursor-pointer">
+          <Sparkles className="w-4 h-4 text-purple-400" />
           <span>The Visual Workspace for Modern Teams</span>
         </div>
 
         {/* Clean Hero Headline */}
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white leading-[1.08] max-w-3xl mb-6">
+        <h1 className="text-6xl md:text-8xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60 leading-[1.05] max-w-4xl mb-8">
           Think. Draw. Collaborate.
         </h1>
 
         {/* Supporting Subheadline */}
-        <p className="text-base md:text-lg text-[#C5C5C5] max-w-xl leading-relaxed font-normal mb-8">
-          Slate combines infinite whiteboard diagramming with real-time markdown documentation and AI system architecture tools.
+        <p className="text-lg md:text-xl text-[#A0A0A0] max-w-2xl leading-relaxed font-normal mb-12">
+          Slate combines infinite whiteboard diagramming with real-time markdown documentation and AI system architecture tools into one magical experience.
         </p>
 
         {/* CTA Buttons */}
-        <div className="flex items-center gap-3 mb-12">
+        <div className="flex flex-col sm:flex-row items-center gap-4 mb-16 z-10">
           {(!isLoaded || !isSignedIn) ? (
             <Link href="/auth?mode=sign-up">
-              <Button className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2 shadow-md">
+              <Button className="rounded-full bg-white hover:bg-[#e5e5e5] text-black font-semibold text-sm h-12 px-8 transition-transform hover:scale-105 cursor-pointer flex items-center gap-2 shadow-[0_0_30px_rgba(255,255,255,0.2)]">
                 Start Free Workspace
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
           ) : (
             <Link href="/dashboard">
-              <Button className="rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black font-semibold text-sm h-11 px-6 transition-all cursor-pointer flex items-center gap-2">
+              <Button className="rounded-full bg-white hover:bg-[#e5e5e5] text-black font-semibold text-sm h-12 px-8 transition-transform hover:scale-105 cursor-pointer flex items-center gap-2 shadow-[0_0_30px_rgba(255,255,255,0.2)]">
                 Open Dashboard
                 <ArrowRight className="w-4 h-4" />
               </Button>
@@ -254,7 +258,7 @@ export default function LandingPage() {
           <Button
             onClick={() => handleCreateNewSlate(true)}
             variant="outline"
-            className="rounded-xl border-[#2B2B2B] bg-[#141414] hover:bg-[#1A1A1A] text-[#C5C5C5] hover:text-white font-semibold text-sm h-11 px-5 cursor-pointer flex items-center gap-2"
+            className="rounded-full border-white/10 bg-black/40 backdrop-blur-md hover:bg-white/5 text-[#E0E0E0] hover:text-white font-semibold text-sm h-12 px-8 cursor-pointer flex items-center gap-2 transition-transform hover:scale-105"
           >
             <Zap className="w-4 h-4 text-amber-400" />
             Generate AI Slate
@@ -262,58 +266,64 @@ export default function LandingPage() {
         </div>
 
         {/* AI PROMPT INPUT BAR */}
-        <div className="w-full max-w-xl mb-16 p-2 rounded-2xl border border-[#2B2B2B] bg-[#141414] flex items-center gap-2 shadow-xl">
+        <div className="w-full max-w-2xl mb-24 p-2.5 rounded-full border border-white/10 bg-black/50 backdrop-blur-xl flex items-center gap-3 shadow-[0_8px_32px_rgba(0,0,0,0.5)] z-10 transition-all focus-within:border-white/20 focus-within:bg-black/70">
+          <div className="pl-4">
+            <Sparkles className="w-5 h-5 text-purple-400/70" />
+          </div>
           <input
             type="text"
             value={demoPrompt}
             onChange={(e) => setDemoPrompt(e.target.value)}
             placeholder="Describe architecture (e.g. 'Uber LLD' or 'E-Commerce Microservices')..."
-            className="w-full bg-transparent px-3 py-1 text-xs text-white placeholder-[#808080] focus:outline-none"
+            className="w-full bg-transparent py-2 text-sm text-white placeholder-[#606060] focus:outline-none"
             onKeyDown={(e) => e.key === "Enter" && handleCreateNewSlate(true, demoPrompt)}
           />
           <Button
             size="sm"
             onClick={() => handleCreateNewSlate(true, demoPrompt || "Microservices Architecture")}
-            className="rounded-xl bg-white hover:bg-slate-100 text-black text-xs font-semibold h-9 px-4 whitespace-nowrap cursor-pointer shadow"
+            className="rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/5 text-xs font-semibold h-10 px-6 whitespace-nowrap cursor-pointer shadow transition-colors"
           >
             Generate ⚡
           </Button>
         </div>
 
         {/* CRYSTAL CLEAR PRODUCT SHOWCASE WINDOW */}
-        <div id="showcase" className="w-full rounded-2xl border border-[#2B2B2B] bg-[#101010] p-2.5 shadow-2xl text-left relative group">
+        <div id="showcase" className="w-full rounded-2xl border border-white/10 bg-black/60 p-2 shadow-[0_20px_60px_-15px_rgba(0,0,0,1)] text-left relative group backdrop-blur-xl z-10 hover:border-white/20 transition-all duration-500">
           
           {/* Header Bar */}
-          <div className="h-9 border-b border-[#2B2B2B] bg-[#141414] px-4 flex items-center justify-between rounded-t-xl">
+          <div className="h-10 border-b border-white/5 bg-black/40 px-4 flex items-center justify-between rounded-t-xl">
             <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#2B2B2B]" />
-              <div className="w-2.5 h-2.5 rounded-full bg-[#2B2B2B]" />
-              <div className="w-2.5 h-2.5 rounded-full bg-[#2B2B2B]" />
-              <span className="ml-2 text-xs font-mono text-[#808080]">slate.app/canvas</span>
+              <div className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E]" />
+              <div className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123]" />
+              <div className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29]" />
+              <span className="ml-3 text-xs font-medium text-[#707070] flex items-center gap-1.5"><Layout className="w-3 h-3"/> slate.app/canvas</span>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => setIsLightboxOpen(true)}
-                className="px-2.5 py-1 rounded-md border border-[#2B2B2B] bg-[#1A1A1A] hover:bg-[#252525] text-xs font-medium text-white transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-xs font-medium text-white transition-all cursor-pointer flex items-center gap-1.5"
               >
-                <ZoomIn className="w-3.5 h-3.5 text-white" />
+                <ZoomIn className="w-3.5 h-3.5" />
                 <span>Expand Fullscreen</span>
               </button>
-              <div className="flex items-center gap-1.5 text-xs text-[#808080]">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <div className="flex items-center gap-1.5 text-xs font-medium text-[#808080]">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.6)] animate-pulse" />
                 <span>Realtime Connected</span>
               </div>
             </div>
           </div>
 
-          {/* CRYSTAL CLEAR HIGH-RES IMAGE PREVIEW */}
+          {/* PREVIEW IMAGE (User's workspace screenshot placeholder) */}
           <div
             onClick={() => setIsLightboxOpen(true)}
-            className="relative w-full rounded-b-xl overflow-hidden bg-[#0A0A0A] cursor-pointer group/img"
+            className="relative w-full rounded-b-xl overflow-hidden bg-[#050505] cursor-pointer group/img"
           >
+            {/* Glossy overlay effect */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/[0.02] to-white/0 pointer-events-none" />
+            
             <Image
-              src="/demo.svg"
+              src="/demo.png"
               alt="Slate Canvas Crystal Clear AI Architecture Diagram Preview"
               width={2500}
               height={1400}
