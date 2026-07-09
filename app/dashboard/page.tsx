@@ -23,12 +23,12 @@ import { CommandPalette } from "@/components/CommandPalette";
 export type DashboardTab = "recent" | "shared" | "settings";
 
 const CARD_ACCENTS = [
-  { border: "border-violet-500/40", gradient: "from-violet-900/30 to-purple-900/10", dot: "bg-violet-400", stripe: "from-violet-500 to-purple-600" },
-  { border: "border-sky-500/40",    gradient: "from-sky-900/30 to-blue-900/10",     dot: "bg-sky-400",    stripe: "from-sky-500 to-blue-600"    },
-  { border: "border-emerald-500/40",gradient: "from-emerald-900/30 to-green-900/10",dot: "bg-emerald-400",stripe: "from-emerald-500 to-green-600"},
-  { border: "border-amber-500/40",  gradient: "from-amber-900/30 to-orange-900/10", dot: "bg-amber-400",  stripe: "from-amber-500 to-orange-600" },
-  { border: "border-rose-500/40",   gradient: "from-rose-900/30 to-pink-900/10",    dot: "bg-rose-400",   stripe: "from-rose-500 to-pink-600"    },
-  { border: "border-cyan-500/40",   gradient: "from-cyan-900/30 to-teal-900/10",    dot: "bg-cyan-400",   stripe: "from-cyan-500 to-teal-600"    },
+  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-violet-400", stripe: "from-[#2B2B2B] to-[#333333]" },
+  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-sky-400",    stripe: "from-[#2B2B2B] to-[#333333]" },
+  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-emerald-400",stripe: "from-[#2B2B2B] to-[#333333]" },
+  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-amber-400",  stripe: "from-[#2B2B2B] to-[#333333]" },
+  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-rose-400",   stripe: "from-[#2B2B2B] to-[#333333]" },
+  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-cyan-400",   stripe: "from-[#2B2B2B] to-[#333333]" },
 ];
 
 function getAccent(id: string) {
