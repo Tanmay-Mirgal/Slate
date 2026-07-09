@@ -72,25 +72,35 @@ const RichDocumentEditor = dynamic(
   { ssr: false }
 );
 
-export type ViewMode = "document" | "both" | "canvas";
-export type Tool =
-  | "select"
-  | "pencil"
-  | "rectangle"
-  | "circle"
-  | "line"
-  | "arrow"
-  | "text"
-  | "eraser"
-  | "frame"
-  | "node"
-  | "hand"
-  | "diamond"
-  | "triangle"
-  | "image";
 
-const SNAP_GRID = 20;
+
 const RESIZE_HANDLE_SIZE = 10;
+
+export type GridType = 'none' | 'dot' | 'square' | 'blueprint';
+export interface GridPreferences {
+  type: GridType;
+  opacity: number;
+  spacing: number;
+  color: string;
+  snapStrength: number;
+}
+export interface AlignmentGuide {
+  type: 'vertical' | 'horizontal';
+  x?: number;
+  y?: number;
+  length?: number;
+  start?: number;
+  label?: string;
+  labelX?: number;
+  labelY?: number;
+}
+export const defaultGridPrefs: GridPreferences = {
+  type: 'dot',
+  opacity: 0.1,
+  spacing: 20,
+  color: '#ffffff',
+  snapStrength: 10,
+};
 
 export interface SystemNode {
   id: string;
@@ -124,7 +134,7 @@ type BranchDirection = "top" | "bottom" | "left" | "right";
 type AnchorSide = BranchDirection;
 type ConnectorStyle = "straight" | "curved" | "orthogonal" | "smooth";
 
-const snapToGrid = (value: number) => Math.round(value / SNAP_GRID) * SNAP_GRID;
+const snapToGrid = (value: number, spacing: number = 20) => Math.round(value / spacing) * spacing;
 
 function getNodeCenter(el: SystemNode) {
   return { x: el.x + el.width / 2, y: el.y + el.height / 2 };
@@ -499,7 +509,7 @@ const AVAILABLE_ICONS = [
   "MoreVertical", "Grid", "List", "Type", "Hash", "Briefcase", 
   "ShoppingCart", "CreditCard", "Award", "Flag", "Map", "Truck", 
   "Package", "Smile", "Code", "Github", "Gitlab", "Trello", "Slack", 
-  "Twitter", "Linkedin", "Youtube", "Figma", "Framer", "Codepen",
+"Twitter", "Linkedin", "Youtube", "Figma", "Framer", "Codepen",
   "Chrome", "Command", "Webhook", "Workflow", "Boxes", "Container", "Component"
 ];
 
@@ -508,6 +518,25 @@ export default function CanvasPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = params.id as string;
+  const [gridPrefs, setGridPrefs] = React.useState<GridPreferences>(defaultGridPrefs);
+  const [alignmentGuides, setAlignmentGuides] = React.useState<AlignmentGuide[]>([]);
+
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('slate-grid-prefs');
+      if (saved) {
+        setGridPrefs(JSON.parse(saved));
+      }
+    } catch (e) {}
+  }, []);
+
+  const updateGridPrefs = (updates: Partial<GridPreferences>) => {
+    setGridPrefs(prev => {
+      const next = { ...prev, ...updates };
+      localStorage.setItem('slate-grid-prefs', JSON.stringify(next));
+      return next;
+    });
+  };
 
   const accessMode = searchParams.get("mode") || "edit";
   const isReadOnly = accessMode === "view";
@@ -533,7 +562,7 @@ export default function CanvasPage() {
   const updatePresenceMutation = useMutation(api.slates.updatePresence);
 
   // Layout & Tool
-  const [viewMode, setViewMode] = React.useState<ViewMode>("both");
+  const [viewMode, setViewMode] = React.useState<ViewMode>("canvas");
   const [activeTool, setActiveTool] = React.useState<Tool>("select");
   const [zoom, setZoom] = React.useState<number>(100);
   const [isAiChatOpen, setIsAiChatOpen] = React.useState<boolean>(false);
@@ -1951,11 +1980,11 @@ export default function CanvasPage() {
         ctx.stroke();
       }
     } else if (el.type === "text") {
-      ctx.fillStyle = el.strokeColor || "#FFFFFF";
+      ctx.fillStyle = "#FFFFFF";
       ctx.font = "bold 15px sans-serif";
       ctx.textBaseline = "top";
-      
-      const lines = (el.text || "Text Label").split('\n');
+      const textToRender = (inlineText?.id === el.id) ? inlineText.text : (el.text || "");
+      const lines = textToRender.split('\n');
       const lineHeight = 18;
       const maxWidth = el.width && el.width > 20 ? el.width : 500;
       let currentY = el.y;
@@ -2012,7 +2041,7 @@ export default function CanvasPage() {
       
       const maxWidth = el.type === "frame" ? el.width - 40 : Math.max(20, el.width - iconWidth - 20); // 10px padding on each side
       const lineHeight = 18;
-      const textToDraw = el.text || "";
+      const textToDraw = (inlineText?.id === el.id) ? inlineText.text : (el.text || "");
       const paragraphs = textToDraw.split('\n');
       const lines: string[] = [];
       
@@ -2165,30 +2194,67 @@ export default function CanvasPage() {
   // Draw the faint grid
   // Draw the faint grid (Infinite grid optimized with viewport-based drawing and batch path stroke)
   const renderGrid = (ctx: CanvasRenderingContext2D, w: number, h: number, panX: number, panY: number) => {
+    if (gridPrefs.type === 'none') return;
+    
     ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.03)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+    ctx.globalAlpha = gridPrefs.opacity;
     
-    const startX = -panX - (panX % SNAP_GRID);
-    const endX = startX + w;
-    const startY = -panY - (panY % SNAP_GRID);
-    const endY = startY + h;
+    if (gridPrefs.type === 'blueprint') {
+      ctx.strokeStyle = '#4a90e2';
+      ctx.fillStyle = '#4a90e2';
+    } else {
+      ctx.strokeStyle = gridPrefs.color;
+      ctx.fillStyle = gridPrefs.color;
+    }
     
-    for (let x = startX; x < endX; x += SNAP_GRID) {
-      ctx.moveTo(x, startY);
-      ctx.lineTo(x, endY);
+    const spacing = gridPrefs.spacing;
+    const startX = -panX - (panX % spacing) - spacing;
+    const endX = startX + w + spacing * 2;
+    const startY = -panY - (panY % spacing) - spacing;
+    const endY = startY + h + spacing * 2;
+    
+    if (gridPrefs.type === 'dot') {
+      for (let x = startX; x < endX; x += spacing) {
+        for (let y = startY; y < endY; y += spacing) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else {
+      ctx.beginPath();
+      for (let x = startX; x < endX; x += spacing) {
+        ctx.moveTo(x, startY);
+        ctx.lineTo(x, endY);
+      }
+      for (let y = startY; y < endY; y += spacing) {
+        ctx.moveTo(startX, y);
+        ctx.lineTo(endX, y);
+      }
+      ctx.lineWidth = gridPrefs.type === 'blueprint' ? 1.5 : 1;
+      ctx.stroke();
+      
+      if (gridPrefs.type === 'blueprint') {
+        ctx.beginPath();
+        ctx.globalAlpha = gridPrefs.opacity * 0.3;
+        ctx.lineWidth = 0.5;
+        const minorSpacing = spacing / 4;
+        for (let x = startX; x < endX; x += minorSpacing) {
+          if (Math.abs(x % spacing) > 0.1) { ctx.moveTo(x, startY); ctx.lineTo(x, endY); }
+        }
+        for (let y = startY; y < endY; y += minorSpacing) {
+          if (Math.abs(y % spacing) > 0.1) { ctx.moveTo(startX, y); ctx.lineTo(endX, y); }
+        }
+        ctx.stroke();
+      }
     }
-    for (let y = startY; y < endY; y += SNAP_GRID) {
-      ctx.moveTo(startX, y);
-      ctx.lineTo(endX, y);
-    }
-    ctx.stroke();
+    
     ctx.restore();
   };
 
   // Sync canvas variables into Ref to prevent stale closures inside high-frequency RAF loop
   const canvasStateRef = React.useRef({
+    inlineText,
     elements,
     currentElement,
     selectedIds,
@@ -2201,6 +2267,7 @@ export default function CanvasPage() {
 
   React.useEffect(() => {
     canvasStateRef.current = {
+      inlineText,
       elements,
       currentElement,
       selectedIds,
@@ -2210,7 +2277,7 @@ export default function CanvasPage() {
       magnetTarget,
       selectionNet,
     };
-  }, [elements, currentElement, selectedIds, activePresence, zoom, pan, magnetTarget, selectionNet]);
+  }, [inlineText, elements, currentElement, selectedIds, activePresence, zoom, pan, magnetTarget, selectionNet]);
 
   // Teammate cursors position cache for LERP interpolation
   const teammateCursorsRef = React.useRef<Map<string, { x: number; y: number }>>(new Map());
@@ -2240,6 +2307,7 @@ export default function CanvasPage() {
         pan: p,
         magnetTarget: magnet,
         selectionNet: net,
+        inlineText,
       } = canvasStateRef.current;
 
       // Handle automatic canvas resizing
@@ -2258,7 +2326,22 @@ export default function CanvasPage() {
       // 1. Grid
       renderGrid(ctx, canvas.width / (z / 100), canvas.height / (z / 100), p.x, p.y);
 
-      const allEls = curEl ? [...currentElements, curEl] : currentElements;
+      let allEls = curEl ? [...currentElements, curEl] : [...currentElements];
+      if (inlineText && inlineText.isNew) {
+        allEls.push({
+          id: inlineText.id,
+          type: "text",
+          title: "",
+          text: inlineText.text,
+          x: inlineText.x,
+          y: inlineText.y,
+          width: 140,
+          height: 30,
+          strokeColor: "#FFFFFF",
+          fillColor: "transparent",
+          strokeWidth: 2
+        });
+      }
 
       // 2. Draw arrows first (behind nodes)
       allEls.filter((el) => el.type === "arrow").forEach((el) => renderElement(ctx, el, selIds.has(el.id), currentElements));
@@ -2665,10 +2748,10 @@ export default function CanvasPage() {
 
             {/* BOTTOM CENTER: View Modes */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center p-1.5 rounded-2xl bg-[#141414]/80 backdrop-blur-xl border border-white/10 shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
-              {(["document", "both", "canvas"] as ViewMode[]).map((vm) => (
+              {(["document", "canvas"] as ViewMode[]).map((vm) => (
                 <button key={vm} onClick={() => setViewMode(vm)}
                   className={`px-4 py-2 rounded-xl text-[11px] font-extrabold uppercase tracking-wide transition-all cursor-pointer flex items-center gap-2 ${viewMode === vm ? "bg-white text-black shadow-md" : "text-[#808080] hover:text-white hover:bg-white/5"}`}>
-                  {vm === "document" ? <><FileText className="w-3.5 h-3.5" />Doc</> : vm === "both" ? <><Layout className="w-3.5 h-3.5" />Split</> : <><Maximize2 className="w-3.5 h-3.5" />Canvas</>}
+                  {vm === "document" ? <><FileText className="w-3.5 h-3.5" />Doc</> : <><Maximize2 className="w-3.5 h-3.5" />Canvas</>}
                 </button>
               ))}
             </div>
@@ -2787,8 +2870,9 @@ export default function CanvasPage() {
         )}
 
         {/* MARKDOWN EDITOR */}
-        {(viewMode === "document" || viewMode === "both") && (
-          <div className={`h-full border-r border-[#2B2B2B] bg-[#0A0A0A] overflow-y-auto ${viewMode === "both" ? "w-1/2" : "w-full"}`}>
+        {viewMode === "document" && (
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="h-full w-full bg-[#0A0A0A] overflow-y-auto flex justify-center">
+            <div className="w-full max-w-4xl bg-[#0A0A0A] shadow-[0_0_40px_rgba(0,0,0,0.5)] border-x border-[#1A1A1A]">
             <div className="h-full p-4 sm:p-6">
               <RichDocumentEditor
                 key={slate?._id ? String(slate._id) : "document-editor"}
@@ -2800,6 +2884,7 @@ export default function CanvasPage() {
               />
             </div>
           </div>
+          </motion.div>
         )}
 
         
@@ -2811,16 +2896,26 @@ export default function CanvasPage() {
           </div>
         )}
 {/* CANVAS */}
-        {(viewMode === "canvas" || viewMode === "both") && (
-          <div className={`h-full relative overflow-hidden bg-[#0D0D0D] ${viewMode === "both" ? "w-1/2" : "w-full"}`}>
+        {viewMode === "canvas" && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full w-full relative overflow-hidden bg-[#0D0D0D]">
             
             
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
 
-            {inlineText && (
+            {inlineText && (() => {
+              const editingNode = elements.find(e => e.id === inlineText.id);
+              const isShape = editingNode && ["rectangle", "frame", "circle", "diamond", "triangle"].includes(editingNode.type);
+              const isText = !editingNode || editingNode.type === "text";
+              
+              const align = isShape ? "center" : "left";
+              const width = isShape ? `${Math.abs(editingNode.width)}px` : "500px";
+              const height = isShape ? `${Math.abs(editingNode.height)}px` : "500px";
+              
+              return (
               <textarea 
-                ref={(el) => { if (el && document.activeElement !== el) { setTimeout(() => { el.focus(); }, 10); } }}
-                value={inlineText.text} placeholder="Type text..."
+                ref={(el) => { if (el && document.activeElement !== el) { setTimeout(() => { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }, 10); } }}
+                value={inlineText.text}
+                placeholder="" 
                 onChange={(e) => setInlineText({ ...inlineText, text: e.target.value })}
                 onKeyDown={(e) => { 
                   if (e.key === "Enter" && !e.shiftKey) { 
@@ -2834,16 +2929,32 @@ export default function CanvasPage() {
                 }}
                 onBlur={commitInlineText}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="absolute z-40 bg-[#141414]/90 text-white font-bold border border-white/50 rounded-lg px-3 py-2 text-[15px] outline-none shadow-2xl resize focus:border-white focus:ring-1 focus:ring-white transition-all"
+                className="absolute z-40 font-bold"
                 style={{ 
                   left: `${(inlineText.x + pan.x) * (zoom / 100)}px`, 
                   top: `${(inlineText.y + pan.y) * (zoom / 100)}px`, 
-                  minWidth: "200px",
-                  minHeight: "45px",
+                  width: width,
+                  height: height,
                   transform: `scale(${zoom / 100})`,
-                  transformOrigin: 'top left'
+                  transformOrigin: 'top left',
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  boxShadow: 'none',
+                  appearance: 'none',
+                  resize: 'none',
+                  overflow: 'hidden',
+                  padding: 0,
+                  margin: 0,
+                  caretColor: 'white',
+                  color: 'transparent',
+                  textAlign: align,
+                  lineHeight: '1.2',
+                  fontSize: '15px',
+                  whiteSpace: isShape ? 'pre-wrap' : 'pre-wrap'
                 }} />
-            )}
+              );
+            })()}
 
             {/* Selected count badge removed as per user request */}
 
@@ -2888,7 +2999,7 @@ export default function CanvasPage() {
               onDrop={handleCanvasDrop}
               className="w-full h-full block"
               style={{ cursor: getCursor() }} />
-          </div>
+          </motion.div>
         )}
 
         {/* AI CHAT DRAWER */}
