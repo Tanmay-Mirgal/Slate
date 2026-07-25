@@ -857,7 +857,7 @@ Only a beautiful professional diagram.`;
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "qwen/qwen3.6-27b",
+        model: "llama-3.1-8b-instant",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate architecture diagram elements for: ${prompt}` },
