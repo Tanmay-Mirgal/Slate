@@ -857,7 +857,7 @@ Only a beautiful professional diagram.`;
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-20b",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Generate architecture diagram elements for: ${prompt}` },
