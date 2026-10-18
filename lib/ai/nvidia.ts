@@ -33,6 +33,12 @@ export const DEFAULT_MODELS = [
   "nvidia/nemotron-3-super-120b-a12b",
 ];
 
+export const DEPRECATED_MODELS = new Set([
+  "nvidia/llama-3.1-nemotron-70b-instruct",
+  "mistralai/mistral-large-2-instruct",
+  "nvidia/nemotron-3.5-lightning-30b-a3b",
+]);
+
 export interface NvidiaConfig {
   apiKey: string | null;
   baseUrl: string;
@@ -41,14 +47,22 @@ export interface NvidiaConfig {
 
 export function nvidiaConfig(env: Record<string, string | undefined> = process.env): NvidiaConfig {
   const key = env.NVIDIA_API_KEY?.trim();
-  const models = (env.NVIDIA_MODELS ?? "")
+  const rawList = (env.NVIDIA_MODELS ?? "")
     .split(",")
     .map((m) => m.trim())
     .filter(Boolean);
+
+  // If the user specified models, filter out known retired ones that return 404
+  const filtered = rawList.filter((m) => !DEPRECATED_MODELS.has(m));
+
+  // If the configured chain was the old default chain or empty after removing deprecated models, use DEFAULT_MODELS
+  const isOldDefaultChain = rawList.length > 0 && rawList.some((m) => DEPRECATED_MODELS.has(m)) && rawList.includes("nvidia/nemotron-3-super-120b-a12b");
+  const models = isOldDefaultChain || filtered.length === 0 ? DEFAULT_MODELS : filtered;
+
   return {
     apiKey: key && !/your_|placeholder|nvapi-xxx/i.test(key) ? key : null,
     baseUrl: (env.NVIDIA_BASE_URL?.trim() || "https://integrate.api.nvidia.com/v1").replace(/\/+$/, ""),
-    models: models.length ? models : DEFAULT_MODELS,
+    models,
   };
 }
 
