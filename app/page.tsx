@@ -40,6 +40,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/CommandPalette";
 
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: unknown) => { open(): void };
+  }
+}
+
 export default function LandingPage() {
   const router = useRouter();
   const { isLoaded, isSignedIn, user } = useUser();
@@ -63,7 +70,7 @@ export default function LandingPage() {
 
   const handleRazorpayPayment = async (planName: string, amountInINR: number) => {
     const res = await new Promise<boolean>((resolve) => {
-      if ((window as any).Razorpay) {
+      if (window.Razorpay) {
         resolve(true);
         return;
       }
@@ -86,7 +93,7 @@ export default function LandingPage() {
       name: "SLATE",
       description: `Upgrade to SLATE ${planName} Plan`,
       image: typeof window !== "undefined" ? `${window.location.origin}/logo.svg` : "/logo.svg",
-      handler: function (response: any) {
+      handler: function (response: { razorpay_payment_id: string }) {
         alert(`🎉 Payment Successful!\nPayment ID: ${response.razorpay_payment_id}\nYour account is upgraded to ${planName} Plan!`);
       },
       prefill: {
@@ -98,7 +105,7 @@ export default function LandingPage() {
       },
     };
 
-    const paymentObject = new (window as any).Razorpay(options);
+    const paymentObject = new window.Razorpay!(options);
     paymentObject.open();
   };
 

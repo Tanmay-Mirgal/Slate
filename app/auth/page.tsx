@@ -9,14 +9,11 @@ import { Sparkles, ArrowLeft, Zap, Layout, FileText } from "lucide-react";
 
 function AuthContent() {
   const searchParams = useSearchParams();
-  const initialMode = searchParams.get("mode") === "sign-up" ? "sign-up" : "sign-in";
-  const [mode, setMode] = React.useState<"sign-in" | "sign-up">(initialMode);
-
-  React.useEffect(() => {
-    const queryMode = searchParams.get("mode");
-    if (queryMode === "sign-up") setMode("sign-up");
-    else if (queryMode === "sign-in") setMode("sign-in");
-  }, [searchParams]);
+  const urlMode = searchParams.get("mode") === "sign-up" ? "sign-up" : "sign-in";
+  // The URL decides until the visitor clicks a tab; a later URL change resets their choice.
+  const [choice, setChoice] = React.useState<{ forUrl: string; mode: "sign-in" | "sign-up" } | null>(null);
+  const mode = choice && choice.forUrl === urlMode ? choice.mode : urlMode;
+  const setMode = (m: "sign-in" | "sign-up") => setChoice({ forUrl: urlMode, mode: m });
 
   // Clerk variables drive the card's CSS tokens at root level.
   // colorBackground sets the card color so dividerText bg matches naturally — no black box.

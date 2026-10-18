@@ -8,8 +8,6 @@ interface ImageBubbleMenuProps {
 }
 
 export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
-  if (!editor) return null;
-
   const copyImage = React.useCallback(() => {
     if (!editor) return;
     const { state } = editor;
@@ -28,6 +26,8 @@ export function ImageBubbleMenu({ editor }: ImageBubbleMenuProps) {
     if (!editor) return;
     editor.chain().focus().deleteSelection().run();
   }, [editor]);
+
+  if (!editor) return null;
 
   return (
     <BubbleMenu

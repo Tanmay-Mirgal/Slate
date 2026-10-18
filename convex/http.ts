@@ -3,6 +3,18 @@ import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { Webhook } from "svix";
 
+interface ClerkUserData {
+  id: string;
+  email_addresses?: { email_address?: string }[];
+  first_name?: string | null;
+  last_name?: string | null;
+  image_url?: string | null;
+}
+interface ClerkWebhookEvent {
+  type: string;
+  data: ClerkUserData;
+}
+
 const http = httpRouter();
 
 http.route({
@@ -32,7 +44,7 @@ http.route({
         "svix-id": svixId,
         "svix-timestamp": svixTimestamp,
         "svix-signature": svixSignature,
-      }) as any;
+      }) as ClerkWebhookEvent;
 
       const eventType = payload.type;
       const data = payload.data;

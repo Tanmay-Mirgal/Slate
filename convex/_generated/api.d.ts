@@ -8,8 +8,16 @@
  * @module
  */
 
+import type * as access from "../access.js";
+import type * as crons from "../crons.js";
+import type * as elements from "../elements.js";
+import type * as files from "../files.js";
 import type * as http from "../http.js";
+import type * as maintenance from "../maintenance.js";
+import type * as presence from "../presence.js";
+import type * as shards from "../shards.js";
 import type * as slates from "../slates.js";
+import type * as usage from "../usage.js";
 import type * as users from "../users.js";
 import type * as workspaces from "../workspaces.js";
 
@@ -20,8 +28,16 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  access: typeof access;
+  crons: typeof crons;
+  elements: typeof elements;
+  files: typeof files;
   http: typeof http;
+  maintenance: typeof maintenance;
+  presence: typeof presence;
+  shards: typeof shards;
   slates: typeof slates;
+  usage: typeof usage;
   users: typeof users;
   workspaces: typeof workspaces;
 }>;

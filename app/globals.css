@@ -3,6 +3,9 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* Canvas chrome: vertical toolbar on roomy screens, horizontal bottom toolbar on phones / short windows. */
+@custom-variant tall (@media (min-width: 768px) and (min-height: 601px));
+@custom-variant compact (@media (max-width: 767px), (max-height: 600px));
 
 @theme inline {
   --color-background: var(--background);

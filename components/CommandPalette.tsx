@@ -20,9 +20,9 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
-interface CommandItem {
+export interface CommandItem {
   id: string;
-  category: "Actions" | "Navigation" | "Settings";
+  category: "Actions" | "Navigation" | "Settings" | "Canvas";
   title: string;
   subtitle?: string;
   icon: React.ElementType;
@@ -36,6 +36,8 @@ interface CommandPaletteProps {
   onNewSlate?: () => void;
   onGoDashboard?: () => void;
   onAiGenerate?: () => void;
+  /** Extra commands (the canvas passes tools, export, grid, theme...). */
+  extraItems?: CommandItem[];
 }
 
 export function CommandPalette({
@@ -44,6 +46,7 @@ export function CommandPalette({
   onNewSlate,
   onGoDashboard,
   onAiGenerate,
+  extraItems,
 }: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
@@ -109,15 +112,15 @@ export function CommandPalette({
     },
   ];
 
-  const filteredItems = commandItems.filter(
+  const filteredItems = [...commandItems, ...(extraItems ?? [])].filter(
     (item) =>
       item.title.toLowerCase().includes(query.toLowerCase()) ||
       (item.subtitle && item.subtitle.toLowerCase().includes(query.toLowerCase()))
   );
 
-  // Intentional: reset keyboard selection when search query changes
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+  // Intentional: reset keyboard selection when the search query changes.
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIndex(0);
   }, [query]);
 

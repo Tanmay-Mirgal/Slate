@@ -44,13 +44,9 @@ export default function DashboardPage() {
   const workspaces = useQuery(api.workspaces.listMyWorkspaces);
   const createWorkspace = useMutation(api.workspaces.create);
   const renameWorkspace = useMutation(api.workspaces.renameWorkspace);
-  const [activeWorkspaceId, setActiveWorkspaceId] = React.useState<Id<"workspaces"> | null>(null);
-
-  React.useEffect(() => {
-    if (workspaces && workspaces.length > 0 && !activeWorkspaceId) {
-      setActiveWorkspaceId(workspaces[0]._id as Id<"workspaces">);
-    }
-  }, [workspaces, activeWorkspaceId]);
+  const [selectedWorkspaceId, setActiveWorkspaceId] = React.useState<Id<"workspaces"> | null>(null);
+  // Fall back to the first workspace until the user picks one.
+  const activeWorkspaceId = selectedWorkspaceId ?? (workspaces && workspaces.length > 0 ? (workspaces[0]._id as Id<"workspaces">) : null);
 
   const slates = useQuery(api.slates.list, activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip");
   const sharedSlates = useQuery(api.slates.listShared);
@@ -145,7 +141,7 @@ export default function DashboardPage() {
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredSharedByMe = (sharedByMeSlates || []).filter((s: any) =>
+  const filteredSharedByMe = (sharedByMeSlates || []).filter((s) =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -177,7 +173,7 @@ export default function DashboardPage() {
           <div className="space-y-2">
             <label className="px-3 text-[10px] font-bold text-[#808080] uppercase tracking-wider">Workspaces</label>
             <div className="space-y-1 max-h-48 overflow-y-auto px-1">
-              {workspaces?.map((w: any) => (
+              {workspaces?.map((w) => (
                 <div key={w._id} className="group relative">
                   {editingWorkspaceId === w._id ? (
                     <input
@@ -202,7 +198,7 @@ export default function DashboardPage() {
                         <span className="truncate">{w.name}</span>
                       </button>
                       <button
-                        onClick={() => { setEditingWorkspaceId(w._id as Id<"workspaces">); setEditingWorkspaceText(w.name); }}
+                        onClick={() => { setEditingWorkspaceId(w._id as Id<"workspaces">); setEditingWorkspaceText(w.name ?? ""); }}
                         className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#808080] hover:text-white shrink-0"
                         title="Rename workspace"
                       >
@@ -290,7 +286,7 @@ export default function DashboardPage() {
               <Bell className="w-3.5 h-3.5 text-amber-400" />
               <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Pending Workspace Invitations</span>
             </div>
-            {pendingInvites.map((invite: any) => (
+            {pendingInvites.map((invite) => (
               <div key={invite._id} className="flex items-center justify-between gap-4 p-3 rounded-xl bg-amber-950/30 border border-amber-500/20">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Briefcase className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -428,7 +424,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-[#666] py-4">No slates have been shared with you yet.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filteredSharedSlates.map((slate: any) => {
+                    {filteredSharedSlates.map((slate) => {
                       const accent = getAccent(slate._id);
                       return (
                         <div key={slate._id}
@@ -478,10 +474,10 @@ export default function DashboardPage() {
                   <Share2 className="w-3.5 h-3.5" /> Shared By Me
                 </h3>
                 {filteredSharedByMe.length === 0 ? (
-                  <p className="text-xs text-[#666] py-4">You haven't shared any slates yet. Use the Share button inside a slate to invite members.</p>
+                  <p className="text-xs text-[#666] py-4">You haven&apos;t shared any slates yet. Use the Share button inside a slate to invite members.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filteredSharedByMe.map((slate: any) => {
+                    {filteredSharedByMe.map((slate) => {
                       const accent = getAccent(slate._id);
                       return (
                         <div key={slate._id}
@@ -504,7 +500,7 @@ export default function DashboardPage() {
                             {slate.sharedWith && slate.sharedWith.length > 0 && (
                               <div className="pt-2 border-t border-white/5 space-y-1.5">
                                 <p className="text-[11px] text-[#808080]">Shared with {slate.sharedWith.length} {slate.sharedWith.length === 1 ? "person" : "people"}</p>
-                                {slate.sharedWith.map((person: any, idx: number) => (
+                                {slate.sharedWith.map((person, idx) => (
                                   <div key={idx} className="flex items-center gap-2">
                                     {person.avatar ? (
                                       <img src={person.avatar} alt={person.name} className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/10" />
