@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { loadSlate, requireEdit, requireManage, resolveAccess } from "./access";
+import { canComment, canModerate, canViewHistory, loadSlate, requireEdit, requireManage, resolveAccess } from "./access";
 
 const MAX_DOC_CHARS = 900_000;
 
@@ -108,6 +108,10 @@ export const getById = query({
       legacyElements: slate.elements,
       access: access.level,
       canManage: access.via !== "link" && access.level === "edit",
+      /** See the collaboration rules in access.ts. */
+      canComment: canComment(access),
+      canModerate: canModerate(access),
+      canViewHistory: canViewHistory(access),
     };
   },
 });
