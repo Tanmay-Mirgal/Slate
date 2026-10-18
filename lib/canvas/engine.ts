@@ -23,6 +23,11 @@ import type {
 import { MAX_ZOOM, MIN_ZOOM } from "./constants";
 export { MAX_ZOOM, MIN_ZOOM };
 
+/** Speech-bubble cursor for the Comment tool; its tip (the pin's anchor) is the hot spot. */
+const COMMENT_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><path d="M3 25V12a9 9 0 0 1 9-9h4a9 9 0 0 1 0 18H9z" fill="#6366f1" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/></svg>'
+)}") 3 25, crosshair`;
+
 export type EditField = "text" | "title" | "label" | "card" | "iconLabel";
 
 export interface EditingState {
@@ -87,6 +92,8 @@ export interface UiState {
   contextMenu: { x: number; y: number; target: string | null } | null;
   /** Bumped whenever something that affects floating UI positions changes. */
   quickAdd: { id: string; box: Box } | null;
+  /** The signed-in user may drop comment pins (the Comment tool is usable even on a read-only board). */
+  commentsEnabled: boolean;
 }
 
 export const DEFAULT_VIEW: ViewSettings = {
@@ -233,6 +240,10 @@ export class Engine {
   onOpenAi: (() => void) | null = null;
   /** Set by the shell; opens the export dialog. */
   onOpenExport: (() => void) | null = null;
+  /** Set by the comments layer: a click with the Comment tool, at a world position and over an element (if any). */
+  onPlaceComment: ((at: Point, elementId: string | null) => void) | null = null;
+  /** Whether the Comment tool may be used (set by the comments layer from the user's permissions). */
+  commentsEnabled = false;
 
   constructor() {
     this.ui = this.buildUi();
@@ -255,13 +266,23 @@ export class Engine {
     onOpenCode?: ((opts?: { code?: string; replaceDiagramId?: string }) => void) | null;
     onOpenAi?: (() => void) | null;
     onOpenExport?: (() => void) | null;
+    onPlaceComment?: ((at: Point, elementId: string | null) => void) | null;
+    commentsEnabled?: boolean;
     imageUploader?: ((blob: Blob, name: string) => Promise<string>) | null;
   }) {
     if (opts.onToast !== undefined) this.onToast = opts.onToast;
     if (opts.onOpenCode !== undefined) this.onOpenCode = opts.onOpenCode;
     if (opts.onOpenAi !== undefined) this.onOpenAi = opts.onOpenAi;
     if (opts.onOpenExport !== undefined) this.onOpenExport = opts.onOpenExport;
+    if (opts.onPlaceComment !== undefined) this.onPlaceComment = opts.onPlaceComment;
     if (opts.imageUploader !== undefined) this.imageUploader = opts.imageUploader;
+    if (opts.commentsEnabled !== undefined && opts.commentsEnabled !== this.commentsEnabled) {
+      this.commentsEnabled = opts.commentsEnabled;
+      // losing the right to comment must not leave the tool armed
+      if (!opts.commentsEnabled && this.tool === "comment") this.tool = "select";
+      this.updateCursor();
+      this.scheduleUi();
+    }
   }
 
   closeContextMenu() {
@@ -407,6 +428,7 @@ export class Engine {
       spaceDown: this.spaceDown,
       cursor: this.cursor,
       contextMenu: this.contextMenu,
+      commentsEnabled: this.commentsEnabled,
       quickAdd:
         single && !this._readOnly && !single.locked && this.tool === "select" && !this.editing && single.type !== "connector" && single.type !== "pen" && single.type !== "frame" && single.type !== "text"
           ? { id: single.id, box: single }
@@ -426,7 +448,7 @@ export class Engine {
     this.store.readOnly = v;
     if (v) {
       this.cancelEditing();
-      if (this.tool !== "hand") this.tool = "select";
+      if (this.tool !== "hand" && !(this.tool === "comment" && this.commentsEnabled)) this.tool = "select";
     }
     this.scheduleUi();
   }
@@ -532,6 +554,16 @@ export class Engine {
       return;
     }
     this.fitRect(b, Math.min(110, Math.max(40, this.width * 0.08)), 1.25, animate);
+  }
+
+  /** Pans (and, if needed, zooms in a little) so the world point `p` is comfortably on screen. No-op if it already is. */
+  revealPoint(p: Point, animate = true) {
+    if (!this.width || !this.height) return;
+    const s = this.worldToScreen(p);
+    const margin = 90;
+    if (s.x > margin && s.y > margin + 40 && s.x < this.width - margin && s.y < this.height - margin) return;
+    const zoom = Math.max(this.camera.zoom, 0.6);
+    this.setCamera({ zoom, x: this.width / 2 - p.x * zoom, y: this.height / 2 - p.y * zoom }, animate);
   }
 
   fitSelection() {
@@ -719,10 +751,25 @@ export class Engine {
     if (ids) this.select(ids.filter((id) => this.store.get(id)), { expandGroup: false });
   }
 
+  /**
+   * Replaces the board with a saved version as ONE undoable step (and one batched write). Returns what
+   * changed; collaborators receive it like any other edit.
+   */
+  restoreElements(els: El[]): { put: number; removed: number } {
+    if (this.editing) this.commitEditing();
+    const res = this.store.restoreTo(els);
+    this.geom.clear();
+    this.selection = new Set();
+    this.enteredGroup = null;
+    this.requestRender();
+    this.scheduleUi();
+    return res;
+  }
+
   /* ------------------------------------------------------------------ tool */
 
   setTool(tool: ToolId, opts: { shape?: ShapeKind; lock?: boolean } = {}) {
-    if (this._readOnly && tool !== "hand" && tool !== "select") return;
+    if (tool === "comment" ? !this.commentsEnabled : this._readOnly && tool !== "hand" && tool !== "select") return;
     if (this.editing) this.commitEditing();
     this.tool = tool;
     if (opts.shape) this.shapeKind = opts.shape;
@@ -751,6 +798,7 @@ export class Engine {
       else if (this.tool === "select") c = "default";
       else if (this.tool === "eraser") c = "crosshair";
       else if (this.tool === "text") c = "text";
+      else if (this.tool === "comment") c = COMMENT_CURSOR;
       else c = "crosshair";
     }
     if (c !== this.cursor) {

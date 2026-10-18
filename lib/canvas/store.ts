@@ -299,6 +299,29 @@ export class DocStore implements RouteScene {
     if (changed && this.depth > 0) this.emit();
   }
 
+  /**
+   * Makes the document equal to `target` (version restore): changed and missing elements are put,
+   * extra ones removed. ONE gesture, so it is a single undo step and a single batched write.
+   */
+  restoreTo(target: El[]): { put: number; removed: number } {
+    if (this.readOnly) return { put: 0, removed: 0 };
+    const keep = new Set<string>();
+    const toPut: El[] = [];
+    for (const el of target) {
+      keep.add(el.id);
+      const cur = this.els.get(el.id);
+      if (!cur || !deepEqual(cur, el)) toPut.push(el);
+    }
+    const toRemove: string[] = [];
+    for (const id of this.els.keys()) if (!keep.has(id)) toRemove.push(id);
+    if (toPut.length === 0 && toRemove.length === 0) return { put: 0, removed: 0 };
+    this.transact(() => {
+      this.putMany(toPut);
+      this.removeMany(toRemove);
+    });
+    return { put: toPut.length, removed: toRemove.length };
+  }
+
   /* --------------------------------------------------------------- history */
 
   canUndo() {
@@ -407,6 +430,24 @@ export class DocStore implements RouteScene {
 
   hasPending(): boolean {
     return this.dirty.size > 0 || this.inflight.size > 0 || this.flushing;
+  }
+
+  /** Resolves once everything queued has been acknowledged (false if that takes longer than `timeoutMs`). */
+  waitForSaved(timeoutMs = 8000): Promise<boolean> {
+    if (!this.hasPending()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const finish = () => {
+        off();
+        if (timer) clearTimeout(timer);
+        resolve(!this.hasPending());
+      };
+      const off = this.subscribeSync(() => {
+        if (!this.hasPending()) finish();
+      });
+      timer = setTimeout(finish, timeoutMs);
+      this.scheduleFlush(0);
+    });
   }
 
   private scheduleFlush(delay = FLUSH_DELAY) {
