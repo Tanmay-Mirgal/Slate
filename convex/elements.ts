@@ -1,7 +1,9 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { loadSlate, requireEdit, resolveAccess } from "./access";
 import { SHARD_COUNT, shardOf } from "./shards";
+import { shouldAutoSnapshot } from "./snapshot";
 
 const MAX_OPS = 500;
 const MAX_ELEMENT_BYTES = 250_000;
@@ -77,7 +79,16 @@ export const apply = mutation({
       }
     }
 
-    if (now - slate.lastEdited > TOUCH_INTERVAL_MS) await ctx.db.patch(slate._id, { lastEdited: now });
+    // Housekeeping on the slate document, in at most one write: the activity timestamp (every 30 s)
+    // and the "time for an automatic version" marker (every ~10 min).
+    const patch: { lastEdited?: number; lastAutoVersionAt?: number } = {};
+    if (now - slate.lastEdited > TOUCH_INTERVAL_MS) patch.lastEdited = now;
+    if (latest.size > 0 && shouldAutoSnapshot({ now, lastAutoAt: slate.lastAutoVersionAt, createdAt: slate._creationTime })) {
+      patch.lastAutoVersionAt = now;
+      // its own transaction: a board too big to snapshot must never make editing fail
+      await ctx.scheduler.runAfter(0, internal.versions.autoSnapshot, { slateId: args.slateId });
+    }
+    if (Object.keys(patch).length > 0) await ctx.db.patch(slate._id, patch);
     return { applied: latest.size };
   },
 });

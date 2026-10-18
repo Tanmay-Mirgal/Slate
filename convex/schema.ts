@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 /** Where a comment thread is pinned. See `Anchor` in commentLogic.ts. */
-const anchorValidator = v.union(
+export const anchorValidator = v.union(
   v.object({ kind: v.literal("point"), x: v.number(), y: v.number() }),
   v.object({ kind: v.literal("element"), eid: v.string(), u: v.number(), v: v.number(), x: v.number(), y: v.number() })
 );

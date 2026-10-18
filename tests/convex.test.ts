@@ -1,11 +1,12 @@
 // @vitest-environment edge-runtime
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api, internal } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import schema from "@/convex/schema";
 import { SHARD_COUNT } from "@/convex/shards";
+import { MAX_AUTO_VERSIONS, MAX_MANUAL_VERSIONS, parseSnapshot } from "@/convex/snapshot";
 
 const modules = import.meta.glob(["../convex/**/*.{js,ts}", "!../convex/**/*.d.ts"]);
 
