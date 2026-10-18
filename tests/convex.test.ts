@@ -254,3 +254,263 @@ describe("uploads", () => {
     await expect(t.withIdentity(VIEWER).mutation(api.files.finalizeImage, { slateId, storageId: blob })).rejects.toThrow();
   });
 });
+
+/* ------------------------------------------------------------------ comments */
+
+const POINT = { kind: "point" as const, x: 120, y: 80 };
+
+async function withProfiles(t: ReturnType<typeof convexTest>) {
+  await t.run(async (ctx) => {
+    for (const [u, first, last] of [
+      [OWNER, "Olivia", "Owner"],
+      [EDITOR, "Eddie", "Editor"],
+      [VIEWER, "Vera", "Viewer"],
+    ] as const) {
+      await ctx.db.insert("users", { clerkId: u.subject, email: u.email, firstName: first, lastName: last, imageUrl: null });
+    }
+  });
+}
+
+describe("comments", () => {
+  it("creates a thread with its first message and lists it with unread state per person", async () => {
+    const { t, slateId } = await setup();
+    const threadId = await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "  Can we split this service?  ", mentions: [] });
+
+    const asOwner = await t.withIdentity(OWNER).query(api.comments.list, { slateId });
+    expect(asOwner).toHaveLength(1);
+    expect(asOwner[0]).toMatchObject({ id: threadId, anchor: POINT, status: "open", snippet: "Can we split this service?", replyCount: 0, authorName: "Editor", unread: true, mentionsMe: false });
+    // your own post is never unread for you
+    expect((await t.withIdentity(EDITOR).query(api.comments.list, { slateId }))[0].unread).toBe(false);
+
+    const msgs = await t.withIdentity(OWNER).query(api.comments.messages, { threadId });
+    expect(msgs.map((m) => m.body)).toEqual(["Can we split this service?"]);
+
+    await t.withIdentity(OWNER).mutation(api.comments.markRead, { threadId });
+    expect((await t.withIdentity(OWNER).query(api.comments.list, { slateId }))[0].unread).toBe(false);
+
+    // a reply makes it unread again for the other person only
+    await t.withIdentity(OWNER).mutation(api.comments.reply, { threadId, body: "Yes, good idea", mentions: [] });
+    const after = await t.withIdentity(EDITOR).query(api.comments.list, { slateId });
+    expect(after[0]).toMatchObject({ replyCount: 1, unread: true });
+    expect((await t.withIdentity(OWNER).query(api.comments.list, { slateId }))[0].unread).toBe(false);
+    expect((await t.withIdentity(EDITOR).query(api.comments.messages, { threadId })).map((m) => m.body)).toEqual(["Can we split this service?", "Yes, good idea"]);
+  });
+
+  it("pins to an element with a fraction of its size so it can follow the element", async () => {
+    const { t, slateId } = await setup();
+    const anchor = { kind: "element" as const, eid: "box-1", u: 0.25, v: 1.7, x: 40, y: 50 };
+    await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor, body: "here", mentions: [] });
+    const [thread] = await t.withIdentity(EDITOR).query(api.comments.list, { slateId });
+    expect(thread.anchor).toEqual({ kind: "element", eid: "box-1", u: 0.25, v: 1, x: 40, y: 50 }); // v clamped to 0..1
+    await expect(
+      t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: { kind: "point", x: Number.NaN, y: 1 }, body: "x", mentions: [] })
+    ).rejects.toThrow(/position/);
+  });
+
+  it("markAllRead clears every unread thread", async () => {
+    const { t, slateId } = await setup();
+    for (let i = 0; i < 3; i++) await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: `thread ${i}`, mentions: [] });
+    const owner = t.withIdentity(OWNER);
+    expect((await owner.query(api.comments.list, { slateId })).filter((c) => c.unread)).toHaveLength(3);
+    await owner.mutation(api.comments.markAllRead, { slateId });
+    expect((await owner.query(api.comments.list, { slateId })).filter((c) => c.unread)).toHaveLength(0);
+    // anonymous visitors have no read state and are silently ignored
+    await t.mutation(api.comments.markAllRead, { slateId });
+  });
+
+  it("resolves, reopens, and reopens automatically when someone replies", async () => {
+    const { t, slateId } = await setup();
+    const threadId = await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "todo", mentions: [] });
+    await t.withIdentity(VIEWER).mutation(api.comments.setResolved, { threadId, resolved: true });
+    let [c] = await t.withIdentity(OWNER).query(api.comments.list, { slateId });
+    expect(c).toMatchObject({ status: "resolved", resolvedByName: "Viewer" });
+    expect(c.resolvedAt).toBeGreaterThan(0);
+    await t.withIdentity(OWNER).mutation(api.comments.setResolved, { threadId, resolved: false });
+    [c] = await t.withIdentity(OWNER).query(api.comments.list, { slateId });
+    expect(c.status).toBe("open");
+    expect(c.resolvedAt).toBeUndefined();
+    await t.withIdentity(OWNER).mutation(api.comments.setResolved, { threadId, resolved: true });
+    await t.withIdentity(EDITOR).mutation(api.comments.reply, { threadId, body: "still broken", mentions: [] });
+    [c] = await t.withIdentity(OWNER).query(api.comments.list, { slateId });
+    expect(c.status).toBe("open");
+  });
+
+  describe("access", () => {
+    it("lets every workspace member comment, including Viewers; strangers see nothing and cannot write", async () => {
+      const { t, slateId } = await setup();
+      const viewer = t.withIdentity(VIEWER);
+      const threadId = await viewer.mutation(api.comments.createThread, { slateId, anchor: POINT, body: "from a viewer", mentions: [] });
+      await viewer.mutation(api.comments.reply, { threadId, body: "and a reply", mentions: [] });
+
+      const stranger = t.withIdentity(STRANGER);
+      expect(await stranger.query(api.comments.list, { slateId })).toEqual([]);
+      expect(await stranger.query(api.comments.messages, { threadId })).toEqual([]);
+      expect(await stranger.query(api.comments.members, { slateId })).toEqual([]);
+      await expect(stranger.mutation(api.comments.createThread, { slateId, anchor: POINT, body: "hi", mentions: [] })).rejects.toThrow();
+      await expect(stranger.mutation(api.comments.reply, { threadId, body: "hi", mentions: [] })).rejects.toThrow();
+      await expect(stranger.mutation(api.comments.setResolved, { threadId, resolved: true })).rejects.toThrow();
+    });
+
+    it("view links are read-only for comments; edit links let signed-in visitors comment; anonymous never can", async () => {
+      const { t, slateId } = await setup();
+      const threadId = await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "internal note", mentions: [] });
+      const stranger = t.withIdentity(STRANGER);
+
+      await t.withIdentity(OWNER).mutation(api.slates.setLinkAccess, { id: slateId, linkAccess: "view" });
+      // anyone who can view the board can read its discussion...
+      expect(await t.query(api.comments.list, { slateId })).toHaveLength(1);
+      expect(await stranger.query(api.comments.messages, { threadId })).toHaveLength(1);
+      const viaLink = await stranger.query(api.slates.getById, { id: slateId });
+      expect(viaLink).toMatchObject({ access: "view", canComment: false, canModerate: false, canViewHistory: false });
+      // ...but only members (or signed-in people on an edit link) can write
+      await expect(stranger.mutation(api.comments.createThread, { slateId, anchor: POINT, body: "hi", mentions: [] })).rejects.toThrow(/can't comment/);
+      await expect(stranger.mutation(api.comments.reply, { threadId, body: "hi", mentions: [] })).rejects.toThrow(/can't comment/);
+      expect(await stranger.query(api.comments.members, { slateId })).toEqual([]);
+      // anonymous visitors have no read markers
+      expect((await t.query(api.comments.list, { slateId }))[0].unread).toBe(false);
+
+      await t.withIdentity(OWNER).mutation(api.slates.setLinkAccess, { id: slateId, linkAccess: "edit" });
+      expect((await stranger.query(api.slates.getById, { id: slateId }))?.canComment).toBe(true);
+      await stranger.mutation(api.comments.reply, { threadId, body: "link editor here", mentions: [] });
+      await expect(t.mutation(api.comments.reply, { threadId, body: "anon", mentions: [] })).rejects.toThrow(/Sign in/);
+      await expect(t.mutation(api.comments.createThread, { slateId, anchor: POINT, body: "anon", mentions: [] })).rejects.toThrow();
+      // a link editor still cannot moderate other people's comments
+      await expect(stranger.mutation(api.comments.deleteThread, { threadId })).rejects.toThrow(/only delete threads you started/);
+    });
+
+    it("returns empty instead of throwing once access is revoked mid-session", async () => {
+      const { t, slateId } = await setup();
+      const threadId = await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "hi", mentions: [] });
+      await t.run(async (ctx) => {
+        const m = await ctx.db.query("workspace_members").filter((q) => q.eq(q.field("userId"), EDITOR.subject)).unique();
+        await ctx.db.delete(m!._id);
+      });
+      expect(await t.withIdentity(EDITOR).query(api.comments.list, { slateId })).toEqual([]);
+      expect(await t.withIdentity(EDITOR).query(api.comments.messages, { threadId })).toEqual([]);
+      await t.withIdentity(OWNER).mutation(api.slates.remove, { id: slateId });
+      expect(await t.withIdentity(OWNER).query(api.comments.list, { slateId })).toEqual([]);
+    });
+  });
+
+  describe("@mentions", () => {
+    it("offers teammates (without emails or yourself) and only keeps real members", async () => {
+      const { t, slateId } = await setup();
+      await withProfiles(t);
+      const members = await t.withIdentity(EDITOR).query(api.comments.members, { slateId });
+      expect(members.map((m) => m.name)).toEqual(["Olivia Owner", "Vera Viewer"]);
+      expect(JSON.stringify(members)).not.toContain("@example.com");
+
+      const threadId = await t.withIdentity(EDITOR).mutation(api.comments.createThread, {
+        slateId,
+        anchor: POINT,
+        body: "@Olivia Owner please review, cc @Vera Viewer",
+        mentions: [OWNER.subject, VIEWER.subject, STRANGER.subject, EDITOR.subject, OWNER.subject, "made-up"],
+      });
+      const [msg] = await t.withIdentity(OWNER).query(api.comments.messages, { threadId });
+      // strangers, yourself, unknown ids and duplicates are dropped; names come from the server
+      expect(msg.mentions).toEqual([
+        { userId: OWNER.subject, name: "Olivia Owner" },
+        { userId: VIEWER.subject, name: "Vera Viewer" },
+      ]);
+      const asOwner = (await t.withIdentity(OWNER).query(api.comments.list, { slateId }))[0];
+      const asEditor = (await t.withIdentity(EDITOR).query(api.comments.list, { slateId }))[0];
+      expect(asOwner.mentionsMe).toBe(true);
+      expect(asEditor.mentionsMe).toBe(false);
+    });
+  });
+
+  describe("editing and deleting", () => {
+    it("authors edit their own messages (mentions recomputed); nobody edits someone else's", async () => {
+      const { t, slateId } = await setup();
+      await withProfiles(t);
+      const threadId = await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "first", mentions: [] });
+      const [first] = await t.withIdentity(EDITOR).query(api.comments.messages, { threadId });
+      await expect(t.withIdentity(OWNER).mutation(api.comments.editMessage, { messageId: first.id, body: "hijack", mentions: [] })).rejects.toThrow(/own comments/);
+      await t.withIdentity(EDITOR).mutation(api.comments.editMessage, { messageId: first.id, body: "now with @Vera Viewer", mentions: [VIEWER.subject] });
+      const [edited] = await t.withIdentity(EDITOR).query(api.comments.messages, { threadId });
+      expect(edited).toMatchObject({ body: "now with @Vera Viewer", mentions: [{ userId: VIEWER.subject, name: "Vera Viewer" }] });
+      expect(edited.editedAt).toBeGreaterThan(0);
+      const [thread] = await t.withIdentity(VIEWER).query(api.comments.list, { slateId });
+      expect(thread.snippet).toBe("now with @Vera Viewer");
+      expect(thread.mentionsMe).toBe(true);
+      await expect(t.withIdentity(EDITOR).mutation(api.comments.editMessage, { messageId: first.id, body: "  ", mentions: [] })).rejects.toThrow(/empty/);
+    });
+
+    it("authors delete their replies, moderators delete anyone's, the opening message needs deleteThread", async () => {
+      const { t, slateId } = await setup();
+      const threadId = await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "root", mentions: [] });
+      await t.withIdentity(VIEWER).mutation(api.comments.reply, { threadId, body: "viewer reply", mentions: [] });
+      await t.withIdentity(OWNER).mutation(api.comments.reply, { threadId, body: "owner reply", mentions: [] });
+      const msgs = await t.withIdentity(OWNER).query(api.comments.messages, { threadId });
+      const [root, viewerReply, ownerReply] = msgs;
+
+      await expect(t.withIdentity(EDITOR).mutation(api.comments.deleteMessage, { messageId: root.id })).rejects.toThrow(/whole thread/);
+      // a Viewer is not a moderator and can't delete the owner's reply
+      await expect(t.withIdentity(VIEWER).mutation(api.comments.deleteMessage, { messageId: ownerReply.id })).rejects.toThrow(/own comments/);
+      await t.withIdentity(VIEWER).mutation(api.comments.deleteMessage, { messageId: viewerReply.id });
+      // an editor member moderates, even other people's replies
+      await t.withIdentity(EDITOR).mutation(api.comments.deleteMessage, { messageId: ownerReply.id });
+      expect((await t.withIdentity(OWNER).query(api.comments.messages, { threadId })).map((m) => m.body)).toEqual(["root"]);
+      expect((await t.withIdentity(OWNER).query(api.comments.list, { slateId }))[0].replyCount).toBe(0);
+    });
+
+    it("deleteThread removes the thread, its messages and read markers; only its starter or a moderator may", async () => {
+      const { t, slateId } = await setup();
+      const threadId = await t.withIdentity(VIEWER).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "root", mentions: [] });
+      await t.withIdentity(OWNER).mutation(api.comments.reply, { threadId, body: "reply", mentions: [] });
+      await t.withIdentity(EDITOR).mutation(api.comments.markRead, { threadId });
+      await expect(t.withIdentity(STRANGER).mutation(api.comments.deleteThread, { threadId })).rejects.toThrow();
+      const other = await t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "editor's", mentions: [] });
+      await expect(t.withIdentity(VIEWER).mutation(api.comments.deleteThread, { threadId: other })).rejects.toThrow(/threads you started/);
+
+      await t.withIdentity(VIEWER).mutation(api.comments.deleteThread, { threadId }); // its starter, although only a Viewer
+      await t.withIdentity(OWNER).mutation(api.comments.deleteThread, { threadId: other }); // a moderator
+      expect(await t.withIdentity(OWNER).query(api.comments.list, { slateId })).toEqual([]);
+      const leftovers = await t.run(async (ctx) => ({
+        messages: (await ctx.db.query("comments").collect()).length,
+        reads: (await ctx.db.query("commentReads").collect()).length,
+      }));
+      expect(leftovers).toEqual({ messages: 0, reads: 0 });
+      await t.withIdentity(OWNER).mutation(api.comments.deleteThread, { threadId }); // already gone: no-op
+    });
+  });
+
+  describe("limits", () => {
+    it("rejects empty comments and throttles floods", async () => {
+      const { t, slateId } = await setup();
+      const as = t.withIdentity(EDITOR);
+      await expect(as.mutation(api.comments.createThread, { slateId, anchor: POINT, body: "   ", mentions: [] })).rejects.toThrow(/Write a comment/);
+      for (let i = 0; i < 20; i++) await as.mutation(api.comments.createThread, { slateId, anchor: POINT, body: `c${i}`, mentions: [] });
+      await expect(as.mutation(api.comments.createThread, { slateId, anchor: POINT, body: "one too many", mentions: [] })).rejects.toThrow(/too fast/);
+      // someone else is not affected
+      await t.withIdentity(OWNER).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "fine", mentions: [] });
+    });
+
+    it("caps threads per board and messages per thread", async () => {
+      const { t, slateId } = await setup();
+      const threadId = await t.run(async (ctx) => {
+        let last = null as unknown as Id<"commentThreads">;
+        for (let i = 0; i < 500; i++) {
+          last = await ctx.db.insert("commentThreads", {
+            slateId,
+            anchor: { kind: "point", x: 0, y: 0 },
+            status: "open",
+            authorId: OWNER.subject,
+            authorName: "Owner",
+            createdAt: i,
+            lastActivityAt: i,
+            lastActivityBy: OWNER.subject,
+            replyCount: i === 499 ? 198 : 0,
+            snippet: "s",
+            mentionedIds: [],
+          });
+        }
+        return last;
+      });
+      await expect(t.withIdentity(EDITOR).mutation(api.comments.createThread, { slateId, anchor: POINT, body: "501st", mentions: [] })).rejects.toThrow(/500 comment threads/);
+      // the busiest thread has room for exactly one more message
+      await t.withIdentity(EDITOR).mutation(api.comments.reply, { threadId, body: "last one", mentions: [] });
+      await expect(t.withIdentity(EDITOR).mutation(api.comments.reply, { threadId, body: "overflow", mentions: [] })).rejects.toThrow(/thread is full/);
+    });
+  });
+});
