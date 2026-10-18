@@ -514,3 +514,223 @@ describe("comments", () => {
     });
   });
 });
+
+/* ------------------------------------------------------------ version history */
+
+const count = (t: ReturnType<typeof convexTest>, table: "elements" | "slateVersions" | "versionChunks") => t.run(async (ctx) => (await ctx.db.query(table).collect()).length);
+
+describe("version history", () => {
+  it("saves a board as one compact snapshot, not a copy of every element row", async () => {
+    const { t, slateId } = await setup();
+    const ops = Array.from({ length: 300 }, (_, i) => put(`e${i}`, i, { x: i, text: `node ${i}` }));
+    await t.withIdentity(EDITOR).mutation(api.elements.apply, { slateId, ops });
+
+    const out = await t.withIdentity(OWNER).mutation(api.versions.create, { slateId, label: "  Before the redesign " });
+    expect(out).toMatchObject({ ok: true, elementCount: 300 });
+
+    // 300 element rows -> 1 version row + a handful of chunk rows, and the element rows are untouched
+    expect(await count(t, "slateVersions")).toBe(1);
+    expect(await count(t, "versionChunks")).toBeLessThanOrEqual(2);
+    expect(await count(t, "elements")).toBe(300);
+
+    const [meta] = await t.withIdentity(VIEWER).query(api.versions.list, { slateId });
+    expect(meta).toMatchObject({ kind: "manual", label: "Before the redesign", authorName: "Owner", elementCount: 300 });
+    expect(meta.bytes).toBeGreaterThan(1000);
+
+    const full = await t.withIdentity(VIEWER).query(api.versions.get, { versionId: meta.id });
+    const els = parseSnapshot(full!.chunks) as { id: string; z: number; x: number; text: string }[];
+    expect(els).toHaveLength(300);
+    expect(els[0]).toMatchObject({ id: "e0", z: 0, text: "node 0" });
+    expect(els.map((e) => e.z)).toEqual([...els.map((e) => e.z)].sort((a, b) => a - b)); // paint order
+  });
+
+  it("splits a large board over several chunks and reads it back byte for byte", async () => {
+    const { t, slateId } = await setup();
+    const big = "lorem ipsum dolor sit amet ".repeat(40);
+    for (let b = 0; b < 3; b++) {
+      const ops = Array.from({ length: 150 }, (_, i) => put(`b${b}-${i}`, b * 150 + i, { text: big }));
+      await t.withIdentity(EDITOR).mutation(api.elements.apply, { slateId, ops });
+    }
+    await t.withIdentity(OWNER).mutation(api.versions.create, { slateId });
+    const chunks = await count(t, "versionChunks");
+    expect(chunks).toBeGreaterThan(1);
+    expect(chunks).toBeLessThan(15);
+
+    const [meta] = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+    const full = await t.withIdentity(OWNER).query(api.versions.get, { versionId: meta.id });
+    expect(full!.chunks).toHaveLength(chunks);
+    const els = parseSnapshot(full!.chunks) as { id: string; text: string }[];
+    expect(els).toHaveLength(450);
+    expect(els.every((e) => e.text === big)).toBe(true);
+  });
+
+  it("an empty board can be saved by hand (a blank starting point)", async () => {
+    const { t, slateId } = await setup();
+    expect(await t.withIdentity(OWNER).mutation(api.versions.create, { slateId, label: "Blank" })).toMatchObject({ ok: true, elementCount: 0 });
+    const [meta] = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+    expect(parseSnapshot((await t.withIdentity(OWNER).query(api.versions.get, { versionId: meta.id }))!.chunks)).toEqual([]);
+  });
+
+  it("only members can see history; only members with edit rights can save, rename or delete", async () => {
+    const { t, slateId } = await setup();
+    await t.withIdentity(EDITOR).mutation(api.elements.apply, { slateId, ops: [put("a")] });
+    await t.withIdentity(EDITOR).mutation(api.versions.create, { slateId, label: "v1" });
+    const [meta] = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+
+    // workspace Viewers may look (review), but not change anything
+    expect(await t.withIdentity(VIEWER).query(api.versions.list, { slateId })).toHaveLength(1);
+    expect(await t.withIdentity(VIEWER).query(api.versions.get, { versionId: meta.id })).not.toBeNull();
+    await expect(t.withIdentity(VIEWER).mutation(api.versions.create, { slateId, label: "nope" })).rejects.toThrow();
+    await expect(t.withIdentity(VIEWER).mutation(api.versions.rename, { versionId: meta.id, label: "nope" })).rejects.toThrow();
+    await expect(t.withIdentity(VIEWER).mutation(api.versions.remove, { versionId: meta.id })).rejects.toThrow();
+
+    // strangers and anonymous visitors get nothing, even with a view link
+    await t.withIdentity(OWNER).mutation(api.slates.setLinkAccess, { id: slateId, linkAccess: "view" });
+    for (const who of [t.withIdentity(STRANGER), t]) {
+      expect(await who.query(api.versions.list, { slateId })).toEqual([]);
+      expect(await who.query(api.versions.get, { versionId: meta.id })).toBeNull();
+    }
+    // ...and a link that grants edit lets people change the board but still not manage its history
+    await t.withIdentity(OWNER).mutation(api.slates.setLinkAccess, { id: slateId, linkAccess: "edit" });
+    expect(await t.withIdentity(STRANGER).query(api.versions.list, { slateId })).toEqual([]);
+    await expect(t.withIdentity(STRANGER).mutation(api.versions.create, { slateId })).rejects.toThrow(/workspace members/);
+    expect(await t.withIdentity(STRANGER).query(api.slates.getById, { id: slateId })).toMatchObject({ canViewHistory: false });
+    expect(await t.withIdentity(VIEWER).query(api.slates.getById, { id: slateId })).toMatchObject({ canViewHistory: true });
+  });
+
+  it("renames, and deletes a version together with its chunks", async () => {
+    const { t, slateId } = await setup();
+    await t.withIdentity(EDITOR).mutation(api.elements.apply, { slateId, ops: [put("a")] });
+    await t.withIdentity(EDITOR).mutation(api.versions.create, { slateId, label: "draft" });
+    const [meta] = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+    await t.withIdentity(OWNER).mutation(api.versions.rename, { versionId: meta.id, label: "Final" });
+    expect((await t.withIdentity(OWNER).query(api.versions.list, { slateId }))[0].label).toBe("Final");
+    await t.withIdentity(OWNER).mutation(api.versions.remove, { versionId: meta.id });
+    expect(await t.withIdentity(OWNER).query(api.versions.list, { slateId })).toEqual([]);
+    expect(await count(t, "versionChunks")).toBe(0);
+    expect(await t.withIdentity(OWNER).query(api.versions.get, { versionId: meta.id })).toBeNull();
+    await t.withIdentity(OWNER).mutation(api.versions.remove, { versionId: meta.id }); // idempotent
+  });
+
+  it("refuses boards too large to snapshot, and archived boards disappear", async () => {
+    const { t, slateId } = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 6001; i++) {
+        await ctx.db.insert("elements", { slateId, eid: `x${i}`, shard: i % SHARD_COUNT, z: i, rev: 1, data: "{}", updatedAt: 1 });
+      }
+    });
+    await expect(t.withIdentity(OWNER).mutation(api.versions.create, { slateId })).rejects.toThrow(/too large/);
+    expect(await count(t, "slateVersions")).toBe(0);
+    await t.withIdentity(OWNER).mutation(api.slates.remove, { id: slateId });
+    expect(await t.withIdentity(OWNER).query(api.versions.list, { slateId })).toEqual([]);
+  });
+
+  describe("automatic versions", () => {
+    const edit = (t: ReturnType<typeof convexTest>, slateId: Id<"slates">, id: string, x: number) =>
+      t.withIdentity(EDITOR).mutation(api.elements.apply, { slateId, ops: [put(id, 1, { x })] });
+
+    it("are not taken on a brand-new board", async () => {
+      const { t, slateId } = await setup();
+      await edit(t, slateId, "a", 1);
+      expect(await count(t, "slateVersions")).toBe(0);
+      expect((await t.run((ctx) => ctx.db.get(slateId)))?.lastAutoVersionAt).toBeUndefined();
+    });
+
+    it("are scheduled by edits at most once per interval, and skip unchanged or empty boards", async () => {
+      vi.useFakeTimers();
+      try {
+        const { t, slateId } = await setup();
+        // pretend the board has been quiet for 11 minutes
+        await t.run((ctx) => ctx.db.patch(slateId, { lastAutoVersionAt: Date.now() - 11 * 60_000 }));
+
+        await edit(t, slateId, "a", 1);
+        await edit(t, slateId, "a", 2); // within the same interval: must not schedule a second one
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+        let versions = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+        expect(versions).toHaveLength(1);
+        expect(versions[0]).toMatchObject({ kind: "auto", elementCount: 1 });
+        expect(versions[0].label).toBeUndefined();
+        expect((await t.run((ctx) => ctx.db.get(slateId)))?.lastAutoVersionAt).toBeGreaterThan(Date.now() - 5000);
+
+        // unchanged board: a direct run records nothing new
+        expect(await t.mutation(internal.versions.autoSnapshot, { slateId })).toEqual({ ok: false, reason: "unchanged" });
+        // an hour later the next edit takes the next one
+        await t.run((ctx) => ctx.db.patch(slateId, { lastAutoVersionAt: Date.now() - 11 * 60_000 }));
+        await edit(t, slateId, "b", 5);
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+        versions = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+        expect(versions).toHaveLength(2);
+        expect(versions[0].elementCount).toBe(2);
+
+        // empty board / archived board: nothing to record
+        await t.withIdentity(EDITOR).mutation(api.elements.apply, { slateId, ops: [{ t: "del", id: "a" }, { t: "del", id: "b" }] });
+        expect(await t.mutation(internal.versions.autoSnapshot, { slateId })).toEqual({ ok: false, reason: "empty" });
+        await t.withIdentity(OWNER).mutation(api.slates.remove, { id: slateId });
+        expect(await t.mutation(internal.versions.autoSnapshot, { slateId })).toEqual({ ok: false, reason: "gone" });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("never fail an edit when the board is too big to snapshot", async () => {
+      vi.useFakeTimers();
+      try {
+        const { t, slateId } = await setup();
+        await t.run(async (ctx) => {
+          await ctx.db.patch(slateId, { lastAutoVersionAt: Date.now() - 11 * 60_000 });
+          for (let i = 0; i < 6001; i++) await ctx.db.insert("elements", { slateId, eid: `x${i}`, shard: i % SHARD_COUNT, z: i, rev: 1, data: "{}", updatedAt: 1 });
+        });
+        await edit(t, slateId, "a", 1); // still succeeds
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+        expect(await count(t, "slateVersions")).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("keep only the newest ones, and never touch named versions", async () => {
+      const { t, slateId } = await setup();
+      await t.withIdentity(EDITOR).mutation(api.elements.apply, { slateId, ops: [put("keep")] });
+      await t.withIdentity(OWNER).mutation(api.versions.create, { slateId, label: "Release 1.0" });
+      for (let i = 0; i < MAX_AUTO_VERSIONS + 5; i++) {
+        await edit(t, slateId, "moving", i);
+        expect(await t.mutation(internal.versions.autoSnapshot, { slateId })).toMatchObject({ ok: true });
+      }
+      const versions = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+      expect(versions.filter((v) => v.kind === "auto")).toHaveLength(MAX_AUTO_VERSIONS);
+      expect(versions.filter((v) => v.kind === "manual").map((v) => v.label)).toEqual(["Release 1.0"]);
+      // the newest automatic version is the last state; pruned versions took their chunks with them
+      const newest = versions.find((v) => v.kind === "auto")!;
+      const els = parseSnapshot((await t.withIdentity(OWNER).query(api.versions.get, { versionId: newest.id }))!.chunks) as { id: string; x: number }[];
+      expect(els.find((e) => e.id === "moving")!.x).toBe(MAX_AUTO_VERSIONS + 4);
+      expect(await count(t, "versionChunks")).toBe(versions.length);
+    });
+
+    it("naming an automatic version keeps it for good", async () => {
+      const { t, slateId } = await setup();
+      await edit(t, slateId, "a", 1);
+      await t.mutation(internal.versions.autoSnapshot, { slateId });
+      const [auto] = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+      expect(auto.kind).toBe("auto");
+      await t.withIdentity(OWNER).mutation(api.versions.rename, { versionId: auto.id, label: "Demo day" });
+      for (let i = 0; i < MAX_AUTO_VERSIONS + 2; i++) {
+        await edit(t, slateId, "a", 100 + i);
+        await t.mutation(internal.versions.autoSnapshot, { slateId });
+      }
+      const versions = await t.withIdentity(OWNER).query(api.versions.list, { slateId });
+      expect(versions.find((v) => v.id === auto.id)).toMatchObject({ kind: "manual", label: "Demo day" });
+    });
+  });
+
+  it("limits named versions per board", async () => {
+    const { t, slateId } = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < MAX_MANUAL_VERSIONS; i++) {
+        await ctx.db.insert("slateVersions", { slateId, kind: "manual", label: `v${i}`, createdAt: i, elementCount: 0, bytes: 2, chunkCount: 1, hash: `h${i}` });
+      }
+    });
+    await expect(t.withIdentity(OWNER).mutation(api.versions.create, { slateId, label: "one more" })).rejects.toThrow(/50 named versions/);
+    // the "Before restoring..." safety copy is an automatic version, so it is still allowed
+    expect(await t.withIdentity(OWNER).mutation(api.versions.create, { slateId, kind: "auto", label: "Before restoring v3" })).toMatchObject({ ok: true });
+  });
+});
