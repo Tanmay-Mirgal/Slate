@@ -238,7 +238,7 @@ export class PointerController {
     const p = e.screenToWorld(screen);
 
     // Panning: middle mouse, space, hand tool, or any drag in read-only mode.
-    if (ev.button === 1 || e.spaceDown || e.tool === "hand" || e.readOnly) {
+    if (ev.button === 1 || e.spaceDown || e.tool === "hand" || (e.readOnly && e.tool !== "comment")) {
       this.g = { t: "pan", sx: screen.x, sy: screen.y, cam: { x: e.camera.x, y: e.camera.y } };
       e.updateCursor("grabbing");
       return;
@@ -276,7 +276,17 @@ export class PointerController {
       case "icon":
         e.setTool("select");
         return;
+      case "comment":
+        return this.downComment(p);
     }
+  }
+
+  /** Comment tool: one click drops a pin, attached to the element under the pointer if there is one. */
+  private downComment(p: Point) {
+    const e = this.e;
+    const hit = this.pick(p, { connectable: true });
+    e.finishTool();
+    e.onPlaceComment?.(p, hit?.id ?? null);
   }
 
   private pickImage(at: Point) {
@@ -1367,10 +1377,11 @@ export class PointerController {
       f: ["frame"],
       i: ["image"],
       e: ["eraser"],
+      c: ["comment"],
     };
     const t = tools[lower];
     if (t && !ev.altKey) {
-      if (e.readOnly && t[0] !== "hand" && t[0] !== "select") return;
+      if (e.readOnly && t[0] !== "hand" && t[0] !== "select" && t[0] !== "comment") return;
       e.setTool(t[0], { shape: t[1], lock: ev.shiftKey && t[0] !== "highlighter" ? e.toolLocked : false });
     }
   }

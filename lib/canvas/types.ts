@@ -203,7 +203,9 @@ export type ToolId =
   | "frame"
   | "image"
   | "icon"
-  | "eraser";
+  | "eraser"
+  /** Drops a comment pin; never edits the board, so it works for people who can only comment. */
+  | "comment";
 
 export type ThemeName = "dark" | "light";
 
