@@ -42,7 +42,7 @@ export async function requestDiagram(req: DiagramRequest, h: RequestHandlers = {
       body: JSON.stringify(req),
       signal: h.signal,
     });
-  } catch (e) {
+  } catch {
     if (h.signal?.aborted) throw new ClientAiError("aborted", "Cancelled");
     throw new ClientAiError("network", "Couldn't reach the server. Check your connection and try again.");
   }

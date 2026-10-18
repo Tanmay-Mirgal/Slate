@@ -3,13 +3,21 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { SignIn, SignUp } from "@clerk/nextjs";
 import { Sparkles, ArrowLeft, Zap, Layout, FileText } from "lucide-react";
 
 function AuthContent() {
   const searchParams = useSearchParams();
-  const urlMode = searchParams.get("mode") === "sign-up" ? "sign-up" : "sign-in";
+  const pathname = usePathname();
+  // Clerk's own steps live under /auth/* (e.g. /auth/sso-callback after Google/GitHub sign-in,
+  // /auth/verify-email-address, /auth/continue) and carry no ?mode=. A sign-up flow is recognisable
+  // by its sign_up_* parameters or the /continue step; otherwise default to sign-in.
+  const isSignUpFlow =
+    searchParams.get("mode") === "sign-up" ||
+    Array.from(searchParams.keys()).some((k) => k.startsWith("sign_up_")) ||
+    /\/(continue|verify-email-address|verify-phone-number)$/.test(pathname);
+  const urlMode = isSignUpFlow ? "sign-up" : "sign-in";
   // The URL decides until the visitor clicks a tab; a later URL change resets their choice.
   const [choice, setChoice] = React.useState<{ forUrl: string; mode: "sign-in" | "sign-up" } | null>(null);
   const mode = choice && choice.forUrl === urlMode ? choice.mode : urlMode;
@@ -157,9 +165,9 @@ function AuthContent() {
         {/* Clerk Component */}
         <div className="w-full max-w-md">
           {mode === "sign-in" ? (
-            <SignIn appearance={clerkAppearance} signUpUrl="/auth?mode=sign-up" forceRedirectUrl="/dashboard" />
+            <SignIn routing="path" path="/auth" appearance={clerkAppearance} signUpUrl="/auth?mode=sign-up" forceRedirectUrl="/dashboard" />
           ) : (
-            <SignUp appearance={clerkAppearance} signInUrl="/auth?mode=sign-in" forceRedirectUrl="/dashboard" />
+            <SignUp routing="path" path="/auth" appearance={clerkAppearance} signInUrl="/auth?mode=sign-in" forceRedirectUrl="/dashboard" />
           )}
         </div>
 

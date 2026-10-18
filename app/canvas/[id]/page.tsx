@@ -164,7 +164,7 @@ export default function CanvasPage() {
         }
         renderAi={({ isOpen, onClose, onOpenCode }) => <AiPanel engine={engine} isOpen={isOpen} onClose={onClose} signedIn={!!user} onOpenCode={onOpenCode} />}
       />
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} extraItems={commands} onGoDashboard={() => router.push("/dashboard")} onAiGenerate={() => engine.onOpenAi?.()} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} extraItems={commands} onNewSlate={() => router.push("/dashboard")} onGoDashboard={() => router.push("/dashboard")} onAiGenerate={() => engine.onOpenAi?.()} />
     </div>
   );
 }

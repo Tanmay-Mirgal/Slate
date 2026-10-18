@@ -73,6 +73,42 @@ export async function requireEdit(ctx: Ctx, id: Id<"slates">): Promise<{ slate: 
   return res;
 }
 
+/**
+ * Collaboration rules that sit on top of view / edit:
+ *
+ *  - Reading comments        anyone who can view the slate (so a shared link shows the discussion)
+ *  - Writing comments        signed in AND (workspace member of ANY role, legacy owner, or a link that
+ *                            grants edit). Workspace Viewers can therefore review and comment; people who
+ *                            only hold a "view" link cannot, so a public link is never a write surface.
+ *  - Deleting others' comments   members with edit rights (the same people who can rename / delete the slate)
+ *  - Version history         members of any role. Link visitors never see it: old versions can contain
+ *                            content that was deliberately removed from the board.
+ */
+export function canComment(access: Access): boolean {
+  return !!access.userId && (access.via !== "link" || access.level === "edit");
+}
+
+export function canModerate(access: Access): boolean {
+  return access.via !== "link" && access.level === "edit";
+}
+
+export function canViewHistory(access: Access): boolean {
+  return access.via !== "link";
+}
+
+export async function requireComment(ctx: Ctx, id: Id<"slates">): Promise<{ slate: Doc<"slates">; access: Access & { userId: string } }> {
+  const { slate, access } = await requireView(ctx, id);
+  if (!access.userId) throw new Error("Sign in to comment");
+  if (!canComment(access)) throw new Error("You only have view access to this slate, so you can't comment");
+  return { slate, access: { ...access, userId: access.userId } };
+}
+
+export async function requireHistory(ctx: Ctx, id: Id<"slates">): Promise<{ slate: Doc<"slates">; access: Access }> {
+  const res = await requireView(ctx, id);
+  if (!canViewHistory(res.access)) throw new Error("Only workspace members can see version history");
+  return res;
+}
+
 /** Edit rights via workspace membership / ownership (not just a shared link): rename, delete, share settings. */
 export async function requireManage(ctx: Ctx, id: Id<"slates">): Promise<{ slate: Doc<"slates">; access: Access }> {
   const res = await requireEdit(ctx, id);

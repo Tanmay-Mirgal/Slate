@@ -226,7 +226,6 @@ export class Engine {
   private presenceLast = 0;
   private presenceDirty = false;
   private peerKey = "";
-  disposed = false;
   onToast: ((msg: string, kind?: "info" | "error") => void) | null = null;
   /** Set by the shell; opens the diagram-as-code editor (optionally for an existing diagram). */
   onOpenCode: ((opts?: { code?: string; replaceDiagramId?: string }) => void) | null = null;
@@ -237,6 +236,11 @@ export class Engine {
 
   constructor() {
     this.ui = this.buildUi();
+    this.subscribeToStore();
+  }
+
+  private subscribeToStore() {
+    if (this.unsubStore) return;
     this.unsubStore = this.store.subscribe(() => {
       this.pruneSelection();
       this.requestRender();
@@ -276,6 +280,7 @@ export class Engine {
   /* ------------------------------------------------------------ lifecycle */
 
   attach(canvas: HTMLCanvasElement, host: HTMLElement) {
+    this.subscribeToStore(); // re-attaching after dispose() (React StrictMode / fast refresh) must work
     this.canvas = canvas;
     this.host = host;
     this.ctx = canvas.getContext("2d", { alpha: false });
@@ -296,18 +301,23 @@ export class Engine {
     this.ctx = null;
   }
 
+  /**
+   * Releases timers, DOM hooks and store subscriptions and flushes unsaved edits. Deliberately
+   * reversible: React StrictMode (and fast refresh) runs mount -> cleanup -> mount, so an engine
+   * must come back to life when attach() is called again. UI listeners belong to React
+   * subscriptions, which remove themselves.
+   */
   dispose() {
     if (this.editing) this.commitEditing();
     this.store.closeGestures();
-    this.disposed = true;
     this.detach();
     this.unsubStore?.();
+    this.unsubStore = null;
     this.unsubSync?.();
+    this.unsubSync = null;
     if (this.presenceTimer) clearTimeout(this.presenceTimer);
-    this.store.dispose();
-    this.uiListeners.clear();
-    this.cameraListeners.clear();
-    this.peerListeners.clear();
+    this.presenceTimer = null;
+    void this.store.flush();
   }
 
   private measure() {
@@ -369,7 +379,6 @@ export class Engine {
     this.uiQueued = true;
     queueMicrotask(() => {
       this.uiQueued = false;
-      if (this.disposed) return;
       this.ui = this.buildUi();
       for (const fn of this.uiListeners) fn();
     });
@@ -539,13 +548,13 @@ export class Engine {
 
   requestRender() {
     if (this.raf || !this.canvas) return;
-    this.raf = requestAnimationFrame((t) => this.frame(t));
+    this.raf = requestAnimationFrame(() => this.frame());
   }
 
-  private frame(_t: number) {
+  private frame() {
     this.raf = 0;
     const ctx = this.ctx;
-    if (!ctx || !this.canvas || this.disposed) return;
+    if (!ctx || !this.canvas) return;
     const now = performance.now();
     let more = false;
 

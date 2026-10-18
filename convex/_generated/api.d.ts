@@ -9,16 +9,21 @@
  */
 
 import type * as access from "../access.js";
+import type * as commentLogic from "../commentLogic.js";
+import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
 import type * as elements from "../elements.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as maintenance from "../maintenance.js";
 import type * as presence from "../presence.js";
+import type * as profile from "../profile.js";
 import type * as shards from "../shards.js";
 import type * as slates from "../slates.js";
+import type * as snapshot from "../snapshot.js";
 import type * as usage from "../usage.js";
 import type * as users from "../users.js";
+import type * as versions from "../versions.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -29,16 +34,21 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   access: typeof access;
+  commentLogic: typeof commentLogic;
+  comments: typeof comments;
   crons: typeof crons;
   elements: typeof elements;
   files: typeof files;
   http: typeof http;
   maintenance: typeof maintenance;
   presence: typeof presence;
+  profile: typeof profile;
   shards: typeof shards;
   slates: typeof slates;
+  snapshot: typeof snapshot;
   usage: typeof usage;
   users: typeof users;
+  versions: typeof versions;
   workspaces: typeof workspaces;
 }>;
 

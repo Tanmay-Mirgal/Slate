@@ -45,7 +45,7 @@ import {
 } from "./geometry";
 import { cursorForHandle, hitHandle, type HandleId, type ResizeHandle, HANDLE_NORM } from "./handles";
 import { quickAddPoint, QUICK_ADD_RADIUS_PX } from "./render";
-import { anchorFor, facingSide, OPPOSITE } from "./router";
+import { anchorFor } from "./router";
 import { elementsInRect, expandGroups, frameChildren, pickTopmost } from "./scene";
 import { snapEdges, snapMove } from "./snap";
 import type { ConnectorEl, El, PenEl, Point, Rect, Side, ShapeKind, ToolId } from "./types";
@@ -333,7 +333,10 @@ export class PointerController {
         const next = new Set(e.selection);
         const ids = insideEntered ? [hit.id] : Array.from(expandGroups(e.store, [hit.id]));
         const removing = next.has(hit.id);
-        for (const id of ids) removing ? next.delete(id) : next.add(id);
+        for (const id of ids) {
+          if (removing) next.delete(id);
+          else next.add(id);
+        }
         e.select(next, { expandGroup: false });
         return;
       }

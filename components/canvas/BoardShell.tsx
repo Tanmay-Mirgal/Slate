@@ -161,8 +161,10 @@ export function BoardShell({
   const showCanvas = mode !== "document";
   const showDoc = mode !== "canvas";
 
+  // overflow-clip (not hidden): a clipped box can never be scrolled programmatically, e.g. by
+  // scrollIntoView on the off-canvas AI drawer.
   return (
-    <div className="relative flex h-full w-full overflow-hidden bg-[#0a0a0a] text-white">
+    <div className="relative flex h-full w-full overflow-clip bg-[#0a0a0a] text-white">
       {showDoc && <div className={`relative min-w-0 overflow-y-auto pt-16 ${mode === "split" ? "w-1/2 border-r border-white/10" : "w-full"}`}>{docSlot}</div>}
       <div className={`relative min-w-0 ${showCanvas ? "flex-1" : "hidden"}`} style={{ marginRight: rightInset }}>
         <CanvasBoard engine={engine}>
