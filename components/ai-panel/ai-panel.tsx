@@ -98,7 +98,7 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
   const [prompts, setPrompts] = React.useState<typeof PROMPTS>([]);
   const abortRef = React.useRef<AbortController | null>(null);
   const idRef = React.useRef(1);
-  const endRef = React.useRef<HTMLDivElement | null>(null);
+  const listRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [lastDiagram, setLastDiagram] = React.useState<string | null>(null);
 
@@ -111,7 +111,9 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 250);
   }, [isOpen]);
   React.useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    // Scroll the list itself; scrollIntoView would also scroll ancestors (and reveal the closed drawer).
+    const el = listRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
   // The diagram the next prompt would edit: the selected one, else the one most recently generated here.
@@ -206,7 +208,8 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
   return (
     <aside
       aria-hidden={!isOpen}
-      className={`absolute right-0 top-0 z-50 flex h-full w-[400px] max-w-full flex-col border-l border-white/10 bg-[#0c0c0e]/95 shadow-2xl backdrop-blur-xl transition-transform duration-300 ease-out ${isOpen ? "translate-x-0" : "pointer-events-none translate-x-full"}`}
+      inert={!isOpen}
+      className={`absolute right-0 top-0 z-50 flex h-full w-[400px] max-w-full flex-col border-l border-white/10 bg-[#0c0c0e]/95 shadow-2xl backdrop-blur-xl transition-[transform,visibility] duration-300 ease-out ${isOpen ? "visible translate-x-0" : "invisible translate-x-full"}`}
     >
       <div className="flex flex-none items-center justify-between border-b border-white/5 px-4 py-3">
         <span className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -227,7 +230,7 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
         </div>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 py-4 [scrollbar-width:thin]">
+      <div ref={listRef} className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 py-4 [scrollbar-width:thin]">
         {showEmpty && (
           <div className="space-y-5">
             <div>
@@ -266,7 +269,6 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
         {messages.map((m) => (
           <MessageView key={m.id} m={m} engine={engine} onOpenCode={onOpenCode} onUseTemplate={insertTemplate} onRetry={(p) => void send(p)} />
         ))}
-        <div ref={endRef} />
       </div>
 
       <div className="flex-none border-t border-white/5 p-3">

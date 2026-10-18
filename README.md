@@ -1,143 +1,156 @@
 <div align="center">
-  <img src="public/logo.svg" alt="Slate Logo" width="120" />
-  <h1 align="center">Slate: The Visual Workspace for Modern Teams</h1>
-  
-  <p align="center">
-    <strong>Infinite Canvas. Real-time Documentation. AI Architecture Generation.</strong>
-  </p>
-  
-  <p align="center">
-    <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-14-black?logo=next.js" alt="Next.js" /></a>
+  <img src="public/logo.svg" alt="Slate Logo" width="96" />
+  <h1>Slate</h1>
+  <p><strong>An infinite canvas for software teams: draw it, generate it with AI, or write it as code.</strong></p>
+  <p>
+    <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js" /></a>
     <a href="https://convex.dev"><img src="https://img.shields.io/badge/Convex-Realtime-orange" alt="Convex" /></a>
-    <a href="https://clerk.com"><img src="https://img.shields.io/badge/Auth-Clerk-6C47FF?logo=clerk" alt="Clerk Auth" /></a>
-    <a href="https://reactflow.dev"><img src="https://img.shields.io/badge/Canvas-React%20Flow-FF007F" alt="React Flow" /></a>
-    <a href="https://groq.com"><img src="https://img.shields.io/badge/AI-Groq%20LLMs-f55036" alt="Groq" /></a>
+    <a href="https://clerk.com"><img src="https://img.shields.io/badge/Auth-Clerk-6C47FF?logo=clerk" alt="Clerk" /></a>
+    <a href="https://build.nvidia.com"><img src="https://img.shields.io/badge/AI-NVIDIA%20NIM-76b900?logo=nvidia" alt="NVIDIA NIM" /></a>
   </p>
 </div>
 
 ---
 
-## 🚀 Overview
+## What it does
 
-**Slate** is a premium, enterprise-grade SaaS application designed to eliminate the friction between thinking, drawing, and documenting. It provides modern software teams with a unified workspace that seamlessly combines an infinite whiteboard canvas, real-time rich-text markdown documentation, and AI-powered system architecture generation.
+| | |
+| :-- | :-- |
+| **Whiteboard** | Custom canvas engine: 11 shapes, smart connectors (elbow / curve / straight) that route around other nodes, text, sticky notes, frames, pen + highlighter, images, rotate / resize / group / lock, alignment guides, grid snapping, minimap, dark & light themes. |
+| **Icon library** | 170+ real product logos (Postgres, Kafka, Next.js…), 40 AWS / GCP / Azure services, and all ~2,000 Lucide glyphs. Drop them as node cards or bare icons; search understands aliases (`k8s`, `postgres`). |
+| **AI diagrams** | Describe anything. Slate AI (NVIDIA-hosted models) produces a structured graph, and the browser lays it out with ELK so nothing overlaps. Follow-up prompts edit the same diagram in place. Architecture, flowchart, ER, mind map and sequence diagrams. |
+| **Diagram as code** | Eraser-style text syntax (`API gateway > Orders: gRPC`, groups, icons, colours) with the same layout engine. Round-trips: any selection can be turned back into code. 10 built-in templates. |
+| **Collaboration** | Live cursors with names, teammates' selections, live drag previews, "anyone with the link" sharing (view / edit), workspace roles, per-element sync so edits never overwrite each other. |
+| **Export** | PNG (1-4x, transparent), SVG, JSON; import JSON; copy PNG to clipboard. |
+| **Docs** | Rich-text document (Tiptap) next to the canvas, with a split view. |
 
-Whether you are brainstorming high-level system designs, writing LLDs (Low-Level Designs), or collaborating with your team in real-time, Slate ensures all your work lives in one connected environment.
-
----
-
-## 🧠 System Architecture
-
-Slate utilizes a highly modern, serverless architecture optimized for ultra-low latency and real-time multiplayer collaboration.
-
-```mermaid
-graph TD;
-    Client[Next.js Client App] -->|Authentication| Clerk[Clerk Auth Service];
-    Client <-->|WebSocket Real-time Sync| Convex[Convex Backend Database];
-    Client -->|AI Prompts| Backend[Convex Actions];
-    Backend -->|Ultra-fast Inference| Groq[Groq Llama 3 API];
-    Groq -->|Generated Architecture| Backend;
-    Backend -->|Save & Broadcast| Convex;
-    Client -->|Payments| Razorpay[Razorpay Gateway];
-```
+A free, no-account board lives at **`/playground`** (stored in your browser).
 
 ---
 
-## ✨ Enterprise Features
+## Quick start
 
-### 🎨 Infinite Visual Canvas
-Powered by **React Flow**, the canvas allows teams to map out architectures, draw mind maps, and visualize complex microservice interactions. Includes custom nodes, dynamic edge routing, and drag-and-drop capabilities.
-
-### 📝 Real-Time Markdown & Rich Text
-Our custom text editor is built on **Tiptap**. It supports:
-- Notion-style slash commands (`/`).
-- Seamless Markdown shortcuts.
-- Drag-and-drop image uploads directly onto the page.
-- Real-time multiplayer cursors and collaborative editing.
-
-### 🤖 Instant AI Architecture (Groq LLM)
-Why draw manually when AI can do it for you? Describe your system (e.g., *"E-Commerce Microservices with Kafka and Postgres"*), and Slate will use **Groq's** blazing-fast LLMs to instantly generate a complete, editable Node/Edge architecture directly onto your canvas.
-
-### ⚡ Multiplayer Collaboration
-Built natively on **Convex**, every change on the canvas or the document is synchronized across all connected clients with sub-millisecond latency. No manual saving required.
-
-### 💳 SaaS Subscriptions & Billing
-Integrated with **Razorpay** for seamless checkout experiences, allowing users to upgrade to premium tiers seamlessly.
-
----
-
-## 🛠️ Technology Stack
-
-| Category | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Frontend Framework** | [Next.js 14](https://nextjs.org/) | App Router, Server Components, SSR |
-| **Styling** | [Tailwind CSS](https://tailwindcss.com/) & [Shadcn UI](https://ui.shadcn.com/) | Premium, responsive, glassmorphism UI |
-| **Realtime DB** | [Convex](https://www.convex.dev/) | WebSockets, state sync, backend functions |
-| **Authentication** | [Clerk](https://clerk.com/) | JWT auth, OAuth, User Management |
-| **Canvas Engine** | [React Flow](https://reactflow.dev/) | Interactive node-based UI |
-| **Rich Text Editor**| [Tiptap](https://tiptap.dev/) | Headless, highly customizable text editor |
-| **AI Inference** | [Groq API](https://groq.com/) | Fast LLM token generation |
-| **Payments** | [Razorpay](https://razorpay.com/) | Subscription & billing handling |
-| **Email Delivery** | SMTP Configuration | Automated workspace invites |
-
----
-
-## 🔐 Environment Variables Detail
-
-To deploy or run Slate locally, you must provide the following variables in your `.env.local` file. 
-
-| Variable | Description | Where to find it |
-| :--- | :--- | :--- |
-| `CONVEX_DEPLOYMENT` | Identifies your specific Convex backend instance. | Convex Dashboard |
-| `NEXT_PUBLIC_CONVEX_URL` | Public WebSocket endpoint for Convex. | Convex Dashboard |
-| `NEXT_PUBLIC_CONVEX_SITE_URL`| HTTP actions endpoint for Convex. | Convex Dashboard |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`| Frontend public key for Clerk Auth. | Clerk Dashboard > API Keys |
-| `CLERK_SECRET_KEY` | Backend secret key for Clerk Auth. | Clerk Dashboard > API Keys |
-| `CLERK_WEBHOOK_SECRET` | Used to securely verify Clerk webhook events. | Clerk Dashboard > Webhooks |
-| `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Your Razorpay API Key ID (Test or Live). | Razorpay Dashboard |
-| `RAZORPAY_KEY_SECRET` | Your Razorpay API Secret Key. | Razorpay Dashboard |
-| `GROQ_API_KEY` | API Key for generating AI architectures. | Groq Developer Console |
-| `SMTP_HOST` | Hostname for your email provider (e.g., `smtp.gmail.com`). | Email Provider |
-| `SMTP_PORT` | Port for SMTP (usually `587` or `465`). | Email Provider |
-| `SMTP_USER` | Your email address or SMTP username. | Email Provider |
-| `SMTP_PASS` | Your SMTP App Password. | Email Provider |
-| `SMTP_SECURE` | Set to `true` for 465, `false` for 587. | Setup preference |
-
-*(You will also need to set standard Clerk redirect URLs such as `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in`)*.
-
----
-
-## 🏁 Getting Started (Local Development)
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/your-username/slate.git
-cd slate
-```
-
-### 2. Install Dependencies
 ```bash
 npm install
+cp .env.example .env.local     # fill in the values (see below)
+npx convex dev                 # terminal 1: deploys convex/ and watches it
+npm run dev                    # terminal 2: http://localhost:3000
 ```
 
-### 3. Setup Environment
-Duplicate `.env.example` (or create a `.env.local` file) and fill in the environment variables referenced above.
+> **After pulling this version you must run `npx convex dev` (or `npx convex deploy` for prod).**
+> It adds tables (`elements`, `liveSessions`, `rateLimits`), indexes, cron jobs and replaces the old
+> `slates.addElement/updateElement/...` functions. Existing boards are upgraded automatically the first
+> time an editor opens them (see *Upgrading existing boards* below).
 
-### 4. Run Convex Backend
-In a separate terminal, start your Convex development environment:
+### Environment
+
+See [`.env.example`](.env.example) for the full list. The ones that matter most:
+
+| Variable | Purpose |
+| :-- | :-- |
+| `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOYMENT` | Convex backend |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Clerk auth. A Clerk **JWT template named `convex`** is required (also used to authenticate the AI route to Convex). |
+| `NVIDIA_API_KEY` | **AI generation.** Free key from <https://build.nvidia.com> → profile → API Keys. Without it AI is disabled and the panel offers templates instead. |
+| `NVIDIA_MODELS` | Optional comma-separated model chain, first = preferred. |
+| `AI_RATE_LIMIT_PER_HOUR` | Optional per-user cap (default 40; plus 6/minute burst). |
+
+### AI models (NVIDIA)
+
+Groq has been replaced by NVIDIA NIM's OpenAI-compatible API. The default chain, best first:
+
+1. `nvidia/nemotron-3-super-120b-a12b`: strong structured output, efficient MoE
+2. `mistralai/mistral-large-2-instruct`: very reliable at JSON
+3. `nvidia/llama-3.1-nemotron-70b-instruct`
+4. `nvidia/nemotron-3.5-lightning-30b-a3b`: fast fallback
+
+Each request tries a model, feeds failures back for one repair pass, then falls through to the next model on
+timeouts / 5xx / rate limits. Check which work for **your** key (free-tier availability varies):
+
 ```bash
-npx convex dev
+npm run ai:check            # model availability, latency, JSON compliance
+npm run ai:check -- --full  # also runs a real end-to-end generation
 ```
-
-### 5. Start Next.js Client
-Start the frontend development server:
-```bash
-npm run dev
-```
-
-Your application will now be running on [http://localhost:3000](http://localhost:3000).
 
 ---
 
-<div align="center">
-  <i>Built with passion for modern engineering teams.</i>
-</div>
+## How it works
+
+```mermaid
+graph LR
+  B[Browser<br/>Canvas engine + React UI] -- "elements.apply (batched)" --> C[(Convex)]
+  C -- "4 sharded subscriptions" --> B
+  B -- "cursors (throttled)" --> C
+  B -- "prompt" --> R[Next.js /api/ai/generate]
+  R -- "auth + rate limit" --> C
+  R -- "stream" --> N[NVIDIA NIM]
+  R -- "validated graph" --> B
+  B -- "ELK layout (in-browser)" --> B
+```
+
+* **One row per element**, split over 4 shards, instead of one JSON blob per board. A drag is *one* small
+  mutation, concurrent editors never overwrite each other, and a change re-sends ~1/4 of the board, not all of it.
+* **Layout runs in the browser.** The server only proxies the model and validates JSON, so AI cost scales with
+  model usage, not server CPU.
+* **Presence is throttled and coalesced**: at most one in-flight update per tab, with the send rate backing off
+  as a room grows; remote cursors are interpolated client-side so low update rates still look smooth.
+* **Access control lives in one resolver** (`convex/access.ts`): workspace roles, legacy owners and link sharing.
+
+Details, trade-offs and the upgrade path to a dedicated realtime service are in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+### Upgrading existing boards
+
+Boards saved by the previous version (the whole canvas in one JSON string) are converted to per-element rows
+the first time an editor opens them (`lib/canvas/legacy.ts` → `elements.importLegacy`). Viewers see the converted
+board immediately; nothing is lost. Images larger than 250 KB that were stored inline are skipped with a notice.
+
+---
+
+## Keyboard shortcuts
+
+Press **`?`** in the app. Highlights: `V` select · `H` hand · `R`/`O`/`D` shapes · `A` arrow · `L` line · `P` pen ·
+`T` text · `N` sticky · `F` frame · `E` eraser · `Ctrl+K` command palette · `Tab` add connected node ·
+`Ctrl+D` duplicate · `Ctrl+G` group · `Shift+1` fit.
+
+---
+
+## Project layout
+
+```
+app/                 routes: dashboard, canvas/[id], playground, api/ai/generate
+components/canvas/   React UI: toolbar, properties, library, export, share, text editor, cursors
+components/ai-panel/ AI drawer (prompting, progress, edit-in-place, code view)
+lib/canvas/          engine: store + history, renderer, router, hit-testing, snapping, export
+lib/diagram/         graph model, ELK layout, DSL parser/serializer, templates
+lib/ai/              NVIDIA client, prompts, JSON repair, rate limiting
+convex/              schema, elements, presence, access control, uploads, cron sweepers
+tests/               vitest: engine, router, layout (overlap-free), DSL, AI plumbing, Convex backend
+```
+
+## Development
+
+```bash
+npm test              # 97 unit + backend tests (Convex logic runs in convex-test's in-memory runtime)
+npm run typecheck
+npm run lint
+npm run build
+npm run icons:build   # regenerate the brand-logo set from simple-icons
+```
+
+---
+
+## Status & known limitations
+
+Verified: typecheck, lint, production build, unit tests (including layout overlap checks on random 60-node
+graphs and the Convex access rules), and the canvas interactions in a real browser via `/playground`.
+
+Not verified in this environment (needs your credentials): signed-in flows against a live Convex/Clerk
+deployment, and real model output from NVIDIA (the NVIDIA plumbing is tested against a mocked streaming API).
+
+Not built (compared with Eraser): comments / @mentions, version history, PDF export, Mermaid import, embeds,
+CRDT co-editing of the rich-text *Doc* view (it saves last-writer-wins). Cursor traffic goes through the database,
+which is great for typical team sizes (≲ 25 people per board); beyond that, plug a dedicated realtime transport
+into `PresenceChannel` (see ARCHITECTURE.md).
+
+The landing page's Razorpay checkout confirms payments on the client only; add server-side signature
+verification and persist the plan before relying on it for billing.
