@@ -58,10 +58,9 @@ See [`.env.example`](.env.example) for the full list. The ones that matter most:
 
 Groq has been replaced by NVIDIA NIM's OpenAI-compatible API. The default chain, best first:
 
-1. `nvidia/nemotron-3-super-120b-a12b`: strong structured output, efficient MoE
-2. `mistralai/mistral-large-2-instruct`: very reliable at JSON
-3. `nvidia/llama-3.1-nemotron-70b-instruct`
-4. `nvidia/nemotron-3.5-lightning-30b-a3b`: fast fallback
+1. `nvidia/nemotron-3-ultra-550b-a55b`: highest capability, great at structured diagram JSON
+2. `nvidia/nemotron-3.5-super-vl-120b-a12b`: fast, low latency
+3. `nvidia/nemotron-3-super-120b-a12b`: efficient fallback MoE
 
 Each request tries a model, feeds failures back for one repair pass, then falls through to the next model on
 timeouts / 5xx / rate limits. Check which work for **your** key (free-tier availability varies):

@@ -28,10 +28,9 @@ export interface ChatMessage {
  * Override with NVIDIA_MODELS="a,b,c" (comma separated, first = preferred).
  */
 export const DEFAULT_MODELS = [
+  "nvidia/nemotron-3-ultra-550b-a55b",
+  "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "nvidia/nemotron-3-super-120b-a12b",
-  "mistralai/mistral-large-2-instruct",
-  "nvidia/llama-3.1-nemotron-70b-instruct",
-  "nvidia/nemotron-3.5-lightning-30b-a3b",
 ];
 
 export interface NvidiaConfig {
