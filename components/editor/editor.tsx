@@ -27,7 +27,7 @@ import { common, createLowlight } from "lowlight";
 import { Callout } from "@/components/editor/extensions/callout";
 import { Toggle } from "@/components/editor/extensions/toggle";
 import { ColumnBlock, Column } from "@/components/editor/extensions/columns";
-import { CheckSquare, FileText, Heading1, ImagePlus, Search, Sparkles, Table2, Type, Info, Columns2, ListTree, UploadCloud } from "lucide-react";
+import { CheckSquare, FileText, Heading1, ImagePlus, Network, Search, Sparkles, Table2, Type, Info, Columns2, ListTree, UploadCloud } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ import {
   tiptapContentToMarkdown,
 } from "@/components/editor/markdown-parser";
 import { useDebouncedCallback } from "@/components/editor/hooks/use-debounced-callback";
+import type { DocBridge } from "@/components/editor/doc-bridge";
 import type { Editor } from "@tiptap/react";
 
 const lowlight = createLowlight(common);
@@ -60,6 +61,10 @@ interface DocumentEditorProps {
     json: string;
   }) => Promise<void> | void;
   onSearchCommand?: () => void;
+  /** Lets the canvas side reach the live editor (word count, snapshots, generated docs). */
+  bridge?: DocBridge;
+  /** Powers the /canvas-snapshot slash command. */
+  onInsertCanvasSnapshot?: () => void;
 }
 
 type SlashState = {
@@ -140,7 +145,7 @@ function normalizeInitialContent(initialMarkdown?: string | null, initialJson?: 
   return DEFAULT_DOCUMENT_CONTENT;
 }
 
-function makeSlashItems(editor: Editor, callbacks: { onOpenImageDialog: () => void; onSearchCommand?: () => void }): SlashCommandItem[] {
+function makeSlashItems(editor: Editor, callbacks: { onOpenImageDialog: () => void; onSearchCommand?: () => void; onInsertCanvasSnapshot?: () => void }): SlashCommandItem[] {
   return [
     {
       id: "heading",
@@ -250,6 +255,19 @@ function makeSlashItems(editor: Editor, callbacks: { onOpenImageDialog: () => vo
       keywords: ["image", "photo", "picture"],
       action: callbacks.onOpenImageDialog,
     },
+    ...(callbacks.onInsertCanvasSnapshot
+      ? [
+          {
+            id: "canvas-snapshot",
+            title: "Canvas snapshot",
+            description: "Insert a picture of the selected canvas elements",
+            icon: Network,
+            category: "media" as const,
+            keywords: ["canvas", "snapshot", "diagram", "capture", "board"],
+            action: callbacks.onInsertCanvasSnapshot,
+          },
+        ]
+      : []),
     {
       id: "callout",
       title: "Callout",
@@ -295,6 +313,8 @@ export function DocumentEditor({
   readOnly = false,
   onPersist,
   onSearchCommand,
+  bridge,
+  onInsertCanvasSnapshot,
 }: DocumentEditorProps) {
   const [isLinkDialogOpen, setIsLinkDialogOpen] = React.useState(false);
   const [linkUrl, setLinkUrl] = React.useState("");
@@ -553,10 +573,17 @@ export function DocumentEditor({
     [readOnly, initialContent]
   );
 
+  React.useEffect(() => {
+    if (!bridge) return;
+    bridge.attach(editor);
+    return () => bridge.attach(null);
+  }, [bridge, editor]);
+
   const filteredSlashItems = editor
     ? makeSlashItems(editor, {
         onOpenImageDialog: () => setIsImageDialogOpen(true),
         onSearchCommand,
+        onInsertCanvasSnapshot,
       }).filter((item) => {
         const query = slashState.query.toLowerCase();
         if (!query) return true;

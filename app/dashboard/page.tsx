@@ -4,38 +4,58 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
-import { useUser, UserButton } from "@clerk/nextjs";
+import { ConvexError } from "convex/values";
+import { useMutation, useQuery } from "convex/react";
+import { UserButton, useUser } from "@clerk/nextjs";
+import { Bell, Check, Clock, Command, Plus, Search, Settings, Share2, Star, Users, X, Briefcase, Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
-import { Doc } from "@/convex/_generated/dataModel";
-
-import {
-  Plus, Search, Clock, Settings, Trash2, MoreHorizontal,
-  Briefcase, Pencil, Bell, Check, X, Users, Share2
-} from "lucide-react";
-
+import type { Id } from "@/convex/_generated/dataModel";
+import { CommandPalette } from "@/components/CommandPalette";
+import { PricingModal } from "@/components/billing/PricingModal";
+import { BoardCard, type CardPerson } from "@/components/dashboard/BoardCard";
+import { InviteDialog } from "@/components/dashboard/InviteDialog";
+import { TemplateRail } from "@/components/dashboard/TemplateRail";
+import { UsageMeter } from "@/components/dashboard/UsageMeter";
+import { WorkspaceSettings } from "@/components/dashboard/WorkspaceSettings";
+import { WorkspaceSwitcher, type SwitcherWorkspace } from "@/components/dashboard/WorkspaceSwitcher";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { CommandPalette } from "@/components/CommandPalette";
+import { isBillingErrorData, type BillingErrorCode } from "@/lib/billing/limits";
+import type { StarterId, StarterTemplate } from "@/lib/diagram/starter-templates";
 
 export type DashboardTab = "recent" | "shared" | "settings";
 
-const CARD_ACCENTS = [
-  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-violet-400", stripe: "from-[#2B2B2B] to-[#333333]" },
-  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-sky-400",    stripe: "from-[#2B2B2B] to-[#333333]" },
-  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-emerald-400",stripe: "from-[#2B2B2B] to-[#333333]" },
-  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-amber-400",  stripe: "from-[#2B2B2B] to-[#333333]" },
-  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-rose-400",   stripe: "from-[#2B2B2B] to-[#333333]" },
-  { border: "border-[#2B2B2B]", gradient: "from-[#101010] to-[#141414]", dot: "bg-cyan-400",   stripe: "from-[#2B2B2B] to-[#333333]" },
-];
+const surface = "border border-white/[0.07] bg-[#121215]";
 
-function getAccent(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  return CARD_ACCENTS[Math.abs(hash) % CARD_ACCENTS.length];
+function NavButton({ active, onClick, icon: Icon, children, badge }: { active: boolean; onClick: () => void; icon: React.ElementType; children: React.ReactNode; badge?: number }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      className={`relative flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-1 focus-visible:ring-indigo-400/60 ${
+        active ? "bg-white/[0.07] text-white" : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
+      }`}
+    >
+      {active && <span aria-hidden className="absolute -left-2 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-indigo-400" />}
+      <Icon className={`h-4 w-4 ${active ? "text-indigo-300" : "text-zinc-500"}`} />
+      <span className="flex-1 text-left">{children}</span>
+      {badge ? <span className="min-w-[18px] rounded-full bg-sky-500/20 px-1.5 py-0.5 text-center text-[10px] font-bold text-sky-300">{badge}</span> : null}
+    </button>
+  );
 }
+
+function SectionTitle({ icon: Icon, children, count }: { icon?: React.ElementType; children: React.ReactNode; count?: number }) {
+  return (
+    <h3 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+      {Icon && <Icon className="h-3.5 w-3.5" />}
+      {children}
+      {count !== undefined && <span className="rounded-full bg-white/[0.06] px-1.5 py-px text-[10px] tabular-nums text-zinc-400">{count}</span>}
+    </h3>
+  );
+}
+
+const grid = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -43,57 +63,62 @@ export default function DashboardPage() {
 
   const workspaces = useQuery(api.workspaces.listMyWorkspaces);
   const createWorkspace = useMutation(api.workspaces.create);
-  const renameWorkspace = useMutation(api.workspaces.renameWorkspace);
   const [selectedWorkspaceId, setActiveWorkspaceId] = React.useState<Id<"workspaces"> | null>(null);
   // Fall back to the first workspace until the user picks one.
   const activeWorkspaceId = selectedWorkspaceId ?? (workspaces && workspaces.length > 0 ? (workspaces[0]._id as Id<"workspaces">) : null);
+  const activeWorkspace = (workspaces?.find((w) => w._id === activeWorkspaceId) ?? null) as SwitcherWorkspace | null;
 
   const slates = useQuery(api.slates.list, activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip");
   const sharedSlates = useQuery(api.slates.listShared);
   const sharedByMeSlates = useQuery(api.slates.listSharedByMe);
   const pendingInvites = useQuery(api.workspaces.getMyPendingInvites);
+  const billing = useQuery(api.billing.getMyBilling);
   const respondToInvite = useMutation(api.workspaces.respondToInvite);
   const createSlate = useMutation(api.slates.create);
   const removeSlate = useMutation(api.slates.remove);
   const renameSlate = useMutation(api.slates.rename);
+  const setFavorite = useMutation(api.slates.setFavorite);
 
   const [respondingId, setRespondingId] = React.useState<string | null>(null);
-
-  const handleInviteResponse = async (inviteId: Id<"invites">, accept: boolean) => {
-    setRespondingId(inviteId);
-    try {
-      await respondToInvite({ inviteId, accept });
-      if (accept) {
-        // refresh workspace list by clearing the cached active workspace
-        setActiveWorkspaceId(null);
-      }
-    } catch (err) { console.error(err); }
-    finally { setRespondingId(null); }
-  };
-
   const [activeTab, setActiveTab] = React.useState<DashboardTab>("recent");
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [starredOnly, setStarredOnly] = React.useState(false);
   const [isCommandOpen, setIsCommandOpen] = React.useState(false);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [newTitle, setNewTitle] = React.useState("");
   const [isCreating, setIsCreating] = React.useState(false);
   const [isCreateWorkspaceOpen, setIsCreateWorkspaceOpen] = React.useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = React.useState("");
+  const [isInviteOpen, setIsInviteOpen] = React.useState(false);
+  const [pricing, setPricing] = React.useState<{ open: boolean; reason: BillingErrorCode | null }>({ open: false, reason: null });
+  const [templateBusy, setTemplateBusy] = React.useState<StarterId | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
 
-  // Inline slate rename
-  const [editingSlateId, setEditingSlateId] = React.useState<Id<"slates"> | null>(null);
-  const [editingSlateText, setEditingSlateText] = React.useState("");
-  const slateInputRef = React.useRef<HTMLInputElement>(null);
+  const openPricing = React.useCallback((reason: BillingErrorCode | null = null) => setPricing({ open: true, reason }), []);
 
-  // Inline workspace rename
-  const [editingWorkspaceId, setEditingWorkspaceId] = React.useState<Id<"workspaces"> | null>(null);
-  const [editingWorkspaceText, setEditingWorkspaceText] = React.useState("");
-  const workspaceInputRef = React.useRef<HTMLInputElement>(null);
+  /** True when the free plan has no room for another board; the pricing modal explains why. */
+  const atBoardLimit = !!billing && billing.boards.limit !== null && billing.boards.used !== null && billing.boards.used >= billing.boards.limit;
 
-  React.useEffect(() => { if (editingSlateId && slateInputRef.current) slateInputRef.current.focus(); }, [editingSlateId]);
-  React.useEffect(() => { if (editingWorkspaceId && workspaceInputRef.current) workspaceInputRef.current.focus(); }, [editingWorkspaceId]);
+  const showError = (e: unknown, fallback: string) => {
+    if (e instanceof ConvexError && isBillingErrorData(e.data)) {
+      openPricing(e.data.code);
+      return;
+    }
+    console.error(e);
+    setNotice(e instanceof Error ? e.message.replace(/^.*Uncaught Error:\s*/, "") : fallback);
+  };
 
-  const getRandomIcon = () => (Math.floor(Math.random() * 5) + 1).toString();
+  const handleInviteResponse = async (inviteId: Id<"invites">, accept: boolean) => {
+    setRespondingId(inviteId);
+    try {
+      await respondToInvite({ inviteId, accept });
+      if (accept) setActiveWorkspaceId(null); // refresh the workspace list by clearing the cached selection
+    } catch (err) {
+      showError(err, "Could not answer that invitation");
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +128,15 @@ export default function DashboardPage() {
       setActiveWorkspaceId(id);
       setIsCreateWorkspaceOpen(false);
       setNewWorkspaceName("");
-    } catch (err) { console.error(err); }
+      setActiveTab("recent");
+    } catch (err) {
+      showError(err, "Could not create the workspace");
+    }
+  };
+
+  const requestNewBoard = () => {
+    if (atBoardLimit) openPricing("board_limit");
+    else setIsCreateOpen(true);
   };
 
   const handleCreateSlate = async (e: React.FormEvent) => {
@@ -111,209 +144,208 @@ export default function DashboardPage() {
     if (!newTitle.trim() || !activeWorkspaceId) return;
     setIsCreating(true);
     try {
-      const id = await createSlate({ title: newTitle.trim(), workspaceId: activeWorkspaceId, thumbnailIcon: getRandomIcon() });
+      const id = await createSlate({ title: newTitle.trim(), workspaceId: activeWorkspaceId, thumbnailIcon: String(Math.floor(Math.random() * 5) + 1) });
       setIsCreateOpen(false);
       setNewTitle("");
       router.push(`/canvas/${id}`);
-    } catch (err) { console.error(err); }
-    finally { setIsCreating(false); }
+    } catch (err) {
+      setIsCreateOpen(false);
+      showError(err, "Could not create the board");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const commitSlateRename = async () => {
-    if (!editingSlateId || !editingSlateText.trim()) { setEditingSlateId(null); return; }
-    try { await renameSlate({ id: editingSlateId, title: editingSlateText.trim() }); }
-    catch (err) { console.error(err); }
-    finally { setEditingSlateId(null); }
+  /** Clones a starter: creates the board, then the canvas lays the template out when it opens. */
+  const handleTemplate = async (t: StarterTemplate) => {
+    if (!activeWorkspaceId || templateBusy) {
+      if (!activeWorkspaceId) setNotice("Create or select a workspace first.");
+      return;
+    }
+    if (atBoardLimit) {
+      openPricing("board_limit");
+      return;
+    }
+    setTemplateBusy(t.id);
+    try {
+      const id = await createSlate({ title: t.boardTitle, workspaceId: activeWorkspaceId, thumbnailIcon: t.thumbnailIcon });
+      router.push(`/canvas/${id}?template=${t.id}`);
+    } catch (err) {
+      showError(err, "Could not create the board");
+      setTemplateBusy(null);
+    }
   };
 
-  const commitWorkspaceRename = async () => {
-    if (!editingWorkspaceId || !editingWorkspaceText.trim()) { setEditingWorkspaceId(null); return; }
-    try { await renameWorkspace({ id: editingWorkspaceId, name: editingWorkspaceText.trim() }); }
-    catch (err) { console.error(err); }
-    finally { setEditingWorkspaceId(null); }
+  const toggleFavorite = (id: string, favorite: boolean) => {
+    setFavorite({ id: id as Id<"slates">, favorite }).catch((err) => showError(err, "Could not update the star"));
+  };
+  const rename = (id: string, title: string) => {
+    renameSlate({ id: id as Id<"slates">, title }).catch((err) => showError(err, "Could not rename the board"));
+  };
+  const remove = (id: string) => {
+    const slate = slates?.find((s) => s._id === id);
+    if (!window.confirm(`Delete “${slate?.title ?? "this board"}”? It will be removed from your dashboard.`)) return;
+    removeSlate({ id: id as Id<"slates"> }).catch((err) => showError(err, "Could not delete the board"));
   };
 
-  const filteredSlates = (slates || []).filter((s) =>
-    s.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredSharedSlates = (sharedSlates || []).filter((s) =>
-    s.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredSharedByMe = (sharedByMeSlates || []).filter((s) =>
-    s.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+  const q = searchQuery.trim().toLowerCase();
+  const matches = <T extends { title: string; isFavorite: boolean }>(s: T) => s.title.toLowerCase().includes(q) && (!starredOnly || s.isFavorite);
+  const filteredSlates = (slates ?? []).filter(matches);
+  const starred = filteredSlates.filter((s) => s.isFavorite);
+  const rest = starredOnly ? [] : filteredSlates.filter((s) => !s.isFavorite);
+  const filteredShared = (sharedSlates ?? []).filter(matches);
+  const filteredSharedByMe = (sharedByMeSlates ?? []).filter(matches);
   const totalSharedCount = (sharedSlates?.length || 0) + (sharedByMeSlates?.length || 0);
 
-  return (
-    <div className="flex h-screen w-screen bg-[#0A0A0A] text-white font-sans selection:bg-white/20 select-none overflow-hidden">
+  // Who is on the boards in view right now (refreshes as collaborators come and go).
+  const visibleIds = activeTab === "recent" ? filteredSlates.map((s) => s._id).slice(0, 40) : [];
+  const presence = useQuery(api.presence.activeOnSlates, visibleIds.length ? { slateIds: visibleIds } : "skip");
+  const peopleBySlate = React.useMemo(() => {
+    const map = new Map<string, CardPerson[]>();
+    for (const p of presence ?? []) map.set(p.slateId, p.people);
+    return map;
+  }, [presence]);
 
-      <CommandPalette
-        open={isCommandOpen}
-        onOpenChange={setIsCommandOpen}
-        onNewSlate={() => setIsCreateOpen(true)}
-        onGoDashboard={() => setActiveTab("recent")}
-        onAiGenerate={() => {}}
-      />
+  return (
+    <div className="flex h-screen w-screen select-none overflow-hidden bg-[#09090b] font-sans text-white selection:bg-indigo-500/30">
+      <CommandPalette open={isCommandOpen} onOpenChange={setIsCommandOpen} onNewSlate={requestNewBoard} onGoDashboard={() => setActiveTab("recent")} onAiGenerate={() => {}} />
+      <PricingModal open={pricing.open} onOpenChange={(open) => setPricing((p) => ({ ...p, open }))} reason={pricing.reason} />
+      <InviteDialog open={isInviteOpen} onOpenChange={setIsInviteOpen} workspace={activeWorkspace ? { id: activeWorkspace._id, name: activeWorkspace.name } : null} />
 
       {/* SIDEBAR */}
-      <aside className="w-64 h-full border-r border-[#2B2B2B] bg-[#101010] flex flex-col justify-between shrink-0 p-4">
-        <div className="space-y-6">
-          <div className="flex items-center px-2">
-            <Link href="/" className="flex items-center gap-2.5">
-              <Image src="/logo.svg" alt="Slate" width={26} height={26} className="rounded-lg shadow-sm" />
-              <h2 className="font-bold text-xs tracking-tight text-white leading-tight">
-                {user?.fullName ? `${user.fullName}'s Slate` : "Slate Workspace"}
-              </h2>
+      <aside className="flex h-full w-64 shrink-0 flex-col justify-between border-r border-white/[0.06] bg-[#09090b] p-3">
+        <div className="space-y-5">
+          <div className="flex items-center justify-between px-1.5 pt-1">
+            <Link href="/" className="flex items-center gap-2" aria-label="Slate home">
+              <Image src="/logo.svg" alt="" width={24} height={24} className="rounded-md" />
+              <span className="text-[13px] font-bold tracking-tight">Slate</span>
             </Link>
+            <button
+              type="button"
+              onClick={() => setIsCommandOpen(true)}
+              className="flex cursor-pointer items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-1.5 py-1 text-[10.5px] font-medium text-zinc-500 transition-colors hover:text-zinc-200"
+              title="Search & quick actions"
+            >
+              <Command className="h-3 w-3" /> K
+            </button>
           </div>
 
-          <div className="space-y-2">
-            <label className="px-3 text-[10px] font-bold text-[#808080] uppercase tracking-wider">Workspaces</label>
-            <div className="space-y-1 max-h-48 overflow-y-auto px-1">
-              {workspaces?.map((w) => (
-                <div key={w._id} className="group relative">
-                  {editingWorkspaceId === w._id ? (
-                    <input
-                      ref={workspaceInputRef}
-                      value={editingWorkspaceText}
-                      onChange={(e) => setEditingWorkspaceText(e.target.value)}
-                      onBlur={commitWorkspaceRename}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitWorkspaceRename();
-                        if (e.key === "Escape") setEditingWorkspaceId(null);
-                      }}
-                      className="w-full px-2 py-1.5 rounded-lg border border-white bg-[#202020] text-xs font-semibold text-white outline-none"
-                    />
-                  ) : (
-                    <div className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      activeWorkspaceId === w._id
-                        ? "bg-[#202020] text-white border border-[#2B2B2B]"
-                        : "text-[#C5C5C5] hover:bg-[#1A1A1A] hover:text-white border border-transparent"
-                    }`}>
-                      <button onClick={() => setActiveWorkspaceId(w._id as Id<"workspaces">)} className="flex items-center gap-2 truncate flex-1 cursor-pointer">
-                        <Briefcase className="w-3.5 h-3.5 text-[#808080] shrink-0" />
-                        <span className="truncate">{w.name}</span>
-                      </button>
-                      <button
-                        onClick={() => { setEditingWorkspaceId(w._id as Id<"workspaces">); setEditingWorkspaceText(w.name ?? ""); }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-[#808080] hover:text-white shrink-0"
-                        title="Rename workspace"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-              <button
-                onClick={() => setIsCreateWorkspaceOpen(true)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium text-[#808080] hover:text-white hover:bg-[#1A1A1A] transition-all cursor-pointer mt-1"
-              >
-                <Plus className="w-3.5 h-3.5" /><span>New Workspace</span>
-              </button>
-            </div>
-          </div>
+          <WorkspaceSwitcher
+            workspaces={workspaces as SwitcherWorkspace[] | undefined}
+            activeId={activeWorkspaceId}
+            fallbackName={user?.fullName ? `${user.fullName}'s Slate` : "Slate Workspace"}
+            onSelect={(id) => {
+              setActiveWorkspaceId(id as Id<"workspaces">);
+              setActiveTab("recent");
+            }}
+            onCreate={() => setIsCreateWorkspaceOpen(true)}
+            onSettings={() => setActiveTab("settings")}
+            onInvite={() => setIsInviteOpen(true)}
+          />
 
-          <nav className="space-y-1">
-            <button onClick={() => setActiveTab("recent")}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "recent" ? "bg-[#202020] text-white border border-[#2B2B2B]" : "text-[#C5C5C5] hover:bg-[#1A1A1A] border border-transparent"
-              }`}>
-              <Clock className="w-4 h-4 text-[#808080]" />
-              <span>Slates</span>
-            </button>
-            <button onClick={() => setActiveTab("shared")}
-              className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "shared" ? "bg-[#202020] text-white border border-[#2B2B2B]" : "text-[#C5C5C5] hover:bg-[#1A1A1A] border border-transparent"
-              }`}>
-              <div className="flex items-center gap-2.5">
-                <Share2 className="w-4 h-4 text-[#808080]" />
-                <span>Shared Slates</span>
-              </div>
-              {totalSharedCount > 0 && (
-                <span className="text-[10px] font-bold bg-sky-600/80 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
-                  {totalSharedCount}
-                </span>
-              )}
-            </button>
-            <button onClick={() => setActiveTab("settings")}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "settings" ? "bg-[#202020] text-white border border-[#2B2B2B]" : "text-[#C5C5C5] hover:bg-[#1A1A1A] border border-transparent"
-              }`}>
-              <Settings className="w-4 h-4 text-[#808080]" />
-              <span>Settings &amp; Members</span>
-            </button>
+          <nav className="space-y-0.5 pl-2" aria-label="Dashboard">
+            <NavButton active={activeTab === "recent"} onClick={() => setActiveTab("recent")} icon={Clock}>
+              Slates
+            </NavButton>
+            <NavButton active={activeTab === "shared"} onClick={() => setActiveTab("shared")} icon={Share2} badge={totalSharedCount}>
+              Shared Slates
+            </NavButton>
+            <NavButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon={Settings}>
+              Settings &amp; Members
+            </NavButton>
           </nav>
         </div>
 
-        <div className="pt-4 border-t border-[#2B2B2B] flex items-center gap-2.5 px-2">
-          <UserButton />
-          <p className="text-xs font-bold text-white truncate">{user?.fullName || "Developer"}</p>
+        <div className="space-y-3">
+          <UsageMeter billing={billing} onUpgrade={() => openPricing(null)} />
+          <div className="flex items-center gap-2.5 border-t border-white/[0.06] px-1.5 pt-3">
+            <UserButton />
+            <p className="truncate text-[12.5px] font-medium text-zinc-200">{user?.fullName || "Developer"}</p>
+          </div>
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0A0A]">
-        <header className="h-16 border-b border-[#2B2B2B] px-8 flex items-center justify-between shrink-0">
-          <h1 className="text-sm font-bold text-white tracking-tight uppercase">
-            {activeTab === "recent" && "Workspace Slates"}
+      {/* MAIN */}
+      <main className="flex h-full flex-1 flex-col overflow-hidden bg-[#09090b]">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] px-8">
+          <h1 className="text-[13px] font-semibold tracking-tight text-white">
+            {activeTab === "recent" && (activeWorkspace?.name ?? "Slates")}
             {activeTab === "shared" && "Shared Slates"}
             {activeTab === "settings" && "Workspace Settings"}
           </h1>
-          {activeTab === "recent" && (
-            <div className="flex items-center gap-3">
+          {activeTab !== "settings" && (
+            <div className="flex items-center gap-2.5">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-[#808080] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input type="text" placeholder="Filter boards..." value={searchQuery}
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="Filter boards…"
+                  value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-4 py-1.5 rounded-xl border border-[#2B2B2B] bg-[#141414] text-xs text-white placeholder-[#666] outline-none w-56 focus:border-white transition-colors" />
+                  aria-label="Filter boards"
+                  className="h-9 w-56 rounded-lg border border-white/[0.08] bg-[#121215] pl-9 pr-3 text-[12.5px] text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-indigo-400/60"
+                />
               </div>
-              <Button onClick={() => setIsCreateOpen(true)}
-                className="rounded-xl bg-white hover:bg-[#e5e5e5] text-black text-xs font-semibold h-9 px-4 flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <Plus className="w-4 h-4" /> New Board
-              </Button>
+              <button
+                type="button"
+                aria-pressed={starredOnly}
+                onClick={() => setStarredOnly((v) => !v)}
+                className={`flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-medium transition-colors ${starredOnly ? "border-amber-400/30 bg-amber-400/10 text-amber-300" : "border-white/[0.08] bg-[#121215] text-zinc-400 hover:text-white"}`}
+              >
+                <Star className={`h-3.5 w-3.5 ${starredOnly ? "fill-amber-300" : ""}`} /> Starred
+              </button>
+              {activeTab === "recent" && (
+                <Button onClick={requestNewBoard} className="h-9 cursor-pointer gap-1.5 rounded-lg bg-white px-3.5 text-[12.5px] font-semibold text-black shadow-sm hover:bg-zinc-200">
+                  <Plus className="h-4 w-4" /> New Board
+                </Button>
+              )}
             </div>
           )}
         </header>
 
-        {/* Pending Invites Banner */}
+        {notice && (
+          <div role="alert" className="flex shrink-0 items-center justify-between gap-3 border-b border-red-500/20 bg-red-500/[0.07] px-8 py-2 text-[12.5px] text-red-200">
+            <span>{notice}</span>
+            <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" className="cursor-pointer rounded p-0.5 hover:bg-white/10">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {pendingInvites && pendingInvites.length > 0 && (
-          <div className="border-b border-amber-500/20 bg-amber-950/20 px-8 py-3 space-y-2 shrink-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Bell className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">Pending Workspace Invitations</span>
+          <div className="shrink-0 space-y-2 border-b border-amber-500/15 bg-amber-500/[0.04] px-8 py-3">
+            <div className="flex items-center gap-2">
+              <Bell className="h-3.5 w-3.5 text-amber-400" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">Pending workspace invitations</span>
             </div>
             {pendingInvites.map((invite) => (
-              <div key={invite._id} className="flex items-center justify-between gap-4 p-3 rounded-xl bg-amber-950/30 border border-amber-500/20">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Briefcase className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <div key={invite._id} className="flex items-center justify-between gap-4 rounded-xl border border-amber-500/15 bg-amber-500/[0.05] p-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Briefcase className="h-3.5 w-3.5 shrink-0 text-amber-400" />
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate">
-                      {invite.workspaceName || "Unknown Workspace"}
-                    </p>
-                    <p className="text-[11px] text-[#808080]">
-                      Invited as <span className="text-amber-400 font-semibold">{invite.role}</span>
+                    <p className="truncate text-[12.5px] font-semibold text-white">{invite.workspaceName || "Unknown Workspace"}</p>
+                    <p className="text-[11px] text-zinc-500">
+                      Invited as <span className="font-semibold text-amber-400">{invite.role}</span>
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex shrink-0 items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => handleInviteResponse(invite._id, true)}
                     disabled={respondingId === invite._id}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                    className="flex cursor-pointer items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
                   >
-                    <Check className="w-3 h-3" />
-                    {respondingId === invite._id ? "..." : "Accept"}
+                    <Check className="h-3 w-3" />
+                    {respondingId === invite._id ? "…" : "Accept"}
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleInviteResponse(invite._id, false)}
                     disabled={respondingId === invite._id}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#202020] hover:bg-rose-950 border border-rose-500/30 text-rose-400 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                    className="flex cursor-pointer items-center gap-1 rounded-lg border border-rose-500/30 bg-white/[0.03] px-3 py-1.5 text-xs font-bold text-rose-400 transition-colors hover:bg-rose-950 disabled:opacity-50"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="h-3 w-3" />
                     Decline
                   </button>
                 </div>
@@ -322,237 +354,153 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="flex-1 p-8 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-8 py-6 [scrollbar-width:thin]">
           {activeTab === "recent" && (
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080]">Active Workspace Slates</h3>
-              {filteredSlates.length === 0 ? (
-                <div className="p-16 text-center rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-4">
-                  <h4 className="text-sm font-bold text-white">No Slates Found</h4>
-                  <p className="text-xs text-[#808080]">Create your first infinite whiteboard canvas.</p>
-                  <Button onClick={() => setIsCreateOpen(true)} className="bg-white text-black rounded-xl">Create New Slate</Button>
+            <div className="space-y-8">
+              <TemplateRail onPick={handleTemplate} busyId={templateBusy} disabled={!activeWorkspaceId} />
+
+              {slates === undefined && activeWorkspaceId ? (
+                <div className={grid} aria-label="Loading boards">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-[268px] animate-pulse rounded-2xl border border-white/[0.05] bg-[#121215]" />
+                  ))}
+                </div>
+              ) : filteredSlates.length === 0 ? (
+                <div className={`space-y-3 rounded-2xl p-14 text-center ${surface}`}>
+                  <h4 className="text-sm font-semibold text-white">{q || starredOnly ? "No boards match" : "No boards yet"}</h4>
+                  <p className="text-xs text-zinc-500">{q || starredOnly ? "Try another search, or clear the filters." : "Pick a template above, or start from a blank canvas."}</p>
+                  {!q && !starredOnly && (
+                    <Button onClick={requestNewBoard} className="rounded-lg bg-white text-black hover:bg-zinc-200">
+                      Create a board
+                    </Button>
+                  )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredSlates.map((slate) => {
-                    const accent = getAccent(slate._id);
-                    return (
-                      <div key={slate._id}
-                        className={`group rounded-2xl border ${accent.border} bg-[#141414] hover:bg-[#181818] transition-all flex flex-col overflow-hidden shadow-md hover:shadow-lg hover:shadow-black/40`}>
-
-                        {/* Thumbnail */}
-                        <Link href={`/canvas/${slate._id}`}
-                          className={`relative h-48 flex items-center justify-center bg-gradient-to-br ${accent.gradient} overflow-hidden border-b ${accent.border}`}>
-                          {/* Top accent stripe */}
-                          <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${accent.stripe}`} />
-                          <Image
-                            src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : '/illustration_1.svg'}
-                            alt="Slate" fill
-                            className="object-cover opacity-75 group-hover:scale-105 transition-transform duration-500 mix-blend-luminosity"
-                          />
-                        </Link>
-
-                        {/* Footer */}
-                        <div className="p-4 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div className={`w-2 h-2 rounded-full shrink-0 ${accent.dot}`} />
-                            <div className="min-w-0 flex-1">
-                              {editingSlateId === slate._id ? (
-                                <input
-                                  ref={slateInputRef}
-                                  value={editingSlateText}
-                                  onChange={(e) => setEditingSlateText(e.target.value)}
-                                  onBlur={commitSlateRename}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") commitSlateRename();
-                                    if (e.key === "Escape") setEditingSlateId(null);
-                                  }}
-                                  onClick={(e) => e.preventDefault()}
-                                  className="w-full bg-[#202020] border border-white/30 rounded-md px-2 py-0.5 text-xs font-bold text-white outline-none"
-                                />
-                              ) : (
-                                <h4
-                                  className="text-xs font-bold text-white truncate cursor-text hover:text-white/80 transition-colors"
-                                  onDoubleClick={() => { setEditingSlateId(slate._id); setEditingSlateText(slate.title); }}
-                                  title="Double-click to rename"
-                                >
-                                  {slate.title}
-                                </h4>
-                              )}
-                              <p className="text-[11px] text-[#808080] font-mono mt-0.5">
-                                Edited {new Date(slate.lastEdited).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger className="p-1.5 rounded-lg text-[#808080] hover:text-white transition-colors outline-none cursor-pointer shrink-0">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="bg-[#101010] border-[#2B2B2B] text-white">
-                              <DropdownMenuItem
-                                onClick={() => { setEditingSlateId(slate._id); setEditingSlateText(slate.title); }}
-                                className="text-xs cursor-pointer flex items-center gap-2">
-                                <Pencil className="w-3.5 h-3.5" /> Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => removeSlate({ id: slate._id })}
-                                className="text-xs text-rose-400 cursor-pointer flex items-center gap-2">
-                                <Trash2 className="w-3.5 h-3.5" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                <>
+                  {starred.length > 0 && (
+                    <section>
+                      <SectionTitle icon={Star} count={starred.length}>
+                        Starred
+                      </SectionTitle>
+                      <div className={grid}>
+                        {starred.map((s) => (
+                          <BoardCard key={s._id} slate={s} people={peopleBySlate.get(s._id)} onToggleFavorite={toggleFavorite} onRename={rename} onDelete={remove} />
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
+                    </section>
+                  )}
+                  {rest.length > 0 && (
+                    <section>
+                      <SectionTitle count={rest.length}>{starred.length > 0 ? "All boards" : "Boards"}</SectionTitle>
+                      <div className={grid}>
+                        {rest.map((s) => (
+                          <BoardCard key={s._id} slate={s} people={peopleBySlate.get(s._id)} onToggleFavorite={toggleFavorite} onRename={rename} onDelete={remove} />
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </>
               )}
             </div>
           )}
 
-          {/* SHARED SLATES TAB */}
           {activeTab === "shared" && (
-            <div className="space-y-8">
-
-              {/* Shared With Me */}
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080] flex items-center gap-2">
-                  <Users className="w-3.5 h-3.5" /> Shared With Me
-                </h3>
-                {filteredSharedSlates.length === 0 ? (
-                  <p className="text-xs text-[#666] py-4">No slates have been shared with you yet.</p>
+            <div className="space-y-10">
+              <section>
+                <SectionTitle icon={Users}>Shared with me</SectionTitle>
+                {filteredShared.length === 0 ? (
+                  <p className="py-4 text-xs text-zinc-600">No slates have been shared with you yet.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filteredSharedSlates.map((slate) => {
-                      const accent = getAccent(slate._id);
-                      return (
-                        <div key={slate._id}
-                          className={`group rounded-2xl border ${accent.border} bg-[#141414] hover:bg-[#181818] transition-all flex flex-col overflow-hidden shadow-md`}>
-                          <Link href={`/canvas/${slate._id}`}
-                            className={`relative h-40 flex items-center justify-center bg-gradient-to-br ${accent.gradient} overflow-hidden border-b ${accent.border}`}>
-                            <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${accent.stripe}`} />
-                            <Image src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : '/illustration_1.svg'}
-                              alt="Slate" fill className="object-cover opacity-75 group-hover:scale-105 transition-transform duration-500 mix-blend-luminosity" />
-                          </Link>
-                          <div className="p-4 space-y-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <h4 className="text-xs font-bold text-white truncate">{slate.title}</h4>
-                                <span className="text-[10px] text-sky-400 font-semibold">{slate.workspaceName}</span>
-                              </div>
-                              <div className={`w-2 h-2 rounded-full shrink-0 mt-1 ${accent.dot}`} />
+                  <div className={grid}>
+                    {filteredShared.map((s) => (
+                      <BoardCard
+                        key={s._id}
+                        slate={{ ...s, workspaceName: s.workspaceName }}
+                        onToggleFavorite={toggleFavorite}
+                        footer={
+                          s.sharedBy ? (
+                            <div className="flex items-center gap-2 border-t border-white/[0.05] px-3.5 py-2.5">
+                              {s.sharedBy.avatar ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={s.sharedBy.avatar} alt="" className="h-5 w-5 shrink-0 rounded-full border border-white/10 object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-[9px] font-bold">{s.sharedBy.name?.charAt(0) || "?"}</span>
+                              )}
+                              <p className="min-w-0 truncate text-[11px] text-zinc-500">
+                                Shared by <span className="font-medium text-zinc-300">{s.sharedBy.name}</span>
+                              </p>
                             </div>
-                            {/* Shared By Info */}
-                            {slate.sharedBy && (
-                              <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-                                {slate.sharedBy.avatar ? (
-                                  <img src={slate.sharedBy.avatar} alt={slate.sharedBy.name} className="w-6 h-6 rounded-full object-cover shrink-0 border border-white/10" />
-                                ) : (
-                                  <div className="w-6 h-6 rounded-full bg-[#333] flex items-center justify-center text-[9px] font-bold text-white shrink-0">
-                                    {slate.sharedBy.name?.charAt(0) || "?"}
-                                  </div>
-                                )}
-                                <div className="min-w-0">
-                                  <p className="text-[11px] text-[#808080] leading-none">Shared by</p>
-                                  <p className="text-[11px] font-semibold text-white truncate">{slate.sharedBy.name}</p>
-                                  {slate.sharedBy.email && <p className="text-[10px] text-[#666] truncate">{slate.sharedBy.email}</p>}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                          ) : null
+                        }
+                      />
+                    ))}
                   </div>
                 )}
-              </div>
+              </section>
 
-              {/* Shared By Me */}
-              <div className="space-y-4 pt-6 border-t border-[#2B2B2B]">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#808080] flex items-center gap-2">
-                  <Share2 className="w-3.5 h-3.5" /> Shared By Me
-                </h3>
+              <section className="border-t border-white/[0.06] pt-8">
+                <SectionTitle icon={Share2}>Shared by me</SectionTitle>
                 {filteredSharedByMe.length === 0 ? (
-                  <p className="text-xs text-[#666] py-4">You haven&apos;t shared any slates yet. Use the Share button inside a slate to invite members.</p>
+                  <p className="py-4 text-xs text-zinc-600">You haven&apos;t shared any slates yet. Use the Share button inside a slate to invite members.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filteredSharedByMe.map((slate) => {
-                      const accent = getAccent(slate._id);
-                      return (
-                        <div key={slate._id}
-                          className={`group rounded-2xl border ${accent.border} bg-[#141414] hover:bg-[#181818] transition-all flex flex-col overflow-hidden shadow-md`}>
-                          <Link href={`/canvas/${slate._id}`}
-                            className={`relative h-40 flex items-center justify-center bg-gradient-to-br ${accent.gradient} overflow-hidden border-b ${accent.border}`}>
-                            <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${accent.stripe}`} />
-                            <Image src={['1','2','3','4','5'].includes(slate.thumbnailIcon) ? `/illustration_${slate.thumbnailIcon}.svg` : '/illustration_1.svg'}
-                              alt="Slate" fill className="object-cover opacity-75 group-hover:scale-105 transition-transform duration-500 mix-blend-luminosity" />
-                          </Link>
-                          <div className="p-4 space-y-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <h4 className="text-xs font-bold text-white truncate">{slate.title}</h4>
-                                <span className="text-[10px] text-emerald-400 font-semibold">{slate.workspaceName}</span>
-                              </div>
-                              <div className={`w-2 h-2 rounded-full shrink-0 mt-1 ${accent.dot}`} />
+                  <div className={grid}>
+                    {filteredSharedByMe.map((s) => (
+                      <BoardCard
+                        key={s._id}
+                        slate={s}
+                        onToggleFavorite={toggleFavorite}
+                        footer={
+                          s.sharedWith.length > 0 ? (
+                            <div className="flex items-center gap-2 border-t border-white/[0.05] px-3.5 py-2.5">
+                              <span className="flex -space-x-1.5">
+                                {s.sharedWith.slice(0, 4).map((p, i) =>
+                                  p.avatar ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img key={i} src={p.avatar} alt="" className="h-5 w-5 rounded-full border border-[#121215] object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <span key={i} className="flex h-5 w-5 items-center justify-center rounded-full border border-[#121215] bg-zinc-700 text-[9px] font-bold">
+                                      {p.name?.charAt(0) || "?"}
+                                    </span>
+                                  )
+                                )}
+                              </span>
+                              <p className="text-[11px] text-zinc-500">
+                                Shared with {s.sharedWith.length} {s.sharedWith.length === 1 ? "person" : "people"}
+                              </p>
                             </div>
-                            {/* Shared With Info */}
-                            {slate.sharedWith && slate.sharedWith.length > 0 && (
-                              <div className="pt-2 border-t border-white/5 space-y-1.5">
-                                <p className="text-[11px] text-[#808080]">Shared with {slate.sharedWith.length} {slate.sharedWith.length === 1 ? "person" : "people"}</p>
-                                {slate.sharedWith.map((person, idx) => (
-                                  <div key={idx} className="flex items-center gap-2">
-                                    {person.avatar ? (
-                                      <img src={person.avatar} alt={person.name} className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/10" />
-                                    ) : (
-                                      <div className="w-5 h-5 rounded-full bg-[#333] flex items-center justify-center text-[8px] font-bold text-white shrink-0">
-                                        {person.name?.charAt(0) || "?"}
-                                      </div>
-                                    )}
-                                    <div className="min-w-0">
-                                      <p className="text-[11px] font-semibold text-white truncate">{person.name}</p>
-                                      {person.email && <p className="text-[10px] text-[#666] truncate">{person.email}</p>}
-                                    </div>
-                                    <span className="text-[9px] font-bold text-[#666] ml-auto shrink-0">{person.role}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                          ) : null
+                        }
+                      />
+                    ))}
                   </div>
                 )}
-              </div>
-
+              </section>
             </div>
           )}
 
-          {activeTab === "settings" && (
-            <div className="p-6 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-4">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Settings className="w-5 h-5" /> Workspace Settings &amp; Members
-              </h3>
-              <p className="text-xs text-[#808080]">Manage workspace name, members, and sharing.</p>
-              <div className="pt-4 border-t border-[#2B2B2B]">
-                <p className="text-sm text-white">Sharing UI to be integrated with ShareDialog component...</p>
-              </div>
-            </div>
-          )}
+          {activeTab === "settings" && <WorkspaceSettings workspace={activeWorkspace} billing={billing} onInvite={() => setIsInviteOpen(true)} onUpgrade={() => openPricing(null)} />}
         </div>
       </main>
 
       {/* CREATE SLATE */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="bg-[#101010] border border-[#2B2B2B] text-white max-w-md rounded-2xl p-6">
-          <DialogHeader className="mb-4"><DialogTitle className="text-lg font-bold">Create Slate</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md rounded-2xl border border-white/10 bg-[#121215] p-6 text-white">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-base font-semibold">Create Slate</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleCreateSlate} className="space-y-4">
-            <input required type="text" placeholder="Title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
-              className="w-full h-11 rounded-xl border border-[#2B2B2B] bg-[#141414] px-3.5 text-xs text-white outline-none focus:border-white" />
+            <input
+              required
+              autoFocus
+              type="text"
+              placeholder="Title"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className="h-11 w-full rounded-xl border border-white/10 bg-black/30 px-3.5 text-[13px] text-white outline-none focus:border-indigo-400/60"
+            />
             <div className="flex justify-end">
-              <Button type="submit" disabled={isCreating} className="bg-white text-black text-xs h-10 px-5">
-                {isCreating ? "Creating..." : "Create"}
+              <Button type="submit" disabled={isCreating} className="h-10 gap-2 bg-white px-5 text-xs text-black hover:bg-zinc-200">
+                {isCreating && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {isCreating ? "Creating…" : "Create"}
               </Button>
             </div>
           </form>
@@ -561,18 +509,28 @@ export default function DashboardPage() {
 
       {/* CREATE WORKSPACE */}
       <Dialog open={isCreateWorkspaceOpen} onOpenChange={setIsCreateWorkspaceOpen}>
-        <DialogContent className="bg-[#101010] border border-[#2B2B2B] text-white max-w-md rounded-2xl p-6">
-          <DialogHeader className="mb-4"><DialogTitle className="text-lg font-bold">New Workspace</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md rounded-2xl border border-white/10 bg-[#121215] p-6 text-white">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-base font-semibold">New Workspace</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleCreateWorkspace} className="space-y-4">
-            <input required type="text" placeholder="Workspace Name" value={newWorkspaceName} onChange={(e) => setNewWorkspaceName(e.target.value)}
-              className="w-full h-11 rounded-xl border border-[#2B2B2B] bg-[#141414] px-3.5 text-xs text-white outline-none focus:border-white" />
+            <input
+              required
+              autoFocus
+              type="text"
+              placeholder="Workspace name"
+              value={newWorkspaceName}
+              onChange={(e) => setNewWorkspaceName(e.target.value)}
+              className="h-11 w-full rounded-xl border border-white/10 bg-black/30 px-3.5 text-[13px] text-white outline-none focus:border-indigo-400/60"
+            />
             <div className="flex justify-end">
-              <Button type="submit" className="bg-white text-black text-xs h-10 px-5">Create Workspace</Button>
+              <Button type="submit" className="h-10 bg-white px-5 text-xs text-black hover:bg-zinc-200">
+                Create Workspace
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

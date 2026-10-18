@@ -2,6 +2,7 @@ import { clamp, unionRects, type Box } from "./geometry";
 import { DEFAULT_STYLE, textSize, type StyleDefaults } from "./create";
 import { renderScene, type Guide, type RenderState } from "./render";
 import { elementsInRect, expandGroups, GeometryCache, selectionBounds } from "./scene";
+import { cameraAfterResize } from "./split";
 import { ensureFonts } from "./text";
 import { DocStore, type SyncState } from "./store";
 import { THEMES } from "./theme";
@@ -240,6 +241,14 @@ export class Engine {
   onOpenAi: (() => void) | null = null;
   /** Set by the shell; opens the export dialog. */
   onOpenExport: (() => void) | null = null;
+  /** Set by the shell; writes a picture of the selection (or the whole board) into the document pane. */
+  onInsertSnapshot: (() => void) | null = null;
+  /** Set by the shell; toggles the traffic simulation overlay. */
+  onToggleSimulation: (() => void) | null = null;
+  /** Set by the shell; toggles system design interview mode. */
+  onToggleInterview: (() => void) | null = null;
+  /** Which world point stays put when the canvas host changes size (see cameraAfterResize). */
+  resizeAnchor: "start" | "center" = "start";
   /** Set by the comments layer: a click with the Comment tool, at a world position and over an element (if any). */
   onPlaceComment: ((at: Point, elementId: string | null) => void) | null = null;
   /** Whether the Comment tool may be used (set by the comments layer from the user's permissions). */
@@ -266,6 +275,10 @@ export class Engine {
     onOpenCode?: ((opts?: { code?: string; replaceDiagramId?: string }) => void) | null;
     onOpenAi?: (() => void) | null;
     onOpenExport?: (() => void) | null;
+    onInsertSnapshot?: (() => void) | null;
+    onToggleSimulation?: (() => void) | null;
+    onToggleInterview?: (() => void) | null;
+    resizeAnchor?: "start" | "center";
     onPlaceComment?: ((at: Point, elementId: string | null) => void) | null;
     commentsEnabled?: boolean;
     imageUploader?: ((blob: Blob, name: string) => Promise<string>) | null;
@@ -274,6 +287,10 @@ export class Engine {
     if (opts.onOpenCode !== undefined) this.onOpenCode = opts.onOpenCode;
     if (opts.onOpenAi !== undefined) this.onOpenAi = opts.onOpenAi;
     if (opts.onOpenExport !== undefined) this.onOpenExport = opts.onOpenExport;
+    if (opts.onInsertSnapshot !== undefined) this.onInsertSnapshot = opts.onInsertSnapshot;
+    if (opts.onToggleSimulation !== undefined) this.onToggleSimulation = opts.onToggleSimulation;
+    if (opts.onToggleInterview !== undefined) this.onToggleInterview = opts.onToggleInterview;
+    if (opts.resizeAnchor !== undefined) this.resizeAnchor = opts.resizeAnchor;
     if (opts.onPlaceComment !== undefined) this.onPlaceComment = opts.onPlaceComment;
     if (opts.imageUploader !== undefined) this.imageUploader = opts.imageUploader;
     if (opts.commentsEnabled !== undefined && opts.commentsEnabled !== this.commentsEnabled) {
@@ -348,6 +365,8 @@ export class Engine {
     const w = Math.max(1, Math.round(rect.width));
     const h = Math.max(1, Math.round(rect.height));
     if (w === this.width && h === this.height && dpr === this.dpr) return;
+    // Resizing the pane must not make the drawing jump: re-anchor the camera before adopting the new size.
+    if (!this.pendingFit && !this.camAnim) this.camera = cameraAfterResize(this.camera, { w: this.width, h: this.height }, { w, h }, this.resizeAnchor);
     this.width = w;
     this.height = h;
     this.dpr = dpr;

@@ -17,9 +17,10 @@ const FAMILY: Record<string, string> = {
   serif: "ui-serif, Georgia, serif",
 };
 
-function dashAttr(dash: Dash | undefined, sw: number) {
+/** `roundCaps: false` when the element already declares its own stroke-linecap (duplicate attributes make the SVG invalid XML). */
+function dashAttr(dash: Dash | undefined, sw: number, roundCaps = true) {
   if (dash === "dashed") return ` stroke-dasharray="${n(sw * 3 + 5)} ${n(sw * 2 + 4)}"`;
-  if (dash === "dotted") return ` stroke-dasharray="0.01 ${n(sw * 2 + 4)}" stroke-linecap="round"`;
+  if (dash === "dotted") return ` stroke-dasharray="0.01 ${n(sw * 2 + 4)}"${roundCaps ? ' stroke-linecap="round"' : ""}`;
   return "";
 }
 
@@ -240,7 +241,7 @@ export function elementToSvg(el: El, theme: ThemeName, geom: GeometryCache): str
       if (g.pts.length < 2) return "";
       const sw = el.strokeWidth ?? 2;
       const color = resolveColor(el.stroke, theme, "ink");
-      let inner = `<path d="${g.path}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"${dashAttr(el.dash, sw)}/>`;
+      let inner = `<path d="${g.path}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round"${dashAttr(el.dash, sw, false)}/>`;
       inner += headSvg(el.startHead, g.start, g.startAngle, sw, color, c.bg);
       inner += headSvg(el.endHead, g.end, g.endAngle, sw, color, c.bg);
       if (el.label) {

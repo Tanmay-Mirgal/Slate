@@ -37,3 +37,22 @@ export const sweepRateLimits = internalMutation({
     return { removed };
   },
 });
+
+const BILLING_EVENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Razorpay retries a webhook for at most a few days, so old delivery ids can go. */
+export const sweepBillingEvents = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - BILLING_EVENT_TTL_MS;
+    const rows = await ctx.db.query("billingEvents").take(BATCH);
+    let removed = 0;
+    for (const row of rows) {
+      if (row.processedAt < cutoff) {
+        await ctx.db.delete(row._id);
+        removed++;
+      }
+    }
+    return { removed };
+  },
+});

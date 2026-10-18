@@ -1,22 +1,22 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
-import Link from "next/link";
 import {
   Check,
-  CloudOff,
   Code2,
   Download,
-  Eye,
   FileJson,
+  GraduationCap,
   Grid3x3,
+  ImagePlus,
   Keyboard,
-  Loader2,
   Magnet,
+  Maximize,
   Maximize2,
   Menu,
+  Minus,
   Moon,
+  Plus,
   Search,
   Sparkles,
   Sun,
@@ -27,9 +27,13 @@ import type { Engine } from "@/lib/canvas/engine";
 import { parseBoardFile } from "@/lib/canvas/export";
 import { insertElements } from "@/lib/canvas/commands";
 import type { GridKind } from "@/lib/canvas/types";
+import { BoardTitle } from "./BoardTitle";
 import { useUi } from "./hooks";
 
 export type ViewMode = "canvas" | "document" | "split";
+
+/** "full" spans the whole window; "canvas" lives inside the canvas pane of the split view (the document pane has its own header). */
+export type TopBarSection = "full" | "canvas";
 
 interface TopBarProps {
   engine: Engine;
@@ -47,6 +51,11 @@ interface TopBarProps {
   onPresent: () => void;
   actions?: React.ReactNode;
   aiLocked?: boolean;
+  section?: TopBarSection;
+  /** Writes a snapshot of the selection (or board) into the document. */
+  onInsertSnapshot?: () => void;
+  onToggleInterview?: () => void;
+  interviewOn?: boolean;
 }
 
 function MenuItem({ icon: Icon, label, onClick, checked, danger, hint }: { icon: React.ElementType; label: string; onClick: () => void; checked?: boolean; danger?: boolean; hint?: string }) {
@@ -64,13 +73,12 @@ function MenuItem({ icon: Icon, label, onClick, checked, danger, hint }: { icon:
   );
 }
 
-export function TopBar({ engine, title, onRename, backHref, mode, onMode, onOpenExport, onOpenShortcuts, onOpenCommand, onOpenCode, onToggleAi, aiOpen, onPresent, actions, aiLocked }: TopBarProps) {
+export function TopBar({ engine, title, onRename, backHref, mode, onMode, onOpenExport, onOpenShortcuts, onOpenCommand, onOpenCode, onToggleAi, aiOpen, onPresent, actions, aiLocked, section = "full", onInsertSnapshot, onToggleInterview, interviewOn }: TopBarProps) {
   const ui = useUi(engine);
-  const [editing, setEditing] = React.useState(false);
-  const [draft, setDraft] = React.useState(title);
   const [menu, setMenu] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
+  const inPane = section === "canvas";
 
   React.useEffect(() => {
     if (!menu) return;
@@ -80,13 +88,6 @@ export function TopBar({ engine, title, onRename, backHref, mode, onMode, onOpen
     window.addEventListener("pointerdown", down, true);
     return () => window.removeEventListener("pointerdown", down, true);
   }, [menu]);
-
-  const commitTitle = () => {
-    setEditing(false);
-    const t = draft.trim();
-    if (t && t !== title) onRename?.(t);
-    else setDraft(title);
-  };
 
   const setGrid = (g: GridKind) => engine.setView({ grid: g });
   const theme = ui.view.theme;
@@ -104,89 +105,61 @@ export function TopBar({ engine, title, onRename, backHref, mode, onMode, onOpen
     }
   };
 
-  return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-between gap-3 p-3 max-md:p-2">
-      {/* left cluster */}
-      <div className="pointer-events-auto flex min-w-0 items-center gap-2.5 rounded-2xl border border-white/10 bg-[#141416]/85 py-1.5 pl-2 pr-3 shadow-xl backdrop-blur-xl">
-        <Link href={backHref} className="flex shrink-0 items-center" title="Back to dashboard">
-          <Image src="/logo.svg" alt="Slate" width={28} height={28} className="rounded-lg" />
-        </Link>
-        {editing ? (
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitTitle}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitTitle();
-              if (e.key === "Escape") {
-                setDraft(title);
-                setEditing(false);
-              }
-            }}
-            maxLength={120}
-            className="w-44 rounded-md border border-white/20 bg-black/40 px-2 py-1 text-[13px] font-semibold text-white outline-none"
-          />
-        ) : (
-          <button
-            type="button"
-            disabled={!onRename || ui.readOnly}
-            onClick={() => {
-              setDraft(title);
-              setEditing(true);
-            }}
-            title={onRename && !ui.readOnly ? "Rename" : undefined}
-            className="max-w-[200px] truncate rounded-md px-1.5 py-1 text-[13px] font-semibold text-white enabled:hover:bg-white/10 max-md:max-w-[110px]"
-          >
-            {title || "Untitled"}
-          </button>
-        )}
-        {ui.readOnly ? (
-          <span className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-amber-300">
-            <Eye className="h-3 w-3" /> View only
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 border-l border-white/10 pl-2.5 text-[11px] font-medium" title={ui.syncError ?? undefined}>
-            {ui.sync === "saving" ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-zinc-400" />
-                <span className="text-zinc-400 max-sm:hidden">Saving…</span>
-              </>
-            ) : ui.sync === "error" ? (
-              <>
-                <CloudOff className="h-3 w-3 text-amber-400" />
-                <span className="text-amber-400 max-sm:hidden">Offline · retrying</span>
-              </>
-            ) : (
-              <>
-                <Check className="h-3 w-3 text-emerald-400" />
-                <span className="text-zinc-500 max-sm:hidden">Saved</span>
-              </>
-            )}
-          </span>
-        )}
-      </div>
+  // Labels collapse by viewport in full width, by the pane's own width when it sits inside the split view.
+  const hideLabel = inPane ? "@max-2xl:hidden" : "max-md:hidden";
 
-      {/* mode switch */}
-      {onMode && (
-        <div className="pointer-events-auto absolute left-1/2 top-3 hidden -translate-x-1/2 items-center gap-0.5 rounded-2xl border border-white/10 bg-[#141416]/85 p-1 shadow-xl backdrop-blur-xl md:flex">
-          {(["canvas", "split", "document"] as ViewMode[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => onMode(m)}
-              className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold capitalize transition-colors ${mode === m ? "bg-white text-black" : "text-zinc-400 hover:text-white"}`}
-            >
-              {m === "document" ? "Doc" : m}
-            </button>
-          ))}
+  const modeSwitch = onMode && (
+    <div
+      className={`pointer-events-auto items-center gap-0.5 rounded-2xl border border-white/10 bg-[#141416]/85 p-1 shadow-xl backdrop-blur-xl ${
+        inPane ? "flex" : "absolute left-1/2 top-3 hidden -translate-x-1/2 md:flex"
+      }`}
+    >
+      {(["canvas", "split", "document"] as ViewMode[]).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onMode(m)}
+          className={`rounded-xl px-3.5 py-1.5 text-[12px] font-semibold capitalize transition-colors ${inPane ? "@max-md:px-2.5" : ""} ${mode === m ? "bg-white text-black" : "text-zinc-400 hover:text-white"}`}
+        >
+          {m === "document" ? "Doc" : m}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className={`pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start gap-3 p-3 max-md:p-2 ${inPane ? "@container flex-wrap justify-between" : "justify-between"}`}>
+      {/* left cluster */}
+      {!inPane && (
+        <div className="pointer-events-auto flex min-w-0 items-center gap-2.5 rounded-2xl border border-white/10 bg-[#141416]/85 py-1.5 pl-2 pr-3 shadow-xl backdrop-blur-xl">
+          <BoardTitle engine={engine} title={title} onRename={onRename} backHref={backHref} />
         </div>
       )}
 
+      {/* mode switch */}
+      {modeSwitch}
+
       {/* right cluster */}
-      <div className="pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-white/10 bg-[#141416]/85 p-1.5 shadow-xl backdrop-blur-xl">
+      <div className={`pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-white/10 bg-[#141416]/85 p-1.5 shadow-xl backdrop-blur-xl ${inPane ? "ml-auto" : ""}`}>
+        {inPane && (
+          <div className="flex items-center gap-0.5 @max-3xl:hidden" aria-label="Zoom controls">
+            <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => engine.zoomBy(1 / 1.25)} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/10 hover:text-white">
+              <Minus className="h-4 w-4" />
+            </button>
+            <button type="button" title="Reset to 100%" onClick={() => engine.zoomTo(1)} className="h-8 min-w-[44px] rounded-lg px-1 text-center text-[12px] font-semibold tabular-nums text-zinc-200 hover:bg-white/10">
+              {ui.zoomPct}%
+            </button>
+            <button type="button" title="Zoom in" aria-label="Zoom in" onClick={() => engine.zoomBy(1.25)} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/10 hover:text-white">
+              <Plus className="h-4 w-4" />
+            </button>
+            <button type="button" title="Zoom to fit (⇧1)" aria-label="Zoom to fit" onClick={() => engine.fitContent()} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/10 hover:text-white">
+              <Maximize className="h-4 w-4" />
+            </button>
+            <div className="mx-1 h-5 w-px bg-white/10" />
+          </div>
+        )}
         {ui.peers.length > 0 && (
-          <div className="flex items-center pl-1 pr-1.5" title={ui.peers.map((p) => p.name).join(", ")}>
+          <div className={`flex items-center pl-1 pr-1.5 ${inPane ? "@max-xl:hidden" : ""}`} title={ui.peers.map((p) => p.name).join(", ")}>
             <div className="flex -space-x-2">
               {shown.map((p) => (
                 <div
@@ -207,7 +180,7 @@ export function TopBar({ engine, title, onRename, backHref, mode, onMode, onOpen
           </div>
         )}
         {onOpenCommand && (
-          <button type="button" onClick={onOpenCommand} title="Search & commands" className="flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs text-zinc-400 transition-colors hover:bg-white/10 hover:text-white max-md:hidden">
+          <button type="button" onClick={onOpenCommand} title="Search & commands" className={`flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs text-zinc-400 transition-colors hover:bg-white/10 hover:text-white ${inPane ? "@max-3xl:hidden" : "max-md:hidden"}`}>
             <Search className="h-3.5 w-3.5" />
             <kbd className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px]">Ctrl K</kbd>
           </button>
@@ -219,13 +192,13 @@ export function TopBar({ engine, title, onRename, backHref, mode, onMode, onOpen
             title={aiLocked ? "Sign in to use Slate AI" : "Generate diagrams with AI"}
             className={`flex h-8 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition-all ${aiOpen ? "bg-white text-black" : "bg-gradient-to-r from-indigo-500/90 to-fuchsia-500/90 text-white hover:brightness-110"}`}
           >
-            <Sparkles className="h-3.5 w-3.5" /> AI
+            <Sparkles className="h-3.5 w-3.5" /> <span className={inPane ? "@max-xl:hidden" : ""}>AI</span>
           </button>
         )}
         {actions}
-        <button type="button" onClick={onOpenExport} title="Export" className="flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-zinc-200 transition-colors hover:bg-white/10">
+        <button type="button" onClick={onOpenExport} title="Export" className={`flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-zinc-200 transition-colors hover:bg-white/10 ${inPane ? "@max-xl:hidden" : ""}`}>
           <Download className="h-3.5 w-3.5" />
-          <span className="max-md:hidden">Export</span>
+          <span className={hideLabel}>Export</span>
         </button>
         <div className="relative" ref={menuRef}>
           <button type="button" onClick={() => setMenu((m) => !m)} title="Menu" className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${menu ? "bg-white text-black" : "text-zinc-300 hover:bg-white/10"}`}>
@@ -257,6 +230,27 @@ export function TopBar({ engine, title, onRename, backHref, mode, onMode, onOpen
                   onOpenExport();
                 }}
               />
+              {onInsertSnapshot && !ui.readOnly && (
+                <MenuItem
+                  icon={ImagePlus}
+                  label="Insert snapshot into document"
+                  onClick={() => {
+                    setMenu(false);
+                    onInsertSnapshot();
+                  }}
+                />
+              )}
+              {onToggleInterview && (
+                <MenuItem
+                  icon={GraduationCap}
+                  label="System design interview mode"
+                  checked={interviewOn}
+                  onClick={() => {
+                    setMenu(false);
+                    onToggleInterview();
+                  }}
+                />
+              )}
               {onOpenCode && (
                 <MenuItem
                   icon={Code2}

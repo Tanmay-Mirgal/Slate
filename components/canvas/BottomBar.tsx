@@ -26,13 +26,15 @@ function Btn({ title, onClick, disabled, children, active }: { title: string; on
   );
 }
 
-export function BottomBar({ engine }: { engine: Engine }) {
+/** Bottom-left control cluster. `extra` stacks above the zoom row (the cloud-cost badge), so it can never overlap it. */
+export function BottomBar({ engine, extra }: { engine: Engine; extra?: React.ReactNode }) {
   const ui = useUi(engine);
   const [mapOpen, setMapOpen] = React.useState(false);
 
   return (
     <div className="absolute bottom-[76px] left-3 z-30 flex flex-col items-start gap-2 tall:bottom-4 tall:left-4" onPointerDown={(e) => e.stopPropagation()}>
       {mapOpen && <Minimap engine={engine} />}
+      {extra}
       <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-[#141416]/85 p-1 shadow-xl backdrop-blur-xl">
         <Btn title={`Undo (${MOD}Z)`} onClick={() => engine.undo()} disabled={!ui.canUndo || ui.readOnly}>
           <Undo2 className="h-4 w-4" />

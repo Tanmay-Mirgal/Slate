@@ -3,6 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import {
+  Activity,
   ArrowRight,
   ArrowRightLeft,
   Eraser,
@@ -137,7 +138,7 @@ const CONNECTORS: { id: string; label: string; icon: React.ElementType; route: R
   { id: "line", label: "Line", icon: Minus, route: "straight", start: "none", end: "none", tool: "line" },
 ];
 
-export function Toolbar({ engine, onToggleLibrary, libraryOpen }: { engine: Engine; onToggleLibrary: () => void; libraryOpen: boolean }) {
+export function Toolbar({ engine, onToggleLibrary, libraryOpen, simulating, onToggleSimulation }: { engine: Engine; onToggleLibrary: () => void; libraryOpen: boolean; simulating?: boolean; onToggleSimulation?: () => void }) {
   const ui = useUi(engine);
   const [open, setOpen] = React.useState<{ id: PopoverId; rect: DOMRect } | null>(null);
   const close = React.useCallback(() => setOpen(null), []);
@@ -303,6 +304,15 @@ export function Toolbar({ engine, onToggleLibrary, libraryOpen }: { engine: Engi
       <ToolButton active={tool === "eraser"} label="Eraser" keys="E" onClick={() => pick("eraser")} disabled={ro}>
         <Eraser className="h-[18px] w-[18px]" />
       </ToolButton>
+
+      {onToggleSimulation && (
+        <>
+          <div className="mx-1 h-6 w-px shrink-0 bg-white/10 tall:mx-0 tall:my-1 tall:h-px tall:w-6" />
+          <ToolButton active={!!simulating} label={simulating ? "Stop traffic simulation" : "Simulate traffic"} onClick={onToggleSimulation}>
+            <Activity className="h-[18px] w-[18px]" />
+          </ToolButton>
+        </>
+      )}
     </div>
   );
 }

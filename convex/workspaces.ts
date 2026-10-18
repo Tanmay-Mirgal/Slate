@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { tierOf } from "./billing";
 
 export const create = mutation({
   args: {
@@ -75,9 +76,17 @@ export const listMyWorkspaces = query({
     const workspaces = await Promise.all(
       memberships.map(async (m) => {
         const workspace = await ctx.db.get(m.workspaceId);
+        if (!workspace) return null;
+        const members = await ctx.db
+          .query("workspace_members")
+          .withIndex("by_workspaceId", (q) => q.eq("workspaceId", workspace._id))
+          .take(200);
         return {
           ...workspace,
           role: m.role,
+          memberCount: members.length,
+          /** The owner's plan is the workspace's plan. */
+          plan: await tierOf(ctx, workspace.ownerId),
         };
       })
     );
@@ -110,6 +119,63 @@ export const getWorkspace = query({
 
     const workspace = await ctx.db.get(args.id);
     return { ...workspace, role: membership.role };
+  },
+});
+
+/** Members of a workspace with their profile, visible to every member. */
+export const listMembers = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const mine = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspaceId_userId", (q) => q.eq("workspaceId", args.workspaceId).eq("userId", identity.subject))
+      .unique();
+    if (!mine) return [];
+    const workspace = await ctx.db.get(args.workspaceId);
+    const rows = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .take(200);
+    const members = await Promise.all(
+      rows.map(async (m) => {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_clerkId", (q) => q.eq("clerkId", m.userId))
+          .unique();
+        return {
+          userId: m.userId,
+          role: m.role,
+          isOwner: workspace?.ownerId === m.userId,
+          isYou: m.userId === identity.subject,
+          name: user ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email : "Member",
+          email: user?.email ?? null,
+          avatar: user?.imageUrl ?? null,
+        };
+      })
+    );
+    return members.sort((a, b) => Number(b.isOwner) - Number(a.isOwner) || a.name.localeCompare(b.name));
+  },
+});
+
+/** Pending invitations of a workspace, visible to its members. */
+export const listPendingInvites = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const mine = await ctx.db
+      .query("workspace_members")
+      .withIndex("by_workspaceId_userId", (q) => q.eq("workspaceId", args.workspaceId).eq("userId", identity.subject))
+      .unique();
+    if (!mine) return [];
+    const invites = await ctx.db
+      .query("invites")
+      .withIndex("by_workspaceId", (q) => q.eq("workspaceId", args.workspaceId))
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .take(100);
+    return invites.map((i) => ({ _id: i._id, email: i.recipientEmail, role: i.role, createdAt: i.createdAt }));
   },
 });
 

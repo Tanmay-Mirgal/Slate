@@ -22,7 +22,12 @@
 | **Diagram as code** | Eraser-style text syntax (`API gateway > Orders: gRPC`, groups, icons, colours) with the same layout engine. Round-trips: any selection can be turned back into code. 10 built-in templates. |
 | **Collaboration** | Live cursors with names, teammates' selections, live drag previews, "anyone with the link" sharing (view / edit), workspace roles, per-element sync so edits never overwrite each other. |
 | **Export** | PNG (1-4x, transparent), SVG, JSON; import JSON; copy PNG to clipboard. |
-| **Docs** | Rich-text document (Tiptap) next to the canvas, with a split view. |
+| **Docs** | Rich-text document (Tiptap) next to the canvas. The split view has a draggable divider (20-80%, remembered), one-click layout presets, a reading header (word count, copy / download Markdown) and "insert canvas snapshot into document". |
+| **Import code** | Paste a `docker-compose.yml`, SQL schema or folder tree: Slate parses it exactly (no AI) into a diagram **and** writes the documentation (service table, port map, environment requirements, ER tables) into the document. Any other code goes through Slate AI. |
+| **Cloud cost (FinOps)** | A live "estimated cloud cost / month" badge for the AWS / GCP / Azure services on the board, with cost-saving tips. Pro adds the per-component breakdown and CSV export. |
+| **Traffic simulator** | Animated packets flow along your arrows (amber for async links) and components many others depend on, with no redundancy, get a pulsing single-point-of-failure badge. |
+| **Interview mode** | 45-minute countdown, requirement checklist, back-of-the-envelope scale calculator and an architecture review (instant structural check, or a written AI review). |
+| **Billing** | Free / Pro / Team plans paid through Razorpay (checkout, signed verification, webhooks). Free: 3 boards and 15 AI credits a month. |
 
 A free, no-account board lives at **`/playground`** (stored in your browser).
 
@@ -53,6 +58,9 @@ See [`.env.example`](.env.example) for the full list. The ones that matter most:
 | `NVIDIA_API_KEY` | **AI generation.** Free key from <https://build.nvidia.com> → profile → API Keys. Without it AI is disabled and the panel offers templates instead. |
 | `NVIDIA_MODELS` | Optional comma-separated model chain, first = preferred. |
 | `AI_RATE_LIMIT_PER_HOUR` | Optional per-user cap (default 40; plus 6/minute burst). |
+| `NEXT_PUBLIC_RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Razorpay checkout, payment verification and webhooks. |
+| `BILLING_SYNC_SECRET` | 16+ random characters, set **identically** in `.env.local` and in the Convex dashboard. Lets the server (and only the server) change a user's plan. |
+| `RAZORPAY_PLAN_{PRO,TEAM}_{MONTHLY,ANNUAL}` | Optional Razorpay plan ids for recurring billing. Without them checkout falls back to a one-time order for the first period. |
 
 ### AI models (NVIDIA)
 
@@ -116,12 +124,19 @@ Press **`?`** in the app. Highlights: `V` select · `H` hand · `R`/`O`/`D` shap
 ## Project layout
 
 ```
-app/                 routes: dashboard, canvas/[id], playground, api/ai/generate
+app/                 routes: dashboard, canvas/[id], playground, api/ai/*, api/billing/razorpay/*
 components/canvas/   React UI: toolbar, properties, library, export, share, text editor, cursors
-components/ai-panel/ AI drawer (prompting, progress, edit-in-place, code view)
+components/ai-panel/ AI drawer (prompting, progress, edit-in-place, code view, import code)
+components/billing/  pricing modal (Razorpay Standard Checkout)
+components/dashboard/ workspace switcher, usage meter, template rail, board cards, settings
 lib/canvas/          engine: store + history, renderer, router, hit-testing, snapping, export
 lib/diagram/         graph model, ELK layout, DSL parser/serializer, templates
 lib/ai/              NVIDIA client, prompts, JSON repair, rate limiting
+lib/billing/         plans, tier limits (board cap, AI credits), Razorpay helpers and signatures
+lib/finops/          benchmark prices and the cost estimator
+lib/simulation/      dependency graph + single-point-of-failure detection
+lib/import/          docker-compose / SQL / folder-tree importers and the documentation they write
+lib/interview/       timer, checklist, scale calculator, review rubric
 convex/              schema, elements, presence, access control, uploads, cron sweepers
 tests/               vitest: engine, router, layout (overlap-free), DSL, AI plumbing, Convex backend
 ```
@@ -129,7 +144,7 @@ tests/               vitest: engine, router, layout (overlap-free), DSL, AI plum
 ## Development
 
 ```bash
-npm test              # 97 unit + backend tests (Convex logic runs in convex-test's in-memory runtime)
+npm test              # 250+ unit + backend tests (Convex logic runs in convex-test's in-memory runtime)
 npm run typecheck
 npm run lint
 npm run build
@@ -151,5 +166,7 @@ CRDT co-editing of the rich-text *Doc* view (it saves last-writer-wins). Cursor 
 which is great for typical team sizes (≲ 25 people per board); beyond that, plug a dedicated realtime transport
 into `PresenceChannel` (see ARCHITECTURE.md).
 
-The landing page's Razorpay checkout confirms payments on the client only; add server-side signature
-verification and persist the plan before relying on it for billing.
+Billing: payments are verified server-side (HMAC-SHA256 signature, then the order or subscription is fetched
+from Razorpay) and plans are written to Convex only with `BILLING_SYNC_SECRET`. Verified here with unit tests and
+Convex backend tests; a real payment needs your Razorpay test keys. Cancelling a subscription is done from the
+Razorpay dashboard for now (the webhook keeps access until the paid period ends).

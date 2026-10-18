@@ -9,6 +9,7 @@
  */
 
 import type * as access from "../access.js";
+import type * as billing from "../billing.js";
 import type * as commentLogic from "../commentLogic.js";
 import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
@@ -34,6 +35,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   access: typeof access;
+  billing: typeof billing;
   commentLogic: typeof commentLogic;
   comments: typeof comments;
   crons: typeof crons;

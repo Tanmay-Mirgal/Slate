@@ -6,15 +6,22 @@ import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
-import { Eraser, FileCode2, Frame, Grid3x3, Hand, Image as ImageIcon, Loader2, Lock, Maximize, Moon, MousePointer2, Pencil, Sparkles, SquareDashed, StickyNote, Type, ArrowUpRight, Download } from "lucide-react";
+import { Activity, Eraser, FileCode2, Frame, GraduationCap, Grid3x3, Hand, Image as ImageIcon, ImagePlus, Loader2, Lock, Maximize, Moon, MousePointer2, Pencil, Sparkles, SquareDashed, StickyNote, Type, ArrowUpRight, Download } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AiPanel } from "@/components/ai-panel/ai-panel";
+import { PricingModal } from "@/components/billing/PricingModal";
 import { BoardShell, useBoardEngine } from "@/components/canvas/BoardShell";
 import { ShareSlateDialog } from "@/components/canvas/ShareSlateDialog";
 import { useBoardPresence, useBoardSync } from "@/components/canvas/useBoardSync";
 import type { ViewMode } from "@/components/canvas/TopBar";
 import { CommandPalette, type CommandItem } from "@/components/CommandPalette";
+import { useDocBridge } from "@/components/editor/doc-bridge";
+import type { BillingErrorCode } from "@/lib/billing/limits";
+import { boardStats } from "@/lib/canvas/stats";
+import { parseDsl } from "@/lib/diagram/dsl";
+import { placeGraph } from "@/lib/diagram/insert";
+import { starterById } from "@/lib/diagram/starter-templates";
 
 const RichDocumentEditor = dynamic(() => import("@/components/editor/editor").then((m) => m.DocumentEditor), {
   ssr: false,
@@ -39,16 +46,22 @@ export default function CanvasPage() {
   const { isLoading: authLoading } = useConvexAuth();
   const { user, isLoaded: clerkLoaded } = useUser();
   const slate = useQuery(api.slates.getById, { id: slateId });
+  const billing = useQuery(api.billing.getMyBilling);
 
   const engine = useBoardEngine();
   const rename = useMutation(api.slates.rename);
   const updateDocument = useMutation(api.slates.updateDocument);
+  const reportStats = useMutation(api.slates.reportStats);
 
+  const docBridge = useDocBridge();
   const [mode, setMode] = React.useState<ViewMode>("canvas");
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const [pricing, setPricing] = React.useState<{ open: boolean; reason: BillingErrorCode | null }>({ open: false, reason: null });
+  const openPricing = React.useCallback((reason: BillingErrorCode | null = null) => setPricing({ open: true, reason }), []);
+  const interviewFromUrl = search.get("interview") === "1" || starterById(search.get("template"))?.interview === true;
 
   const access = slate ? { access: slate.access, legacyElements: slate.legacyElements } : slate;
-  useBoardSync(engine, slateId, access, forceView);
+  const { ready: boardReady } = useBoardSync(engine, slateId, access, forceView);
   useBoardPresence(engine, slateId, !!slate, {
     userId: user?.id ?? null,
     name: user?.fullName || user?.firstName || "Guest",
@@ -56,6 +69,56 @@ export default function CanvasPage() {
   });
 
   const readOnly = forceView || slate?.access === "view";
+
+  // A board opened from a dashboard starter (?template=...) is filled in once, as soon as it has loaded empty.
+  const starter = starterById(search.get("template"));
+  const templateApplied = React.useRef(false);
+  React.useEffect(() => {
+    if (!starter || templateApplied.current || !boardReady) return;
+    templateApplied.current = true;
+    // The starter is a one-shot instruction: drop it from the URL so a reload doesn't repeat it.
+    const clearParam = () => router.replace(`/canvas/${slateId}`, { scroll: false });
+    if (!starter.dsl || readOnly || engine.store.size > 0) {
+      clearParam(); // the interview starter has no diagram; interview mode itself is remembered per board
+      return;
+    }
+    const { graph, errors } = parseDsl(starter.dsl);
+    if (errors.length > 0 || graph.nodes.length === 0) {
+      engine.toast("Couldn't load that template", "error");
+      clearParam();
+      return;
+    }
+    placeGraph(engine, graph)
+      .then(clearParam)
+      .catch(() => engine.toast("Couldn't lay out that template", "error"));
+  }, [starter, boardReady, readOnly, engine, router, slateId]);
+
+  // Tell the dashboard how big this board is so its card can show live node / connector counts.
+  const knownStats = slate?.stats ? `${slate.stats.nodes}:${slate.stats.connectors}` : "";
+  React.useEffect(() => {
+    if (!boardReady || readOnly) return;
+    let last = knownStats;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      timer = null;
+      const { nodes, connectors } = boardStats(engine.store.list());
+      const key = `${nodes}:${connectors}`;
+      if (key === last) return;
+      last = key;
+      reportStats({ id: slateId, nodes, connectors }).catch(() => {
+        last = ""; // try again on the next change
+      });
+    };
+    const schedule = () => {
+      if (!timer) timer = setTimeout(flush, 2500);
+    };
+    schedule();
+    const unsub = engine.store.subscribe(schedule);
+    return () => {
+      unsub();
+      if (timer) clearTimeout(timer);
+    };
+  }, [boardReady, readOnly, engine, slateId, reportStats, knownStats]);
 
   const persistDocument = React.useCallback(
     async (payload: { markdown: string; html: string; json: string }) => {
@@ -101,6 +164,9 @@ export default function CanvasPage() {
       c("code", "Diagram as code…", FileCode2, () => engine.onOpenCode?.(), undefined, "Describe a system in text and lay it out automatically"),
       c("ai", "Ask Slate AI to draw something", Sparkles, () => engine.onOpenAi?.(), undefined, "Generate or edit a diagram from a prompt"),
       c("export", "Export…", Download, () => engine.onOpenExport?.(), "⌘⇧E"),
+      c("simulate", "Simulate traffic", Activity, () => engine.onToggleSimulation?.(), undefined, "Animate requests along your arrows and flag single points of failure"),
+      c("interview", "Toggle system design interview mode", GraduationCap, () => engine.onToggleInterview?.(), undefined, "45-minute timer, requirement checklist and an architecture review"),
+      c("snapshot", "Insert canvas snapshot into document", ImagePlus, () => engine.onInsertSnapshot?.(), undefined, "Add a picture of the selection (or the board) to the doc"),
     ];
   }, [engine]);
 
@@ -151,9 +217,16 @@ export default function CanvasPage() {
         onOpenCommand={() => setPaletteOpen(true)}
         defaultAiOpen={search.get("ai") === "true"}
         aiLocked={!user}
+        tier={billing?.tier ?? "free"}
+        onUpgrade={() => openPricing(null)}
+        defaultInterview={interviewFromUrl}
+        interviewKey={String(slate._id)}
         actions={<ShareSlateDialog slateId={slateId} title={slate.title} workspaceId={slate.workspaceId} linkAccess={slate.linkAccess} canManage={slate.canManage} />}
+        docBridge={docBridge}
         docSlot={
           <RichDocumentEditor
+            bridge={docBridge}
+            onInsertCanvasSnapshot={() => engine.onInsertSnapshot?.()}
             key={String(slate._id)}
             initialMarkdown={slate.documentText || undefined}
             initialJson={slate.documentJson || undefined}
@@ -162,8 +235,11 @@ export default function CanvasPage() {
             onSearchCommand={() => setPaletteOpen(true)}
           />
         }
-        renderAi={({ isOpen, onClose, onOpenCode }) => <AiPanel engine={engine} isOpen={isOpen} onClose={onClose} signedIn={!!user} onOpenCode={onOpenCode} />}
+        renderAi={({ isOpen, onClose, onOpenCode }) => (
+          <AiPanel engine={engine} isOpen={isOpen} onClose={onClose} signedIn={!!user} onOpenCode={onOpenCode} docBridge={docBridge} onShowDoc={() => setMode("split")} onUpgrade={() => openPricing("credits_exhausted")} />
+        )}
       />
+      <PricingModal open={pricing.open} onOpenChange={(open) => setPricing((p) => ({ ...p, open }))} reason={pricing.reason} />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} extraItems={commands} onNewSlate={() => router.push("/dashboard")} onGoDashboard={() => router.push("/dashboard")} onAiGenerate={() => engine.onOpenAi?.()} />
     </div>
   );

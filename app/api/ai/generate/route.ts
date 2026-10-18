@@ -3,6 +3,7 @@ import { z } from "zod";
 import { generateGraph } from "@/lib/ai/generate";
 import { AiError, nvidiaConfig } from "@/lib/ai/nvidia";
 import { checkAiRateLimit } from "@/lib/ai/rate-limit";
+import { refundAiCredit, reserveAiCredit } from "@/lib/billing/ai-credits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,6 +71,13 @@ export async function POST(req: Request) {
     );
   }
 
+  // Credits are reserved up front and refunded if the model never produces a diagram.
+  const credit = await reserveAiCredit(token);
+  if (!credit.ok) {
+    if (credit.reason === "exhausted") return json(402, credit.error.code, credit.error.message, { tier: credit.error.tier, limit: credit.error.limit, resetsAt: credit.resetsAt });
+    return json(503, "billing_unavailable", credit.message);
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -97,8 +105,9 @@ export async function POST(req: Request) {
           },
           req.signal
         );
-        send({ type: "result", graph: result.graph, dsl: result.dsl, warnings: result.warnings, model: result.model, attempts: result.attempts });
+        send({ type: "result", graph: result.graph, dsl: result.dsl, warnings: result.warnings, model: result.model, attempts: result.attempts, credits: { used: credit.used, cap: credit.cap, remaining: credit.remaining } });
       } catch (e) {
+        await refundAiCredit(userId);
         const err = e instanceof AiError ? e : new AiError("upstream", "Unexpected error while generating the diagram");
         if (!(e instanceof AiError)) console.error("[ai/generate]", e);
         send({ type: "error", code: err.code, message: err.message, retryAfterSeconds: err.retryAfterMs ? Math.ceil(err.retryAfterMs / 1000) : undefined });

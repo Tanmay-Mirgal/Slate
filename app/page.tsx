@@ -39,21 +39,18 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/CommandPalette";
+import { PricingModal } from "@/components/billing/PricingModal";
+import { PLANS, formatInr } from "@/lib/billing/plans";
 
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: unknown) => { open(): void };
-  }
-}
 
 export default function LandingPage() {
   const router = useRouter();
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const [isCommandOpen, setIsCommandOpen] = React.useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
   const [activeShowcaseTab, setActiveShowcaseTab] = React.useState<"diagram" | "image" | "split">("diagram");
   const [demoPrompt, setDemoPrompt] = React.useState("");
+  const [isPricingOpen, setIsPricingOpen] = React.useState(false);
 
   const handleCreateNewSlate = (isAi = false, initialPrompt = "") => {
     if (!isSignedIn) {
@@ -68,45 +65,13 @@ export default function LandingPage() {
     router.push(`/dashboard${qs ? `?${qs}` : ""}`);
   };
 
-  const handleRazorpayPayment = async (planName: string, amountInINR: number) => {
-    const res = await new Promise<boolean>((resolve) => {
-      if (window.Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-
-    if (!res) {
-      alert("Razorpay SDK failed to load. Please check your internet connection.");
+  // Upgrades run through the real, server-verified checkout inside the pricing modal.
+  const openPricing = () => {
+    if (!isSignedIn) {
+      router.push("/auth?mode=sign-up");
       return;
     }
-
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_slateWorkspace123",
-      amount: amountInINR * 100,
-      currency: "INR",
-      name: "SLATE",
-      description: `Upgrade to SLATE ${planName} Plan`,
-      image: typeof window !== "undefined" ? `${window.location.origin}/logo.svg` : "/logo.svg",
-      handler: function (response: { razorpay_payment_id: string }) {
-        alert(`🎉 Payment Successful!\nPayment ID: ${response.razorpay_payment_id}\nYour account is upgraded to ${planName} Plan!`);
-      },
-      prefill: {
-        name: user?.fullName || "Developer",
-        email: user?.primaryEmailAddress?.emailAddress || "dev@slate.app",
-      },
-      theme: {
-        color: "#ffffff",
-      },
-    };
-
-    const paymentObject = new window.Razorpay!(options);
-    paymentObject.open();
+    setIsPricingOpen(true);
   };
 
   return (
@@ -120,6 +85,8 @@ export default function LandingPage() {
         onGoDashboard={() => router.push(isSignedIn ? "/dashboard" : "/auth?mode=sign-in")}
         onAiGenerate={() => handleCreateNewSlate(true)}
       />
+
+      <PricingModal open={isPricingOpen} onOpenChange={setIsPricingOpen} />
 
       {/* FULLSCREEN CRYSTAL CLEAR LIGHTBOX MODAL */}
       {isLightboxOpen && (
@@ -427,66 +394,62 @@ export default function LandingPage() {
             {/* PLAN 1: FREE (Starter) */}
             <div className="p-6 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-5 flex flex-col justify-between">
               <div className="space-y-3">
-                <h3 className="text-lg font-bold text-white">FREE (Starter)</h3>
-                <div className="text-2xl font-bold text-white">₹0 <span className="text-xs text-[#808080] font-normal">/ forever</span></div>
-                <p className="text-xs text-[#808080]">Limited starter plan for individuals.</p>
+                <h3 className="text-lg font-bold text-white">{PLANS.free.name}</h3>
+                <div className="text-2xl font-bold text-white">{formatInr(PLANS.free.monthly)} <span className="text-xs text-[#808080] font-normal">/ forever</span></div>
+                <p className="text-xs text-[#808080]">{PLANS.free.tagline}.</p>
                 <div className="space-y-2 pt-3 border-t border-[#2B2B2B] text-xs text-[#C5C5C5]">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Max 3 Active Slates</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Basic Canvas Diagramming</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> 100 MB Cloud Storage</div>
+                  {PLANS.free.features.map((f) => (
+                    <div key={f} className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> {f}</div>
+                  ))}
                 </div>
               </div>
               <SignInButton mode="modal">
                 <Button variant="outline" className="w-full rounded-xl border-[#2B2B2B] bg-[#1A1A1A] hover:bg-[#202020] text-white text-xs font-semibold h-10 cursor-pointer">
-                  Current Free Plan
+                  Start for free
                 </Button>
               </SignInButton>
             </div>
 
-            {/* PLAN 2: PRO (₹499) */}
+            {/* PLAN 2: PRO */}
             <div className="p-6 rounded-2xl border-2 border-[#ffffff] bg-[#141414] space-y-5 relative shadow-2xl flex flex-col justify-between">
               <div className="absolute -top-3 right-4 px-2.5 py-0.5 rounded-full bg-[#ffffff] text-black text-[10px] font-bold uppercase tracking-wider">
                 Popular
               </div>
               <div className="space-y-3">
-                <h3 className="text-lg font-bold text-white">PRO</h3>
-                <div className="text-2xl font-bold text-white">₹499 <span className="text-xs text-[#808080] font-normal">/ month ($9)</span></div>
-                <p className="text-xs text-[#808080]">For professional engineering teams.</p>
+                <h3 className="text-lg font-bold text-white">{PLANS.pro.name}</h3>
+                <div className="text-2xl font-bold text-white">{formatInr(PLANS.pro.monthly)} <span className="text-xs text-[#808080] font-normal">/ month · {formatInr(PLANS.pro.annual)} / year</span></div>
+                <p className="text-xs text-[#808080]">{PLANS.pro.tagline}.</p>
                 <div className="space-y-2 pt-3 border-t border-[#2B2B2B] text-xs text-[#C5C5C5]">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> Unlimited Infinite Slates</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> Notion Markdown Split Editor</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> Realtime Multiplayer Cursors</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> Raycast Command Palette</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> 10 GB Cloud Storage</div>
+                  {PLANS.pro.features.map((f) => (
+                    <div key={f} className="flex items-center gap-2"><Check className="w-4 h-4 text-[#ffffff]" /> {f}</div>
+                  ))}
                 </div>
               </div>
               <Button
-                onClick={() => handleRazorpayPayment("PRO", 499)}
+                onClick={openPricing}
                 className="w-full rounded-xl bg-[#ffffff] hover:bg-[#e5e5e5] text-black text-xs font-semibold h-10 cursor-pointer shadow-md"
               >
-                Pay with Razorpay (₹499)
+                Upgrade to Pro
               </Button>
             </div>
 
-            {/* PLAN 3: MAX (₹1,499) */}
+            {/* PLAN 3: TEAM */}
             <div className="p-6 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-5 flex flex-col justify-between">
               <div className="space-y-3">
-                <h3 className="text-lg font-bold text-white">MAX (Unlimited)</h3>
-                <div className="text-2xl font-bold text-white">₹1,499 <span className="text-xs text-[#808080] font-normal">/ month ($29)</span></div>
-                <p className="text-xs text-[#808080]">For enterprise organizations requiring AI & priority support.</p>
+                <h3 className="text-lg font-bold text-white">{PLANS.team.name}</h3>
+                <div className="text-2xl font-bold text-white">{formatInr(PLANS.team.monthly)} <span className="text-xs text-[#808080] font-normal">/ seat / month</span></div>
+                <p className="text-xs text-[#808080]">{PLANS.team.tagline}.</p>
                 <div className="space-y-2 pt-3 border-t border-[#2B2B2B] text-xs text-[#C5C5C5]">
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Everything in PRO Plan</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Unlimited Slate AI Assistant</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Custom SAML SSO & Security</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> 100 GB Dedicated Storage</div>
-                  <div className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> 24/7 Priority SLA Support</div>
+                  {PLANS.team.features.map((f) => (
+                    <div key={f} className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> {f}</div>
+                  ))}
                 </div>
               </div>
               <Button
-                onClick={() => handleRazorpayPayment("MAX", 1499)}
+                onClick={openPricing}
                 className="w-full rounded-xl border border-[#2B2B2B] bg-[#1A1A1A] hover:bg-[#202020] text-white text-xs font-semibold h-10 cursor-pointer"
               >
-                Pay with Razorpay (₹1,499)
+                Get Team
               </Button>
             </div>
 

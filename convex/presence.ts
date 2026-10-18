@@ -111,3 +111,36 @@ export const list = query({
     }));
   },
 });
+
+/** A session counts as "live" if it wrote within this window. Matches the sweep cron's cadence. */
+const LIVE_WINDOW_MS = 60_000;
+const MAX_SLATES_PER_CALL = 40;
+
+/**
+ * Who is on each board right now, for the dashboard cards. Only boards the caller can open are
+ * answered, and the caller's own sessions are left out ("collaborators" means other people).
+ */
+export const activeOnSlates = query({
+  args: { slateIds: v.array(v.id("slates")) },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const cutoff = Date.now() - LIVE_WINDOW_MS;
+    const out: { slateId: (typeof args.slateIds)[number]; count: number; people: { name: string; avatar: string | null; color: string }[] }[] = [];
+    for (const slateId of args.slateIds.slice(0, MAX_SLATES_PER_CALL)) {
+      const slate = await loadSlate(ctx, slateId);
+      if (!slate || !(await resolveAccess(ctx, slate))) continue;
+      const rows = await ctx.db
+        .query("liveSessions")
+        .withIndex("by_slate", (q) => q.eq("slateId", slateId))
+        .take(50);
+      const others = new Map<string, { name: string; avatar: string | null; color: string }>();
+      for (const r of rows) {
+        if (r.lastSeen < cutoff || r.userId === identity.subject) continue;
+        if (!others.has(r.userId)) others.set(r.userId, { name: r.name, avatar: r.avatar ?? null, color: r.color });
+      }
+      if (others.size > 0) out.push({ slateId, count: others.size, people: Array.from(others.values()).slice(0, 4) });
+    }
+    return out;
+  },
+});

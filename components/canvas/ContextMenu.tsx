@@ -26,6 +26,7 @@ import {
   Unlock,
   Pencil,
   Code2,
+  ImagePlus,
 } from "lucide-react";
 import {
   alignSelection,
@@ -183,6 +184,9 @@ export function ContextMenu({ engine, menu }: { engine: Engine; menu: Menu }) {
               })}
             />
           )}
+          {engine.onInsertSnapshot && !ui.readOnly && (
+            <Item icon={ImagePlus} label="Insert snapshot into document" onClick={run(() => engine.onInsertSnapshot?.())} />
+          )}
           <Item icon={SquareArrowUp} label="Bring forward" shortcut={`${MOD}]`} onClick={run(() => reorder(engine, "forward"))} />
           <Item icon={ArrowUpToLine} label="Bring to front" shortcut={`${SHIFT}${MOD}]`} onClick={run(() => reorder(engine, "front"))} />
           <Item icon={SquareArrowDown} label="Send backward" shortcut={`${MOD}[`} onClick={run(() => reorder(engine, "backward"))} />
@@ -220,6 +224,7 @@ export function ContextMenu({ engine, menu }: { engine: Engine; menu: Menu }) {
           <Item icon={MousePointer2} label="Select all" shortcut={`${MOD}A`} onClick={run(() => engine.selectAll())} />
           <Sep />
           <Item icon={Maximize} label="Zoom to fit" shortcut={`${SHIFT}1`} onClick={run(() => engine.fitContent())} />
+          {engine.onInsertSnapshot && !ui.readOnly && <Item icon={ImagePlus} label="Insert board snapshot into document" onClick={run(() => engine.onInsertSnapshot?.())} />}
           <Item
             icon={Grid3x3}
             label={ui.view.grid === "none" ? "Show grid" : "Hide grid"}

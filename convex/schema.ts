@@ -9,6 +9,10 @@ export const anchorValidator = v.union(
 
 const mentionValidator = v.object({ userId: v.string(), name: v.string() });
 
+export const tierValidator = v.union(v.literal("free"), v.literal("pro"), v.literal("team"));
+export const subscriptionStatusValidator = v.union(v.literal("active"), v.literal("halted"), v.literal("cancelled"), v.literal("pending"));
+export const intervalValidator = v.union(v.literal("monthly"), v.literal("annual"));
+
 export default defineSchema({
   users: defineTable({
     clerkId: v.string(),
@@ -18,9 +22,53 @@ export default defineSchema({
     imageUrl: v.union(v.string(), v.null()),
     plan: v.optional(v.string()),
     paymentId: v.optional(v.string()),
+
+    /* ---- Razorpay billing (written only by billing.syncSubscription / the AI credit gate) ---- */
+    subscriptionTier: v.optional(tierValidator),
+    subscriptionStatus: v.optional(subscriptionStatusValidator),
+    billingInterval: v.optional(intervalValidator),
+    /** Per-seat plans only. */
+    subscriptionSeats: v.optional(v.number()),
+    razorpayCustomerId: v.optional(v.string()),
+    razorpaySubscriptionId: v.optional(v.string()),
+    razorpayPlanId: v.optional(v.string()),
+    /** End of the period that has been paid for, ms since epoch. */
+    razorpayCurrentPeriodEnd: v.optional(v.number()),
+    aiCreditsMonthlyCap: v.optional(v.number()),
+    aiCreditsUsedThisPeriod: v.optional(v.number()),
+    /** Start of the current 30-day credit period, ms since epoch. */
+    aiCreditsPeriodStart: v.optional(v.number()),
   })
     .index("by_clerkId", ["clerkId"])
-    .index("by_email", ["email"]),
+    .index("by_email", ["email"])
+    .index("by_razorpaySubscriptionId", ["razorpaySubscriptionId"]),
+
+  /** Razorpay webhook deliveries already applied, so a retried delivery is a no-op. */
+  billingEvents: defineTable({
+    eventId: v.string(),
+    type: v.string(),
+    processedAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
+
+  /** Per-user starred boards. */
+  slateFavorites: defineTable({
+    userId: v.string(), // clerkId
+    slateId: v.id("slates"),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_slate", ["userId", "slateId"]),
+
+  /**
+   * Node / connector counts shown on dashboard cards. Kept out of `slates` so reporting them never
+   * touches the document every collaborator's access check reads. Reported by an editing client.
+   */
+  slateStats: defineTable({
+    slateId: v.id("slates"),
+    nodes: v.number(),
+    connectors: v.number(),
+    updatedAt: v.number(),
+  }).index("by_slate", ["slateId"]),
 
   workspaces: defineTable({
     name: v.string(),

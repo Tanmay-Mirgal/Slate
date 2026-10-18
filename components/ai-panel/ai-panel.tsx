@@ -13,6 +13,7 @@ import {
   Copy,
   CreditCard,
   Database,
+  FileInput,
   Layout,
   Loader2,
   Lock,
@@ -30,7 +31,7 @@ import {
   Box,
 } from "lucide-react";
 import type { Engine } from "@/lib/canvas/engine";
-import { ClientAiError, requestDiagram } from "@/lib/ai/client";
+import { ClientAiError, requestDiagram, type CodeImportResponse } from "@/lib/ai/client";
 import type { Complexity } from "@/lib/ai/prompt";
 import { graphToDsl, parseDsl } from "@/lib/diagram/dsl";
 import { commonDiagramId, graphFromElements } from "@/lib/diagram/extract";
@@ -38,6 +39,8 @@ import type { DiagramKind, Graph } from "@/lib/diagram/graph";
 import { placeGraph } from "@/lib/diagram/insert";
 import { matchTemplate, TEMPLATES, type Template } from "@/lib/diagram/templates";
 import { useUi } from "@/components/canvas/hooks";
+import type { DocBridge } from "@/components/editor/doc-bridge";
+import { ImportCodeDialog } from "./import-code-dialog";
 import { PromptCard } from "./prompt-card";
 
 const PROMPTS = [
@@ -73,7 +76,7 @@ const COMPLEXITIES: { id: Complexity; label: string }[] = [
 type Msg =
   | { id: number; role: "user"; text: string }
   | { id: number; role: "assistant"; kind: "working"; phase: string; model?: string; chars: number }
-  | { id: number; role: "assistant"; kind: "result"; title: string; summary: string; dsl: string; model?: string; warnings: string[]; diagramId: string; source: "ai" | "template" }
+  | { id: number; role: "assistant"; kind: "result"; title: string; summary: string; dsl: string; model?: string; warnings: string[]; diagramId: string; source: "ai" | "template" | "import" }
   | { id: number; role: "assistant"; kind: "error"; code: string; message: string; retry?: number; template?: Template | null; prompt?: string };
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -85,9 +88,17 @@ interface AiPanelProps {
   signedIn: boolean;
   /** Opens the diagram-as-code editor, optionally for an existing diagram. */
   onOpenCode?: (opts?: { code?: string; replaceDiagramId?: string }) => void;
+  /** The document editor next to the canvas; lets imports write documentation beside the diagram. */
+  docBridge?: DocBridge;
+  /** Switches the board to split view. */
+  onShowDoc?: () => void;
+  /** Opens the pricing modal (credits used up). */
+  onUpgrade?: () => void;
 }
 
-export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPanelProps) {
+const IMPORT_LABEL: Record<CodeImportResponse["source"], string> = { compose: "Docker Compose", sql: "SQL schema", tree: "Folder tree", ai: "Code" };
+
+export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode, docBridge, onShowDoc, onUpgrade }: AiPanelProps) {
   const ui = useUi(engine);
   const [input, setInput] = React.useState("");
   const [kind, setKind] = React.useState<DiagramKind | "auto">("auto");
@@ -101,6 +112,7 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
   const listRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [lastDiagram, setLastDiagram] = React.useState<string | null>(null);
+  const [importOpen, setImportOpen] = React.useState(false);
 
   React.useEffect(() => {
     // Random suggestions are picked after mount so server and client markup agree.
@@ -203,6 +215,21 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
     }
   };
 
+  const handleImported = (res: CodeImportResponse, placed: { diagramId: string; summary: string }) => {
+    setLastDiagram(placed.diagramId);
+    push({
+      role: "assistant",
+      kind: "result",
+      title: res.title || "Imported diagram",
+      summary: `${IMPORT_LABEL[res.source]} · ${placed.summary}`,
+      dsl: res.dsl,
+      model: res.model,
+      warnings: res.warnings,
+      diagramId: placed.diagramId,
+      source: "import",
+    });
+  };
+
   const showEmpty = messages.length === 0;
 
   return (
@@ -219,6 +246,9 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
           Slate AI
         </span>
         <div className="flex items-center gap-1">
+          <button type="button" onClick={() => setImportOpen(true)} title="Import code or docker-compose" className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-zinc-400 hover:bg-white/10 hover:text-white">
+            <FileInput className="h-3.5 w-3.5" /> Import
+          </button>
           {onOpenCode && (
             <button type="button" onClick={() => onOpenCode()} title="Diagram as code" className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-zinc-400 hover:bg-white/10 hover:text-white">
               <Code2 className="h-3.5 w-3.5" /> Code
@@ -247,6 +277,15 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
                 </span>
               </div>
             )}
+            <button type="button" onClick={() => setImportOpen(true)} className="group flex w-full items-start gap-3 rounded-xl border border-indigo-400/25 bg-gradient-to-br from-indigo-500/10 to-fuchsia-500/5 p-3 text-left transition-colors hover:border-indigo-400/50">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-200">
+                <FileInput className="h-4 w-4" />
+              </span>
+              <span>
+                <span className="block text-[13px] font-semibold text-white">Import code / Docker Compose</span>
+                <span className="mt-0.5 block text-[11.5px] leading-snug text-zinc-400">Paste a compose file, SQL schema or folder tree. Get the diagram and the docs, side by side.</span>
+              </span>
+            </button>
             <div className="space-y-2">
               {prompts.map((p, i) => (
                 <PromptCard key={p.title} delay={0.06 * i} icon={p.icon} title={p.title} onClick={() => void send(p.prompt)} />
@@ -267,7 +306,7 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
         )}
 
         {messages.map((m) => (
-          <MessageView key={m.id} m={m} engine={engine} onOpenCode={onOpenCode} onUseTemplate={insertTemplate} onRetry={(p) => void send(p)} />
+          <MessageView key={m.id} m={m} engine={engine} onOpenCode={onOpenCode} onUseTemplate={insertTemplate} onRetry={(p) => void send(p)} onUpgrade={onUpgrade} />
         ))}
       </div>
 
@@ -340,11 +379,12 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode }: AiPan
         </form>
         <p className="mt-2 px-1 text-[10.5px] text-zinc-600">AI can be wrong. Everything it draws is editable.</p>
       </div>
+      <ImportCodeDialog engine={engine} open={importOpen} onOpenChange={setImportOpen} signedIn={signedIn} docBridge={docBridge} onShowDoc={onShowDoc} onImported={handleImported} onUpgrade={onUpgrade} />
     </aside>
   );
 }
 
-function MessageView({ m, engine, onOpenCode, onUseTemplate, onRetry }: { m: Msg; engine: Engine; onOpenCode?: AiPanelProps["onOpenCode"]; onUseTemplate: (t: Template) => void; onRetry: (prompt: string) => void }) {
+function MessageView({ m, engine, onOpenCode, onUseTemplate, onRetry, onUpgrade }: { m: Msg; engine: Engine; onOpenCode?: AiPanelProps["onOpenCode"]; onUseTemplate: (t: Template) => void; onRetry: (prompt: string) => void; onUpgrade?: () => void }) {
   const [showCode, setShowCode] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
@@ -374,18 +414,23 @@ function MessageView({ m, engine, onOpenCode, onUseTemplate, onRetry }: { m: Msg
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-xl border p-3 text-[12.5px] leading-relaxed ${m.code === "aborted" ? "border-white/10 bg-white/[0.03] text-zinc-400" : "border-red-500/20 bg-red-500/5 text-red-200"}`}>
         {m.code !== "aborted" && (
           <div className="mb-1 flex items-center gap-1.5 font-semibold">
-            <AlertTriangle className="h-3.5 w-3.5" /> {m.code === "rate_limited" ? "Slow down a little" : m.code === "not_configured" ? "AI isn't set up yet" : m.code === "unauthenticated" ? "Sign in required" : "That didn't work"}
+            <AlertTriangle className="h-3.5 w-3.5" /> {m.code === "rate_limited" ? "Slow down a little" : m.code === "not_configured" ? "AI isn't set up yet" : m.code === "unauthenticated" ? "Sign in required" : m.code === "credits_exhausted" ? "Out of AI credits" : "That didn't work"}
           </div>
         )}
         <div>{m.message}</div>
         {m.retry ? <div className="mt-1 text-[11px] opacity-70">Try again in about {m.retry}s.</div> : null}
         <div className="mt-2 flex flex-wrap gap-2">
+          {m.code === "credits_exhausted" && onUpgrade && (
+            <button type="button" onClick={onUpgrade} className="rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-2.5 py-1 text-[11.5px] font-semibold text-white hover:brightness-110">
+              See plans
+            </button>
+          )}
           {m.template && (
             <button type="button" onClick={() => onUseTemplate(m.template!)} className="rounded-lg bg-white px-2.5 py-1 text-[11.5px] font-semibold text-black hover:bg-zinc-200">
               Insert “{m.template.title}” instead
             </button>
           )}
-          {m.prompt && m.code !== "not_configured" && m.code !== "unauthenticated" && m.code !== "aborted" && (
+          {m.prompt && m.code !== "not_configured" && m.code !== "unauthenticated" && m.code !== "credits_exhausted" && m.code !== "aborted" && (
             <button type="button" onClick={() => onRetry(m.prompt!)} className="rounded-lg border border-white/15 px-2.5 py-1 text-[11.5px] font-semibold text-zinc-200 hover:bg-white/10">
               Try again
             </button>
@@ -404,7 +449,7 @@ function MessageView({ m, engine, onOpenCode, onUseTemplate, onRetry }: { m: Msg
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold text-white">{m.title}</div>
           <div className="mt-0.5 text-[11.5px] leading-snug text-zinc-500">{m.summary}</div>
-          {m.model && <div className="mt-0.5 text-[10.5px] text-zinc-600">{m.source === "ai" ? m.model : "Template"}</div>}
+          <div className="mt-0.5 text-[10.5px] text-zinc-600">{m.source === "ai" ? m.model : m.source === "import" ? (m.model ? `Imported · ${m.model}` : "Imported with Slate (no AI used)") : "Template"}</div>
         </div>
       </div>
       {m.warnings.length > 0 && (

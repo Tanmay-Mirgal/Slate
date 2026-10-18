@@ -1,7 +1,8 @@
 import { v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
-import { canComment, canModerate, canViewHistory, loadSlate, requireEdit, requireManage, resolveAccess } from "./access";
+import type { Doc, Id } from "./_generated/dataModel";
+import { mutation, query, type QueryCtx } from "./_generated/server";
+import { canComment, canModerate, canViewHistory, loadSlate, requireEdit, requireManage, requireView, resolveAccess } from "./access";
+import { assertBoardCapacity } from "./billing";
 
 const MAX_DOC_CHARS = 900_000;
 
@@ -17,6 +18,31 @@ function summary(s: Doc<"slates">) {
     thumbnailIcon: s.thumbnailIcon,
     linkAccess: s.linkAccess ?? "none",
   };
+}
+
+interface DashboardExtras {
+  isFavorite: boolean;
+  /** `null` until an editor has opened the board since counts were introduced. */
+  nodeCount: number | null;
+  connectorCount: number | null;
+}
+
+/** Adds the per-user star and the reported node / connector counts that dashboard cards display. */
+async function withExtras<T extends { _id: Id<"slates"> }>(ctx: QueryCtx, userId: string, rows: T[]): Promise<(T & DashboardExtras)[]> {
+  const favorites = await ctx.db
+    .query("slateFavorites")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .take(1000);
+  const starred = new Set<Id<"slates">>(favorites.map((f) => f.slateId));
+  return await Promise.all(
+    rows.map(async (row) => {
+      const stats = await ctx.db
+        .query("slateStats")
+        .withIndex("by_slate", (q) => q.eq("slateId", row._id))
+        .unique();
+      return { ...row, isFavorite: starred.has(row._id), nodeCount: stats?.nodes ?? null, connectorCount: stats?.connectors ?? null };
+    })
+  );
 }
 
 async function membershipOf(ctx: { db: import("./_generated/server").QueryCtx["db"] }, workspaceId: Doc<"workspaces">["_id"], clerkId: string) {
@@ -38,7 +64,7 @@ export const list = query({
       .withIndex("by_workspace_active", (q) => q.eq("workspaceId", args.workspaceId).eq("isArchived", false))
       .order("desc")
       .take(500);
-    return slates.map(summary);
+    return await withExtras(ctx, identity.subject, slates.map(summary));
   },
 });
 
@@ -53,6 +79,11 @@ export const create = mutation({
     if (!identity) throw new Error("Unauthenticated");
     const membership = await membershipOf(ctx, args.workspaceId, identity.subject);
     if (!membership || membership.role === "Viewer") throw new Error("Unauthorized to create slates in this workspace");
+
+    // The workspace owner's plan decides how many boards fit (throws ConvexError { code: "board_limit" }).
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace) throw new Error("Workspace not found");
+    await assertBoardCapacity(ctx, workspace.ownerId);
 
     return await ctx.db.insert("slates", {
       title: args.title.trim().slice(0, 120) || "Untitled",
@@ -112,7 +143,54 @@ export const getById = query({
       canComment: canComment(access),
       canModerate: canModerate(access),
       canViewHistory: canViewHistory(access),
+      stats: await statsOf(ctx, slate._id),
     };
+  },
+});
+
+async function statsOf(ctx: QueryCtx, slateId: Id<"slates">) {
+  const row = await ctx.db
+    .query("slateStats")
+    .withIndex("by_slate", (q) => q.eq("slateId", slateId))
+    .unique();
+  return row ? { nodes: row.nodes, connectors: row.connectors } : null;
+}
+
+/** Star / unstar a board for the caller. Anyone who can open the board can star it. */
+export const setFavorite = mutation({
+  args: { id: v.id("slates"), favorite: v.boolean() },
+  handler: async (ctx, args) => {
+    const { access } = await requireView(ctx, args.id);
+    if (!access.userId) throw new Error("Sign in to star boards");
+    const userId = access.userId;
+    const existing = await ctx.db
+      .query("slateFavorites")
+      .withIndex("by_user_slate", (q) => q.eq("userId", userId).eq("slateId", args.id))
+      .unique();
+    if (args.favorite && !existing) await ctx.db.insert("slateFavorites", { userId, slateId: args.id, createdAt: Date.now() });
+    if (!args.favorite && existing) await ctx.db.delete(existing._id);
+    return args.favorite;
+  },
+});
+
+/**
+ * An editing client reports how many nodes and connectors the board has so dashboard cards can show
+ * them without loading every element. Cheap and idempotent: unchanged counts write nothing.
+ */
+export const reportStats = mutation({
+  args: { id: v.id("slates"), nodes: v.number(), connectors: v.number() },
+  handler: async (ctx, args) => {
+    await requireEdit(ctx, args.id);
+    const clamp = (n: number) => Math.max(0, Math.min(1_000_000, Math.floor(Number.isFinite(n) ? n : 0)));
+    const nodes = clamp(args.nodes);
+    const connectors = clamp(args.connectors);
+    const row = await ctx.db
+      .query("slateStats")
+      .withIndex("by_slate", (q) => q.eq("slateId", args.id))
+      .unique();
+    if (!row) await ctx.db.insert("slateStats", { slateId: args.id, nodes, connectors, updatedAt: Date.now() });
+    else if (row.nodes !== nodes || row.connectors !== connectors) await ctx.db.patch(row._id, { nodes, connectors, updatedAt: Date.now() });
+    return { nodes, connectors };
   },
 });
 
@@ -190,7 +268,7 @@ export const listShared = query({
         .take(200);
       for (const s of slates) out.push({ ...summary(s), workspaceName: workspace.name, sharedBy });
     }
-    return out.sort((a, b) => b.lastEdited - a.lastEdited);
+    return await withExtras(ctx, clerkId, out.sort((a, b) => b.lastEdited - a.lastEdited));
   },
 });
 
@@ -241,6 +319,6 @@ export const listSharedByMe = query({
         .take(200);
       for (const s of slates) results.push({ ...summary(s), workspaceName: workspace.name, sharedWith });
     }
-    return results.sort((a, b) => b.lastEdited - a.lastEdited);
+    return await withExtras(ctx, clerkId, results.sort((a, b) => b.lastEdited - a.lastEdited));
   },
 });

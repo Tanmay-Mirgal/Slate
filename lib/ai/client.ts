@@ -1,4 +1,5 @@
 import type { DiagramKind, Graph } from "../diagram/graph";
+import type { Review, ReviewInput } from "../interview/review";
 import type { Complexity } from "./prompt";
 
 export interface DiagramRequest {
@@ -99,4 +100,57 @@ export async function requestDiagram(req: DiagramRequest, h: RequestHandlers = {
   }
   if (!result) throw new ClientAiError("upstream", "The server finished without returning a diagram.");
   return result;
+}
+
+/* --------------------------------------------------------------- JSON endpoints */
+
+async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+  } catch {
+    if (signal?.aborted) throw new ClientAiError("aborted", "Cancelled");
+    throw new ClientAiError("network", "Couldn't reach the server. Check your connection and try again.");
+  }
+  if (!res.ok) {
+    let code = "upstream";
+    let message = `The request failed (${res.status}).`;
+    let retry: number | undefined;
+    try {
+      const data = (await res.json()) as { error?: { code?: string; message?: string; retryAfterSeconds?: number } };
+      if (data.error) {
+        code = data.error.code ?? code;
+        message = data.error.message ?? message;
+        retry = data.error.retryAfterSeconds;
+      }
+    } catch {
+      /* non-JSON error page */
+    }
+    throw new ClientAiError(code, message, retry);
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ClientAiError("upstream", "The server sent an unreadable response.");
+  }
+}
+
+export interface CodeImportResponse {
+  source: "compose" | "sql" | "tree" | "ai";
+  title: string;
+  graph: Graph;
+  dsl: string;
+  markdown: string;
+  warnings: string[];
+  model?: string;
+}
+
+/** Calls /api/ai/code-to-diagram: exact parsing for compose / SQL / trees, the model for everything else. */
+export function requestCodeImport(source: string, opts: { mode?: "auto" | "ai"; signal?: AbortSignal } = {}): Promise<CodeImportResponse> {
+  return postJson<CodeImportResponse>("/api/ai/code-to-diagram", { source, mode: opts.mode ?? "auto" }, opts.signal);
+}
+
+/** Calls /api/ai/review-architecture for the interview mode's written critique. */
+export async function requestReview(input: ReviewInput, signal?: AbortSignal): Promise<{ review: Review; model: string }> {
+  return postJson<{ review: Review; model: string }>("/api/ai/review-architecture", input, signal);
 }

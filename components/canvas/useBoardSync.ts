@@ -26,7 +26,7 @@ const toWire = (op: Op) => (op.t === "put" ? { t: "put" as const, id: op.el.id, 
  *  - uploads images to Convex storage
  *  - migrates schema-v1 boards (one JSON string) into per-element rows the first time an editor opens them
  */
-export function useBoardSync(engine: Engine, slateId: Id<"slates">, slate: SlateAccess | null | undefined, forceReadOnly: boolean) {
+export function useBoardSync(engine: Engine, slateId: Id<"slates">, slate: SlateAccess | null | undefined, forceReadOnly: boolean): { ready: boolean } {
   const apply = useMutation(api.elements.apply);
   const importLegacy = useMutation(api.elements.importLegacy);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
@@ -127,6 +127,12 @@ export function useBoardSync(engine: Engine, slateId: Id<"slates">, slate: Slate
         });
     }
   }, [engine, slate, slateId, forceReadOnly, importLegacy]);
+
+  // True once every shard has arrived (and, for legacy boards, once they've been loaded locally), so callers
+  // can act on the complete board instead of racing the first snapshot. Effects of later hooks run after the
+  // reconcile effect above, so the store is already populated when this flips.
+  const ready = enabled && (legacyView || (s0 !== undefined && s1 !== undefined && s2 !== undefined && s3 !== undefined));
+  return { ready };
 }
 
 /* ------------------------------------------------------------------ presence */
