@@ -155,7 +155,9 @@ describe("invitations", () => {
     expect(pending).toHaveLength(1);
     expect(pending[0]).toMatchObject({ _id: inviteId, workspaceName: "WS", role: "Editor" });
 
-    await Promise.all([g.mutation(api.workspaces.respondToInvite, { inviteId, accept: true }), g.mutation(api.workspaces.respondToInvite, { inviteId, accept: true }).catch(() => undefined)]);
+    // a double click: whichever request gets there first wins, the other is turned away
+    const answers = await Promise.allSettled([g.mutation(api.workspaces.respondToInvite, { inviteId, accept: true }), g.mutation(api.workspaces.respondToInvite, { inviteId, accept: true })]);
+    expect(answers.filter((a) => a.status === "fulfilled")).toHaveLength(1);
     expect(await (await getCollections()).workspaceMembers.countDocuments({ workspaceId, userId: guest.subject })).toBe(1);
     expect(await g.query(api.workspaces.getMyPendingInvites)).toEqual([]);
     expect((await g.query(api.workspaces.listMyWorkspaces))[0]).toMatchObject({ _id: workspaceId, role: "Editor" });

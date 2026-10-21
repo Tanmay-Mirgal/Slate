@@ -1,4 +1,4 @@
-import { MongoMemoryServer } from "mongodb-memory-server";
+import { MongoMemoryReplSet, MongoMemoryServer } from "mongodb-memory-server";
 import type { FnRef } from "@/lib/client/api";
 import { closeMongo, getCollections, newDocId } from "@/lib/db/mongo";
 import type { Role, SlateDoc } from "@/lib/db/types";
@@ -7,13 +7,26 @@ import { lookup } from "@/lib/server/registry";
 import { ensureUser } from "@/lib/server/users";
 
 /** A real MongoDB (in memory) for the server tests: the same driver, queries and indexes as production. */
-let server: MongoMemoryServer | null = null;
+let server: { stop(): Promise<unknown>; getUri(): string } | null = null;
 
-export async function startDb() {
-  server = await MongoMemoryServer.create();
-  process.env.MONGODB_URI = server.getUri();
+/** Several test files start their own mongod at once, which can take far longer than the library's 10 s default. */
+const LAUNCH_TIMEOUT_MS = 120_000;
+
+async function connect() {
+  process.env.MONGODB_URI = server!.getUri();
   process.env.MONGODB_DB = "slate_test";
   await getCollections(); // connects and creates the indexes
+}
+
+export async function startDb() {
+  server = await MongoMemoryServer.create({ instance: { launchTimeout: LAUNCH_TIMEOUT_MS } });
+  await connect();
+}
+
+/** A one-node replica set: the realtime server's change streams need one (a plain mongod has none). */
+export async function startReplDb() {
+  server = await MongoMemoryReplSet.create({ replSet: { count: 1 }, instanceOpts: [{ launchTimeout: LAUNCH_TIMEOUT_MS }] });
+  await connect();
 }
 
 export async function stopDb() {

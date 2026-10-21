@@ -17,6 +17,34 @@ const dragSchema = z.object({ ids: z.array(z.string()), dx: z.number(), dy: z.nu
 
 const finite = (n: number) => (Number.isFinite(n) ? Math.max(-1e7, Math.min(1e7, n)) : 0);
 
+/* Input cleaning shared by the HTTP functions below and the WebSocket server. */
+
+export const cleanName = (name: string) => name.trim().slice(0, MAX_NAME) || "Guest";
+export const cleanColor = (color: string) => (/^#[0-9a-fA-F]{6}$/.test(color) ? color : "#6366f1");
+export const cleanAvatar = (avatar: string | undefined) => (avatar && avatar.length < 500 ? avatar : undefined);
+
+export interface PresenceInput {
+  cursor: { x: number; y: number } | null;
+  selection: string[];
+  draft?: string;
+  drag?: { ids: string[]; dx: number; dy: number };
+  tool?: string;
+}
+
+/** Clamps everything a client says about its own cursor / selection / drag, so a hostile one can't flood or break its peers. */
+export function cleanPresence(p: PresenceInput): PresenceInput {
+  return {
+    cursor: p.cursor ? { x: finite(p.cursor.x), y: finite(p.cursor.y) } : null,
+    selection: p.selection.slice(0, MAX_SELECTION).map((s) => s.slice(0, 80)),
+    draft: p.draft && p.draft.length <= MAX_DRAFT ? p.draft : undefined,
+    drag: p.drag ? { ids: p.drag.ids.slice(0, 80).map((s) => s.slice(0, 80)), dx: finite(p.drag.dx), dy: finite(p.drag.dy) } : undefined,
+    tool: p.tool ? p.tool.slice(0, 20) : undefined,
+  };
+}
+
+/** The presence input schemas, for the WebSocket server's message validation. */
+export const presenceSchemas = { cursor: cursorSchema, drag: dragSchema };
+
 /**
  * Registers a tab on a slate. Access is verified once here; `update` then only needs the
  * (unguessable) row id, which keeps the hot cursor path to a single document write.
@@ -29,9 +57,9 @@ export const join = mutation({
     const c = await getCollections();
     const fields = {
       userId: access.userId ?? `anon:${args.sessionId}`,
-      name: args.name.trim().slice(0, MAX_NAME) || "Guest",
-      avatar: args.avatar && args.avatar.length < 500 ? args.avatar : undefined,
-      color: /^#[0-9a-fA-F]{6}$/.test(args.color) ? args.color : "#6366f1",
+      name: cleanName(args.name),
+      avatar: cleanAvatar(args.avatar),
+      color: cleanColor(args.color),
       lastSeen: now,
       expireAt: new Date(now + SESSION_TTL_MS),
     };
@@ -64,18 +92,14 @@ export const update = mutation({
   handler: async (_ctx, args) => {
     const now = Date.now();
     const c = await getCollections();
-    const set: Record<string, unknown> = {
-      cursor: args.cursor ? { x: finite(args.cursor.x), y: finite(args.cursor.y) } : null,
-      selection: args.selection.slice(0, MAX_SELECTION).map((s) => s.slice(0, 80)),
-      lastSeen: now,
-      expireAt: new Date(now + SESSION_TTL_MS),
-    };
+    const clean = cleanPresence(args);
+    const set: Record<string, unknown> = { cursor: clean.cursor, selection: clean.selection, lastSeen: now, expireAt: new Date(now + SESSION_TTL_MS) };
     const unset: Record<string, ""> = {};
-    if (args.draft && args.draft.length <= MAX_DRAFT) set.draft = args.draft;
+    if (clean.draft) set.draft = clean.draft;
     else unset.draft = "";
-    if (args.drag) set.drag = { ids: args.drag.ids.slice(0, 80).map((s) => s.slice(0, 80)), dx: finite(args.drag.dx), dy: finite(args.drag.dy) };
+    if (clean.drag) set.drag = clean.drag;
     else unset.drag = "";
-    if (args.tool) set.tool = args.tool.slice(0, 20);
+    if (clean.tool) set.tool = clean.tool;
     else unset.tool = "";
     const res = await c.liveSessions.updateOne({ _id: args.id }, { $set: set, $unset: unset });
     return res.matchedCount === 1;

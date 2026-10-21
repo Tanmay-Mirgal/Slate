@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AnyBulkWriteOperation } from "mongodb";
 import { getCollections, newDocId } from "@/lib/db/mongo";
-import type { ElementDoc, Id } from "@/lib/db/types";
+import type { ElementDoc, Id, SlateDoc } from "@/lib/db/types";
 import { shouldAutoSnapshot } from "@/lib/canvas/version-snapshot";
 import { loadSlate, requireEdit, resolveAccess } from "./access";
 import { AppError, mutation, query, zId } from "./fn";
@@ -42,24 +42,46 @@ export const sync = query({
     const slate = await loadSlate(args.slateId);
     if (!slate || !(await resolveAccess(ctx, slate))) return none;
 
-    const full = since === 0 || since < (slate.tombstoneFloor ?? 0);
-    const c = await getCollections();
-    const filter = full
-      ? { slateId: args.slateId, deleted: { $ne: true } }
-      : { slateId: args.slateId, $or: [{ seq: { $gt: since } }, { updatedAt: { $gte: Date.now() - OVERLAP_MS } }] };
-    const rows = await c.elements.find(filter).project<Pick<ElementDoc, "eid" | "z" | "rev" | "data" | "deleted" | "seq">>({ eid: 1, z: 1, rev: 1, data: 1, deleted: 1, seq: 1 }).toArray();
-
-    let cursor = full ? 0 : since;
-    const puts: typeof none.puts = [];
-    const dels: string[] = [];
-    for (const r of rows) {
-      if (r.seq > cursor) cursor = r.seq;
-      if (r.deleted) dels.push(r.eid);
-      else puts.push({ eid: r.eid, z: r.z, rev: r.rev, data: r.data });
-    }
-    return { full, cursor, puts, dels };
+    return await readChanges(slate, since);
   },
 });
+
+export interface ChangeSet {
+  full: boolean;
+  cursor: number;
+  puts: { eid: string; z: number; rev: number; data: string }[];
+  dels: string[];
+}
+
+/**
+ * What changed on a board since `since` (0 = the whole board). No access check: callers (the `sync` query,
+ * the realtime server) have already decided the reader may see the board.
+ */
+export async function readChanges(slate: Pick<SlateDoc, "_id" | "tombstoneFloor">, since: number): Promise<ChangeSet> {
+  const { full, rows } = await readChangeRows(slate, since);
+  let cursor = full ? 0 : since;
+  const puts: ChangeSet["puts"] = [];
+  const dels: string[] = [];
+  for (const r of rows) {
+    if (r.seq > cursor) cursor = r.seq;
+    if (r.deleted) dels.push(r.eid);
+    else puts.push({ eid: r.eid, z: r.z, rev: r.rev, data: r.data });
+  }
+  return { full, cursor, puts, dels };
+}
+
+export type ChangeRow = Pick<ElementDoc, "eid" | "z" | "rev" | "data" | "deleted" | "seq">;
+
+/** The raw rows behind `readChanges`: live elements and delete markers, each with its revision and change number. */
+export async function readChangeRows(slate: Pick<SlateDoc, "_id" | "tombstoneFloor">, since: number): Promise<{ full: boolean; rows: ChangeRow[] }> {
+  const full = since === 0 || since < (slate.tombstoneFloor ?? 0);
+  const c = await getCollections();
+  const filter = full
+    ? { slateId: slate._id, deleted: { $ne: true } }
+    : { slateId: slate._id, $or: [{ seq: { $gt: since } }, { updatedAt: { $gte: Date.now() - OVERLAP_MS } }] };
+  const rows = await c.elements.find(filter).project<ChangeRow>({ eid: 1, z: 1, rev: 1, data: 1, deleted: 1, seq: 1 }).toArray();
+  return { full, rows };
+}
 
 /** Applies a batch of puts / deletes. One call per user gesture. */
 export const apply = mutation({

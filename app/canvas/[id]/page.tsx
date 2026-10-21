@@ -14,6 +14,7 @@ import { PricingModal } from "@/components/billing/PricingModal";
 import { BoardShell, useBoardEngine } from "@/components/canvas/BoardShell";
 import { ShareSlateDialog } from "@/components/canvas/ShareSlateDialog";
 import { useBoardPresence, useBoardSync } from "@/components/canvas/useBoardSync";
+import { useBoardSocket } from "@/components/canvas/useBoardSocket";
 import type { ViewMode } from "@/components/canvas/TopBar";
 import { CommandPalette, type CommandItem } from "@/components/CommandPalette";
 import { useDocBridge } from "@/components/editor/doc-bridge";
@@ -62,12 +63,11 @@ export default function CanvasPage() {
   const interviewFromUrl = search.get("interview") === "1" || starterById(search.get("template"))?.interview === true;
 
   const access = slate === null ? null : slate && doc ? { access: slate.access, legacyElements: doc.legacyElements } : undefined;
-  const { ready: boardReady } = useBoardSync(engine, slateId, access, forceView);
-  useBoardPresence(engine, slateId, !!slate, {
-    userId: user?.id ?? null,
-    name: user?.fullName || user?.firstName || "Guest",
-    avatar: user?.imageUrl,
-  });
+  const who = { userId: user?.id ?? null, name: user?.fullName || user?.firstName || "Guest", avatar: user?.imageUrl };
+  // The live connection (board changes, writes, cursors) is a WebSocket; both hooks fall back to HTTP polling while it is down.
+  const conn = useBoardSocket(slateId, true, who);
+  const { ready: boardReady } = useBoardSync(engine, slateId, access, forceView, conn);
+  useBoardPresence(engine, slateId, !!slate, who, conn);
 
   const readOnly = forceView || slate?.access === "view";
 

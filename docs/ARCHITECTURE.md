@@ -41,7 +41,7 @@ workspaces / workspace_members / invites                                       u
 slates       metadata: title, workspace, linkAccess, schemaVersion, elementSeq
 elements     one row per element: (slateId, eid, seq, z, rev, data)            unique (slateId, eid); (slateId, seq)
              a deleted element stays as a marker (deleted: true) for a few hours
-liveSessions cursors/selection/drafts                                          TTL index: MongoDB removes rows ~90 s after their last write
+liveSessions cursors/selection/drafts (HTTP fallback only; the realtime server keeps them in memory)   TTL index
 rateLimits   fixed-window counters per user and bucket                         TTL index
 files        uploaded images (GridFS)
 ```
@@ -49,16 +49,16 @@ files        uploaded images (GridFS)
 * **Batched writes.** `elements.apply` takes the ops of one gesture (≤ 500). Duplicate ops on an element are
   collapsed, unchanged rows are not rewritten (`rev` only bumps on real changes), and `slates.lastEdited` is
   touched at most every 30 s, so busy boards don't contend on the slate document.
-* **A change feed, not a subscription.** Every write to a board takes the next number from the board's counter
-  (`slates.elementSeq`, one atomic `$inc` per batch). Clients call `elements.sync({ slateId, since })` and get only the rows
-  with a higher number, plus the ids deleted since. The first call (`since: 0`) returns the whole board. Rows are parsed
-  once per `(eid, rev)`.
-  * *Late writers.* Numbers are handed out before rows become visible, so a reader could see 11 before 10. Every poll
-    therefore also re-reads rows written in the last 5 s (the client ignores rows whose `rev` it already has).
-  * *Deleted elements* stay as markers for 6 h so clients that poll in that window learn about the delete. A client that
-    was away longer is told to reload the whole board (`slates.tombstoneFloor`).
-  * *Cadence.* About 0.9 s while other people are on the board, 2.5 s when you are alone, paused while the tab is hidden,
-    and immediately after your own edit is saved.
+* **A change feed.** Every write to a board takes the next number from the board's counter (`slates.elementSeq`, one
+  atomic `$inc` per batch). `elements.sync({ slateId, since })` returns only the rows with a higher number, plus the ids
+  deleted since; `since: 0` returns the whole board. Both transports below use it (the WebSocket on join and when
+  reconnecting, HTTP on every poll). Rows are parsed once per `(eid, rev)`.
+  * *Late writers.* Numbers are handed out before rows become visible, so a reader could see 11 before 10. Every read
+    therefore also re-includes rows written in the last 5 s (clients ignore rows whose `rev` they already have).
+  * *Deleted elements* stay as markers for 6 h so clients that were away less than that learn about the delete. A client
+    that was away longer is told to reload the whole board (`slates.tombstoneFloor`).
+  * *HTTP cadence (the fallback).* About 0.9 s while other people are on the board, 2.5 s when you are alone, paused
+    while the tab is hidden, and immediately after your own edit is saved.
 * **No snap-back.** While an element is being dragged, queued, or in flight, incoming server rows for it are
   ignored. After the write is acknowledged there's a short grace period before server state wins again.
 * **Access** (`access.ts`): Admin/Editor → edit, Viewer → view, legacy owner → edit, and link sharing
@@ -76,26 +76,60 @@ files        uploaded images (GridFS)
 
 * One request ≤ 500 element ops; one element ≤ 250 KB. A full load of a very large board (tens of thousands of elements)
   is one big response; version snapshots refuse boards above 6,000 elements.
-* Every viewer polls its board, so cost grows with *viewers × poll rate*. That is the real scaling unit: **many boards
-  scale horizontally** (MongoDB + stateless Next.js), but a *single* board with hundreds of simultaneous editors
-  needs a push-based realtime layer (see the seam below).
+* A board's fan-out is *editors × viewers*: every change goes to everyone on it. That is the real scaling unit:
+  **many boards scale horizontally** (MongoDB + stateless Next.js + realtime instances), but a *single* board with
+  hundreds of simultaneous editors would need cursor throttling per recipient or a dedicated realtime service.
 
-## 3. Live cursors
+## 3. The realtime server (`lib/realtime/`, `scripts/realtime.ts`)
 
-`useBoardPresence` joins the board once (access is verified there) and thereafter calls `presence.update` with an
-unguessable row id, so the hot path is a single document update with no extra reads. Peers are read by polling
-`presence.list` about once a second.
+One long-running Node process holds a WebSocket to every browser on a board (a serverless host can't, so it is deployed
+next to the app: `npm run realtime`, started with the app by `npm run dev`). The wire protocol is in
+`lib/realtime/protocol.ts`; the browser end is `lib/client/realtime.ts` (`BoardSocket`).
 
-* Updates are **coalesced**: at most one in flight per tab; while waiting only the newest state is kept.
-* The send interval **backs off** with room size (`66 ms + 25 ms × peers`, capped at 400 ms).
+```
+browser ── join { slateId, token?, since, session } ──► verify the Clerk token, check access, add to the room
+        ◄── joined { access, peers } ── sync { puts, dels, cursor }         the board, or what changed since `since`
+        ── ops { id, ops } ──► runs the same elements.apply as the HTTP API (same checks) ──► ack { id } / error { id, message }
+        ── presence { cursor, selection, draft, drag, tool } ──► relayed to the others as peer { ... }   (memory only)
+        ◄── elements { puts, dels } pushed for every change by anybody · peer / left · access / revoked · nudge · hb
+```
+
+* **Where changes come from.** MongoDB change streams (elements with the full row; comments; a board's settings), so it
+  doesn't matter who wrote a row: this process, the HTTP API, a script or another realtime instance. A row can be reported
+  by several sources; an `(eid, rev)` memory pushes it once. Where change streams don't exist (a standalone mongod) the
+  server polls each active board's changes every few hundred ms instead (`/health` reports which feed is in use). A
+  dropped stream restarts itself with a catch-up, and a 30 s safety catch-up heals any missed event.
+* **Auth.** The browser sends its Clerk session token in `join` (verified with `verifyToken`; with `REALTIME_ALLOWED_ORIGINS`
+  set, only tokens issued to those origins count). No token = a signed-out visitor, who can join only boards with a link
+  setting. Access is checked at join, on every write (it is `elements.apply`), after any change to the board's settings, and every
+  30 s for everybody, so a removed member is dropped (`revoked`) and a downgraded one is told (`access`).
+* **Safety.** Per-connection flood control (cursors beyond the allowance are dropped, anything else gets an error), message
+  size and schema limits, a cap on connections per address, optional origin allow-list, ping/pong plus an app heartbeat so dead
+  connections are dropped (and the browser reconnects if it hears nothing for 55 s), and slow consumers are skipped or closed
+  instead of buffering without bound.
+* **Browser side.** `BoardSocket` reconnects with backoff (and immediately when the network returns), re-joins with a fresh
+  token and `since` = the last change it saw. `BoardFeed` (`lib/client/board-feed.ts`) holds the rows for whichever transport is
+  live and makes sure a pushed change is never undone by a join reply that was read before it. While the socket is not open,
+  `useBoardSync` and `useBoardPresence` run the HTTP paths (poll + `elements.apply` / `presence.*`), and stop them the moment it
+  opens; a write that was in flight when the socket dropped is re-sent over HTTP. While nudges are available (comments, a
+  board's title and sharing), those queries are only re-read on a slow safety timer.
+* **Scaling out.** Board data and nudges work across instances (each one watches MongoDB). Cursors live in the memory of the
+  instance a person is connected to, so send everybody on a board to the same instance (sticky by board id) or put a pub/sub in
+  front. `PresenceChannel` (`lib/canvas/engine.ts`) is still the seam if you later swap in a hosted realtime service.
+
+## 3b. Live cursors
+
+Over the socket, `useBoardPresence` sends the engine's presence (cursor, selection, in-progress shape, drag preview) and shows
+the peers the server relays; nothing is written to the database. (On the HTTP fallback each tab joins with a short-lived row,
+`presence.join` / `update`, and the others poll `presence.list`.)
+
+* Updates are **throttled by the engine** (`66 ms + 25 ms × peers`, capped at 400 ms), and the server drops cursor frames for
+  a client that is not keeping up.
 * Remote cursors are **interpolated per frame** in the DOM (`CursorsOverlay`), so low update rates still look
   smooth, and they are positioned in screen space (crisp at any zoom).
-* Freshness uses the *client's* clock: a session whose `lastSeen` stops changing for 45 s disappears, so server
-  clock skew can't make cursors stick. MongoDB's TTL index deletes rows ~90 s after their last write.
+* Over the socket the server says exactly when someone leaves (`left`). On the HTTP fallback freshness uses the *client's*
+  clock: a session whose `lastSeen` stops changing for 45 s disappears, and MongoDB's TTL index deletes the row ~90 s later.
 * Teammates' **selection outlines**, **in-progress shapes** and **drag previews** ride on the same channel.
-
-`PresenceChannel` (`lib/canvas/engine.ts`) is the seam for swapping in a dedicated transport (Liveblocks,
-PartyKit, Ably, a WebSocket service) if a single room ever needs 60 Hz cursors for large audiences.
 
 ## 4. AI pipeline
 
@@ -190,3 +224,8 @@ Razorpay ──► /api/billing/razorpay/webhook                  HMAC(raw body)
    Create the four plans if you want recurring billing and put their ids in `RAZORPAY_PLAN_*`.
 5. `npm run build && npm start` (or Vercel). `/api/ai/*` can stream or wait on a model, so give them `maxDuration` ≥ 60 s
    on your platform.
+6. The realtime server, as its own always-on service (a VPS, Render, Railway, Fly… anything that keeps a Node process and
+   WebSockets open, behind TLS): `npm run realtime`, with `MONGODB_URI`, `CLERK_SECRET_KEY`, `REALTIME_ALLOWED_ORIGINS=https://<your-domain>`
+   (and `REALTIME_TRUST_PROXY=1` behind a proxy). It listens on `REALTIME_PORT` or `PORT` and answers `GET /health`. Then build the app
+   with `NEXT_PUBLIC_REALTIME_URL=wss://<realtime-host>` (it is read at build time). Atlas change streams need a replica
+   set (every Atlas cluster is one). Without this step the app still works, on HTTP polling.

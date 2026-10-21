@@ -38,10 +38,12 @@ A free, no-account board lives at **`/playground`** (stored in your browser).
 ```bash
 npm install
 cp .env.example .env.local     # fill in the values (see below), at least MONGODB_URI and the Clerk keys
-npm run dev                    # http://localhost:3000
+npm run dev                    # the app on http://localhost:3000 and the realtime server on :4000
 ```
 
-There is nothing to deploy besides the app: collections and indexes are created on first connection.
+Collections and indexes are created on first connection. For live updates the app needs one more process, the
+**realtime (WebSocket) server** (`npm run realtime`); `npm run dev` starts both. Without it the app still works,
+on HTTP polling.
 
 > **Coming from the Convex version?** Export your data once with `npx convex export --path backups/convex.zip`,
 > unzip it into a folder, then `npm run db:migrate -- <folder> --dry-run` and `npm run db:migrate -- <folder>`.
@@ -55,6 +57,8 @@ See [`.env.example`](.env.example) for the full list. The ones that matter most:
 | Variable | Purpose |
 | :-- | :-- |
 | `MONGODB_URI` | MongoDB connection string (Atlas). The database name at the end of the URI is used. |
+| `NEXT_PUBLIC_REALTIME_URL` | Where browsers find the realtime server, e.g. `wss://realtime.example.com` (`ws://localhost:4000` in development, `off` = HTTP polling only). |
+| `REALTIME_PORT` (or `PORT`), `REALTIME_ALLOWED_ORIGINS`, `REALTIME_TRUST_PROXY` | Settings of the realtime server process. It also needs `MONGODB_URI` and `CLERK_SECRET_KEY` (it verifies the sign-in token a browser sends when it joins a board). |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Clerk auth. |
 | `CLERK_WEBHOOK_SECRET` | Signing secret of the Clerk webhook `https://<your-domain>/api/webhooks/clerk` (events `user.created`, `user.updated`, `user.deleted`), which keeps MongoDB in step with Clerk. |
 | `NVIDIA_API_KEY` | **AI generation.** Free key from <https://build.nvidia.com> → profile → API Keys. Without it AI is disabled and the panel offers templates instead. |
@@ -85,10 +89,11 @@ npm run ai:check -- --full  # also runs a real end-to-end generation
 
 ```mermaid
 graph LR
-  B[Browser<br/>Canvas engine + React UI] -- "elements.apply (batched)" --> S[Next.js /api/rpc]
-  S --> C[(MongoDB)]
-  B -- "elements.sync (changes since last poll)" --> S
-  B -- "cursors (throttled)" --> S
+  B[Browser<br/>Canvas engine + React UI] <-- "WebSocket: board, writes, live cursors" --> W[Realtime server]
+  W -- "change streams" --> C[(MongoDB)]
+  W -- "reads and writes" --> C
+  B -. "HTTP fallback (polling)" .-> S[Next.js /api/rpc]
+  S --> C
   B -- "prompt" --> R[Next.js /api/ai/generate]
   R -- "auth + rate limit" --> C
   R -- "stream" --> N[NVIDIA NIM]
@@ -96,9 +101,15 @@ graph LR
   B -- "ELK layout (in-browser)" --> B
 ```
 
-* **One row per element** instead of one JSON blob per board. A drag is *one* small write, concurrent editors never
-  overwrite each other, and clients poll for *what changed since their last poll* (a per-board change counter),
-  not for the whole board.
+* **One row per element** instead of one JSON blob per board. A drag is *one* small write and concurrent editors never
+  overwrite each other.
+* **Live over WebSockets.** Each browser keeps one socket to the realtime server per board: the board arrives on join,
+  every change by anybody is pushed the moment it is stored (the server watches MongoDB change streams, so it doesn't
+  matter who wrote it), writes go over the same socket, and live cursors, selections and drag previews are relayed in
+  memory between the people on the board (never written to the database). Comments and sharing changes arrive as nudges.
+* **It degrades, it doesn't break.** If the socket is down (no realtime server, a restart, a blocked network) the page
+  silently falls back to HTTP: it polls for *what changed since the last answer* (a per-board change counter) and writes
+  through `/api/rpc`, and switches back when the socket returns. Both paths feed the same rows, so nothing is lost either way.
 * **Layout runs in the browser.** The server only proxies the model and validates JSON, so AI cost scales with
   model usage, not server CPU.
 * **Presence is throttled and coalesced**: at most one in-flight update per tab, with the send rate backing off
@@ -144,7 +155,8 @@ lib/import/          docker-compose / SQL / folder-tree importers and the docume
 lib/interview/       timer, checklist, scale calculator, review rubric
 lib/db/              MongoDB connection, document types, indexes
 lib/server/          server functions (the API): slates, elements, presence, comments, versions, billing, users
-lib/client/          browser side of the API: typed `api`, `useQuery` / `useMutation` (polling, shared cache)
+lib/client/          browser side of the API: typed `api`, `useQuery` / `useMutation` (polling, shared cache), the WebSocket client
+lib/realtime/        the realtime server (rooms, writes, cursors, change feed) and its wire protocol; entry point scripts/realtime.ts
 scripts/             db:migrate (Convex -> MongoDB), clerk:sync, AI check
 tests/               vitest: engine, router, layout (overlap-free), DSL, AI plumbing, database logic (in-memory MongoDB)
 ```
@@ -170,10 +182,10 @@ Not verified in this environment (needs your credentials): signed-in flows again
 output from NVIDIA (the NVIDIA plumbing is tested against a mocked streaming API).
 
 Not built (compared with Eraser): comments / @mentions, version history, PDF export, Mermaid import, embeds,
-CRDT co-editing of the rich-text *Doc* view (it saves last-writer-wins). Live updates are **polled over HTTP**
-(about once a second while others are on the board, every couple of seconds when you are alone), not pushed, and cursor
-traffic goes through the database. That is fine for typical team sizes (≲ 25 people per board); for more, or for
-push-speed updates, plug a dedicated realtime transport into `PresenceChannel` (see ARCHITECTURE.md).
+CRDT co-editing of the rich-text *Doc* view (it saves last-writer-wins). Live cursors are relayed by one realtime server
+process; board data works across several instances, but cursors are only shared between people connected to the same
+one, so route a board's visitors to one instance. The realtime server is a long-running Node process: it cannot run on
+a serverless host, so deploy it as its own service next to the app (see ARCHITECTURE.md).
 
 Billing: payments are verified server-side (HMAC-SHA256 signature, then the order or subscription is fetched
 from Razorpay) and plans are written by server-only code that is not reachable from the browser. Verified here with unit

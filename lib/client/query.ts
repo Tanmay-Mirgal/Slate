@@ -68,7 +68,23 @@ function stable(value: unknown): string {
   return JSON.stringify(value, (_k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1))) : v)) ?? "";
 }
 
-const pollFor = (name: string) => POLL_MS[name] ?? DEFAULT_POLL_MS;
+/**
+ * While the realtime socket is open and pushes "something changed" nudges, the queries a nudge covers are only
+ * re-read on a slow safety timer instead of every few seconds.
+ */
+const NUDGED = new Set(["comments.list", "comments.messages", "comments.members", "slates.getById"]);
+const NUDGED_SLOWDOWN = 8;
+let pushActive = false;
+
+/** Tells the data layer whether the server pushes nudges (see `refetchQueries`). */
+export function setServerPush(active: boolean): void {
+  pushActive = active;
+}
+
+const pollFor = (name: string) => {
+  const base = POLL_MS[name] ?? DEFAULT_POLL_MS;
+  return pushActive && NUDGED.has(name) ? base * NUDGED_SLOWDOWN : base;
+};
 const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
 
 function emit(e: Entry) {
@@ -157,6 +173,13 @@ function attach(e: Entry, listener: () => void): () => void {
 export function refetchActiveQueries(): void {
   for (const e of entries.values()) {
     if (e.observers > 0) void refresh(e);
+  }
+}
+
+/** Re-fetches the on-screen queries whose function name starts with `prefix` (`"comments."`, `"slates.getById"`). */
+export function refetchQueries(prefix: string): void {
+  for (const e of entries.values()) {
+    if (e.observers > 0 && e.name.startsWith(prefix)) void refresh(e);
   }
 }
 
