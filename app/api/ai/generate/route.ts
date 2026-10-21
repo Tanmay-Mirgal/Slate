@@ -34,7 +34,7 @@ function json(status: number, code: string, message: string, extra: Record<strin
  * server cost per request is just the model call.
  */
 export async function POST(req: Request) {
-  const { userId, getToken } = await auth();
+  const { userId } = await auth();
   if (!userId) return json(401, "unauthenticated", "Sign in to use Slate AI.");
 
   const len = Number(req.headers.get("content-length") ?? 0);
@@ -53,13 +53,7 @@ export async function POST(req: Request) {
     return json(503, "not_configured", "AI generation isn't set up yet. Add NVIDIA_API_KEY (free at build.nvidia.com) to your environment.");
   }
 
-  let token: string | null = null;
-  try {
-    token = await getToken({ template: "convex" });
-  } catch {
-    token = null;
-  }
-  const limit = await checkAiRateLimit(userId, token);
+  const limit = await checkAiRateLimit(userId);
   if (!limit.allowed) {
     const secs = Math.max(1, Math.ceil(limit.retryAfterMs / 1000));
     return json(
@@ -72,7 +66,7 @@ export async function POST(req: Request) {
   }
 
   // Credits are reserved up front and refunded if the model never produces a diagram.
-  const credit = await reserveAiCredit(token);
+  const credit = await reserveAiCredit(userId);
   if (!credit.ok) {
     if (credit.reason === "exhausted") return json(402, credit.error.code, credit.error.message, { tier: credit.error.tier, limit: credit.error.limit, resetsAt: credit.resetsAt });
     return json(503, "billing_unavailable", credit.message);

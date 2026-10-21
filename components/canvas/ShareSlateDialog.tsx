@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "convex/react";
 import { Check, Copy, Eye, Globe, Loader2, Lock, Mail, Pencil, Share2, Users } from "lucide-react";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/client/api";
+import { useMutation } from "@/lib/client/query";
+import type { Id } from "@/lib/db/types";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type LinkAccess = "none" | "view" | "edit";
@@ -44,7 +44,7 @@ export function ShareSlateDialog({ slateId, title, workspaceId, linkAccess, canM
     try {
       await setLink({ id: slateId, linkAccess: next });
     } catch (e) {
-      setNote({ kind: "error", text: e instanceof Error ? e.message.replace(/^.*Uncaught Error:\s*/, "") : "Could not update sharing" });
+      setNote({ kind: "error", text: e instanceof Error ? e.message : "Could not update sharing" });
     } finally {
       setPending(null);
     }
@@ -85,7 +85,7 @@ export function ShareSlateDialog({ slateId, title, workspaceId, linkAccess, canM
       });
       setEmail("");
     } catch (err) {
-      setNote({ kind: "error", text: err instanceof Error ? err.message.replace(/^.*Uncaught Error:\s*/, "") : "Could not send the invitation" });
+      setNote({ kind: "error", text: err instanceof Error ? err.message : "Could not send the invitation" });
     } finally {
       setInviting(false);
     }

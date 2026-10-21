@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 
-type Kind = "bad-id" | "backend-outdated" | "other";
+type Kind = "bad-id" | "unavailable" | "other";
 
 function classify(message: string): Kind {
-  // Convex reports a missing function as: Could not find public function for 'elements:list'
-  if (/could not find (public|internal) function|is not a function|elements:list|presence:(join|list)/i.test(message)) return "backend-outdated";
-  if (/invalid|decode|validator|argument/i.test(message)) return "bad-id";
+  // thrown by the data layer when the server can't be reached or keeps failing
+  if (/offline|connection|something went wrong|server returned an error/i.test(message)) return "unavailable";
+  if (/invalid request|invalid|argument/i.test(message)) return "bad-id";
   return "other";
 }
 
@@ -18,9 +18,9 @@ const COPY: Record<Kind, { title: string; body: string }> = {
     title: "That board link isn’t valid",
     body: "Check the link you were given, or open the board from your dashboard.",
   },
-  "backend-outdated": {
-    title: "The backend needs to be updated",
-    body: "This version of the app calls functions that aren’t deployed to your Convex backend yet. If you run this site, deploy the Convex functions (npx convex deploy) and reload.",
+  unavailable: {
+    title: "We couldn’t reach the server",
+    body: "Check your connection and try again. Anything you drew is saved as soon as the connection is back.",
   },
   other: {
     title: "Something went wrong opening this board",

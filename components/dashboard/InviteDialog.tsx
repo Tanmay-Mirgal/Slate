@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "convex/react";
 import { Loader2, Mail } from "lucide-react";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/client/api";
+import { useMutation } from "@/lib/client/query";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Role = "Admin" | "Editor" | "Viewer";
@@ -15,9 +14,9 @@ const ROLES: { id: Role; hint: string }[] = [
   { id: "Admin", hint: "Can also invite people and rename the workspace" },
 ];
 
-const cleanError = (e: unknown, fallback: string) => (e instanceof Error ? e.message.replace(/^.*Uncaught Error:\s*/, "") : fallback);
+const cleanError = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
-/** Invite a teammate to a workspace by email. The invite is recorded in Convex and mailed when SMTP is configured. */
+/** Invite a teammate to a workspace by email. The invite is recorded in the database and mailed when SMTP is configured. */
 export function InviteDialog({ open, onOpenChange, workspace }: { open: boolean; onOpenChange: (open: boolean) => void; workspace: { id: string; name: string } | null }) {
   const createInvite = useMutation(api.workspaces.createInvite);
   const [email, setEmail] = React.useState("");
@@ -32,7 +31,7 @@ export function InviteDialog({ open, onOpenChange, workspace }: { open: boolean;
     setBusy(true);
     setNote(null);
     try {
-      await createInvite({ workspaceId: workspace.id as Id<"workspaces">, recipientEmail: address, role });
+      await createInvite({ workspaceId: workspace.id, recipientEmail: address, role });
       let mailed = false;
       try {
         const res = await fetch("/api/invite", {

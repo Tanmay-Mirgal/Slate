@@ -7,7 +7,7 @@ import {
   snippetOf,
   uniqueIds,
   type MentionRef,
-} from "@/convex/commentLogic";
+} from "@/lib/comments/logic";
 import { newId } from "@/lib/canvas/ids";
 import type { El } from "@/lib/canvas/types";
 import { anchorAt } from "./anchor";
@@ -41,7 +41,7 @@ interface Stored {
 
 /**
  * The public playground has no backend, so comments live in this browser: the same rules as
- * `convex/comments.ts` (it shares `commentLogic.ts`), kept in localStorage. "Teammates" are sample
+ * `lib/server/comments.ts` (it shares `commentLogic.ts`), kept in localStorage. "Teammates" are sample
  * people so @mentions, unread badges and the filters can be tried without an account.
  */
 export class LocalCommentsStore {

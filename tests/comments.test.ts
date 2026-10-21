@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeMentionQuery, cleanBody, isUnread, mentionedIn, sanitizeAnchor, searchPeople, snippetOf, splitMentions, uniqueIds } from "@/convex/commentLogic";
+import { activeMentionQuery, cleanBody, isUnread, mentionedIn, sanitizeAnchor, searchPeople, snippetOf, splitMentions, uniqueIds } from "@/lib/comments/logic";
 
 const ada = { userId: "u_ada", name: "Ada Lovelace" };
 const adam = { userId: "u_adam", name: "Adam" };

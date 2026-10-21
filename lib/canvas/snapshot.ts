@@ -10,7 +10,7 @@ export interface CanvasSnapshot {
   via: "upload" | "inline";
 }
 
-/** The document is stored as one Convex field with a hard cap, so inline pictures must stay small. */
+/** The document is stored as one field of the board with a size cap, so inline pictures must stay small. */
 const MAX_INLINE_CHARS = 140_000;
 
 const SNAPSHOT_OPTIONS: Omit<ExportOptions, "selectionOnly"> = {

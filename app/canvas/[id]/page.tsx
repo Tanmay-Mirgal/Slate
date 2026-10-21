@@ -4,11 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { Activity, Eraser, FileCode2, Frame, GraduationCap, Grid3x3, Hand, Image as ImageIcon, ImagePlus, Loader2, Lock, Maximize, Moon, MousePointer2, Pencil, Sparkles, SquareDashed, StickyNote, Type, ArrowUpRight, Download } from "lucide-react";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/client/api";
+import { useMutation, useQuery } from "@/lib/client/query";
+import type { Id } from "@/lib/db/types";
 import { AiPanel } from "@/components/ai-panel/ai-panel";
 import { PricingModal } from "@/components/billing/PricingModal";
 import { BoardShell, useBoardEngine } from "@/components/canvas/BoardShell";
@@ -43,9 +43,10 @@ export default function CanvasPage() {
   const slateId = params.id as Id<"slates">;
   const forceView = search.get("mode") === "view";
 
-  const { isLoading: authLoading } = useConvexAuth();
   const { user, isLoaded: clerkLoaded } = useUser();
   const slate = useQuery(api.slates.getById, { id: slateId });
+  // The document body (and, for boards from before per-element storage, the legacy canvas) is fetched once, apart from the polled metadata.
+  const doc = useQuery(api.slates.getDocument, slate ? { id: slateId } : "skip");
   const billing = useQuery(api.billing.getMyBilling);
 
   const engine = useBoardEngine();
@@ -60,7 +61,7 @@ export default function CanvasPage() {
   const openPricing = React.useCallback((reason: BillingErrorCode | null = null) => setPricing({ open: true, reason }), []);
   const interviewFromUrl = search.get("interview") === "1" || starterById(search.get("template"))?.interview === true;
 
-  const access = slate ? { access: slate.access, legacyElements: slate.legacyElements } : slate;
+  const access = slate === null ? null : slate && doc ? { access: slate.access, legacyElements: doc.legacyElements } : undefined;
   const { ready: boardReady } = useBoardSync(engine, slateId, access, forceView);
   useBoardPresence(engine, slateId, !!slate, {
     userId: user?.id ?? null,
@@ -172,7 +173,7 @@ export default function CanvasPage() {
 
   /* ------------------------------------------------------------- states */
 
-  if (authLoading || !clerkLoaded || slate === undefined) {
+  if (!clerkLoaded || slate === undefined || (slate !== null && doc === undefined)) {
     return (
       <Centered>
         <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
@@ -228,8 +229,8 @@ export default function CanvasPage() {
             bridge={docBridge}
             onInsertCanvasSnapshot={() => engine.onInsertSnapshot?.()}
             key={String(slate._id)}
-            initialMarkdown={slate.documentText || undefined}
-            initialJson={slate.documentJson || undefined}
+            initialMarkdown={doc?.documentText || undefined}
+            initialJson={doc?.documentJson || undefined}
             readOnly={readOnly}
             onPersist={persistDocument}
             onSearchCommand={() => setPaletteOpen(true)}

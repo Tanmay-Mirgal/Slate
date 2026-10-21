@@ -16,8 +16,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
-      // Board state changes constantly; never let a CDN cache API responses.
-      { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
+      // Board state changes constantly; never let a CDN cache API responses (uploaded images, which never change, set their own caching).
+      { source: "/api/:path((?!files/).*)", headers: [{ key: "Cache-Control", value: "no-store" }] },
     ];
   },
 };

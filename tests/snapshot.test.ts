@@ -10,7 +10,7 @@ import {
   parseSnapshot,
   pruneAuto,
   shouldAutoSnapshot,
-} from "@/convex/snapshot";
+} from "@/lib/canvas/version-snapshot";
 
 const row = (eid: string, z: number, extra: object = {}) => ({ eid, z, data: JSON.stringify({ id: "stale", type: "shape", shape: "rect", x: 1, y: 2, w: 3, h: 4, z: 99, ...extra }) });
 

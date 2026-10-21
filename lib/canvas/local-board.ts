@@ -3,7 +3,7 @@ import { normalizeMany } from "./normalize";
 import type { El, Op } from "./types";
 
 /**
- * Persists a board in localStorage (the public /playground). Same contract as the Convex sync:
+ * Persists a board in localStorage (the public /playground). Same contract as the database sync:
  * the engine hands over batches of ops, this applies them to a map and writes it out, debounced.
  */
 export class LocalBoard {

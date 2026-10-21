@@ -1,7 +1,6 @@
 import Razorpay from "razorpay";
-import { fetchMutation } from "convex/nextjs";
-import { api } from "@/convex/_generated/api";
-import type { Interval, PaidTier, Tier } from "./plans";
+import { syncSubscription, type SyncSubscriptionInput } from "@/lib/server/billing";
+import type { Interval, PaidTier } from "./plans";
 
 /** Server-only helpers shared by the three Razorpay routes. Never import this from client code. */
 
@@ -21,13 +20,6 @@ export function getRazorpay(): Razorpay {
     client = new Razorpay({ key_id: keyId, key_secret: keySecret });
   }
   return client;
-}
-
-/** The Convex-side shared secret (`BILLING_SYNC_SECRET`) that authorises plan changes. */
-export function syncSecret(): string {
-  const s = process.env.BILLING_SYNC_SECRET;
-  if (!s || s.length < 16) throw new BillingConfigError("BILLING_SYNC_SECRET is missing or shorter than 16 characters. Set the same value here and in the Convex dashboard.");
-  return s;
 }
 
 /**
@@ -56,26 +48,11 @@ export function periodMs(interval: Interval): number {
   return (interval === "annual" ? 365 : 30) * 24 * 60 * 60 * 1000;
 }
 
-export interface SyncInput {
-  clerkId?: string;
-  tier: Tier;
-  status: "active" | "halted" | "cancelled" | "pending";
-  interval?: Interval;
-  seats?: number;
-  razorpaySubscriptionId?: string;
-  razorpayPlanId?: string;
-  razorpayCustomerId?: string;
-  razorpayPaymentId?: string;
-  currentPeriodEnd?: number;
-  resetCredits?: boolean;
-  eventId?: string;
-  eventType?: string;
-  profile?: { email: string; firstName: string | null; lastName: string | null; imageUrl: string | null };
-}
+export type SyncInput = SyncSubscriptionInput;
 
-/** Writes a verified billing state into Convex. */
-export async function syncToConvex(input: SyncInput) {
-  return await fetchMutation(api.billing.syncSubscription, { secret: syncSecret(), ...input });
+/** Writes a verified billing state into the database. */
+export async function syncToDatabase(input: SyncInput) {
+  return await syncSubscription(input);
 }
 
 export function parseNotes(notes: unknown): { clerkId?: string; tier?: PaidTier; interval?: Interval; seats?: number } {

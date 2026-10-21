@@ -1,8 +1,9 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { z } from "zod";
 import { priceFor, type Interval, type PaidTier } from "@/lib/billing/plans";
-import { BillingConfigError, getRazorpay, parseNotes, periodMs, planIdFor, razorpayKeys, syncToConvex, tierForPlanId } from "@/lib/billing/razorpay";
+import { BillingConfigError, getRazorpay, parseNotes, periodMs, planIdFor, razorpayKeys, syncToDatabase, tierForPlanId } from "@/lib/billing/razorpay";
 import { verifyCheckoutSignature } from "@/lib/billing/signature";
+import { profileFromClerk } from "@/lib/server/users";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ function describe(err: unknown): string {
  * Called by the browser right after Razorpay Checkout succeeds. Nothing the browser says is trusted:
  * the HMAC-SHA256 signature proves Razorpay produced the callback, then the order / subscription is
  * fetched from Razorpay itself to confirm it belongs to this user, was paid, and which plan it was.
- * Only then is the plan written to Convex. The webhook later confirms the same state.
+ * Only then is the plan written to the database. The webhook later confirms the same state.
  */
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -59,12 +60,7 @@ export async function POST(req: Request) {
   try {
     const rz = getRazorpay();
     const user = await currentUser();
-    const profile = {
-      email: user?.primaryEmailAddress?.emailAddress ?? "",
-      firstName: user?.firstName ?? null,
-      lastName: user?.lastName ?? null,
-      imageUrl: user?.imageUrl ?? null,
-    };
+    const profile = user ? profileFromClerk(user) : undefined;
 
     if (body.razorpay_order_id) {
       const order = await rz.orders.fetch(body.razorpay_order_id);
@@ -79,7 +75,7 @@ export async function POST(req: Request) {
       if (payment.status !== "captured") return json(402, "not_paid", "The payment hasn't been completed.");
       if (Number(payment.amount) < expected) return json(402, "underpaid", "The amount paid doesn't cover this plan.");
 
-      const result = await syncToConvex({
+      const result = await syncToDatabase({
         clerkId: userId,
         tier: notes.tier,
         status: "active",
@@ -107,7 +103,7 @@ export async function POST(req: Request) {
     if (planIdFor(tier, interval) !== sub.plan_id) return json(400, "mismatch", "The subscription's plan doesn't match the requested tier.");
     if (sub.status !== "authenticated" && sub.status !== "active") return json(402, "not_active", "The subscription hasn't been activated yet.");
 
-    const result = await syncToConvex({
+    const result = await syncToDatabase({
       clerkId: userId,
       tier,
       status: "active",

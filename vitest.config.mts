@@ -9,5 +9,7 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     testTimeout: 30000,
+    // the database tests start an in-memory MongoDB, which takes a moment when several files do it at once
+    hookTimeout: 120000,
   },
 });

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Caveat, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { ConvexClientProvider } from "./ConvexClientProvider";
+import { AppProviders } from "./AppProviders";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ConvexClientProvider>
+    <AppProviders>
       <html
         lang="en"
         className={`${geistSans.variable} ${geistMono.variable} ${hand.variable} h-full antialiased`}
@@ -45,6 +45,6 @@ export default function RootLayout({
           {children}
         </body>
       </html>
-    </ConvexClientProvider>
+    </AppProviders>
   );
 }

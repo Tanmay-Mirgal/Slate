@@ -77,23 +77,19 @@ Vercel [color: gray] {
   Route handlers [icon: lucide:Webhook, subtitle: "/api/*"]
 }
 Clerk [icon: clerk, subtitle: "Auth · sessions"]
-Convex [color: orange] {
-  Convex functions [icon: convex, subtitle: "Queries · mutations"]
-  Convex database [icon: lucide:Database, subtitle: "Realtime documents"]
-}
+MongoDB Atlas [icon: mongodb, subtitle: "Documents · indexes"]
 Stripe [icon: stripe, subtitle: "Billing"]
 LLM provider [icon: lucide:Brain, subtitle: "AI generation"]
 
 Browser > Next.js: HTTPS
 Browser > Clerk: sign in
-Browser <> Convex functions: WebSocket (live queries)
+Browser > Route handlers: fetch + polling
 Next.js > Route handlers
 Route handlers > Clerk: verify session
-Route handlers > Convex functions: server calls
+Route handlers > MongoDB Atlas: queries
 Route handlers > Stripe: checkout
 Route handlers > LLM provider: prompts
 Stripe --> Route handlers: webhooks
-Convex functions > Convex database
 `;
 
 const DATABASE_ERD = `title SaaS billing schema (PostgreSQL)
@@ -165,7 +161,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
     id: "nextjs-stack",
     title: "Next.js Stack",
     boardTitle: "Next.js fullstack stack",
-    description: "App Router, Convex backend, Clerk auth and Tailwind",
+    description: "App Router, MongoDB, Clerk auth and Tailwind",
     tags: ["Next.js", "Frontend"],
     accent: "#a78bfa",
     dsl: NEXTJS_STACK,

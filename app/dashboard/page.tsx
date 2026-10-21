@@ -4,12 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ConvexError } from "convex/values";
-import { useMutation, useQuery } from "convex/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { Bell, Check, Clock, Command, Plus, Search, Settings, Share2, Star, Users, X, Briefcase, Loader2 } from "lucide-react";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/client/api";
+import { useMutation, useQuery } from "@/lib/client/query";
+import { RpcError } from "@/lib/client/rpc";
+import type { Id } from "@/lib/db/types";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PricingModal } from "@/components/billing/PricingModal";
 import { BoardCard, type CardPerson } from "@/components/dashboard/BoardCard";
@@ -63,10 +63,23 @@ export default function DashboardPage() {
 
   const workspaces = useQuery(api.workspaces.listMyWorkspaces);
   const createWorkspace = useMutation(api.workspaces.create);
+  const ensureProvisioned = useMutation(api.users.ensureProvisioned);
   const [selectedWorkspaceId, setActiveWorkspaceId] = React.useState<Id<"workspaces"> | null>(null);
   // Fall back to the first workspace until the user picks one.
   const activeWorkspaceId = selectedWorkspaceId ?? (workspaces && workspaces.length > 0 ? (workspaces[0]._id as Id<"workspaces">) : null);
   const activeWorkspace = (workspaces?.find((w) => w._id === activeWorkspaceId) ?? null) as SwitcherWorkspace | null;
+
+  // A brand-new account owns no workspace yet: create the default one so "New board" works straight away.
+  const provisioned = React.useRef<string | null>(null);
+  const ownsWorkspace = !!workspaces && !!user && workspaces.some((w) => w.ownerId === user.id);
+  React.useEffect(() => {
+    if (!user || workspaces === undefined || ownsWorkspace || provisioned.current === user.id) return;
+    provisioned.current = user.id;
+    ensureProvisioned().catch((err) => {
+      provisioned.current = null;
+      console.error("[dashboard] could not set up the default workspace", err);
+    });
+  }, [user, workspaces, ownsWorkspace, ensureProvisioned]);
 
   const slates = useQuery(api.slates.list, activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip");
   const sharedSlates = useQuery(api.slates.listShared);
@@ -100,12 +113,12 @@ export default function DashboardPage() {
   const atBoardLimit = !!billing && billing.boards.limit !== null && billing.boards.used !== null && billing.boards.used >= billing.boards.limit;
 
   const showError = (e: unknown, fallback: string) => {
-    if (e instanceof ConvexError && isBillingErrorData(e.data)) {
+    if (e instanceof RpcError && isBillingErrorData(e.data)) {
       openPricing(e.data.code);
       return;
     }
     console.error(e);
-    setNotice(e instanceof Error ? e.message.replace(/^.*Uncaught Error:\s*/, "") : fallback);
+    setNotice(e instanceof Error ? e.message : fallback);
   };
 
   const handleInviteResponse = async (inviteId: Id<"invites">, accept: boolean) => {
@@ -141,10 +154,12 @@ export default function DashboardPage() {
 
   const handleCreateSlate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !activeWorkspaceId) return;
+    if (!newTitle.trim()) return;
     setIsCreating(true);
     try {
-      const id = await createSlate({ title: newTitle.trim(), workspaceId: activeWorkspaceId, thumbnailIcon: String(Math.floor(Math.random() * 5) + 1) });
+      // normally the selected workspace; a brand-new account may not have one yet, so set it up on the spot
+      const workspaceId = activeWorkspaceId ?? (await ensureProvisioned()).workspaceId;
+      const id = await createSlate({ title: newTitle.trim(), workspaceId, thumbnailIcon: String(Math.floor(Math.random() * 5) + 1) });
       setIsCreateOpen(false);
       setNewTitle("");
       router.push(`/canvas/${id}`);
@@ -158,17 +173,15 @@ export default function DashboardPage() {
 
   /** Clones a starter: creates the board, then the canvas lays the template out when it opens. */
   const handleTemplate = async (t: StarterTemplate) => {
-    if (!activeWorkspaceId || templateBusy) {
-      if (!activeWorkspaceId) setNotice("Create or select a workspace first.");
-      return;
-    }
+    if (templateBusy) return;
     if (atBoardLimit) {
       openPricing("board_limit");
       return;
     }
     setTemplateBusy(t.id);
     try {
-      const id = await createSlate({ title: t.boardTitle, workspaceId: activeWorkspaceId, thumbnailIcon: t.thumbnailIcon });
+      const workspaceId = activeWorkspaceId ?? (await ensureProvisioned()).workspaceId;
+      const id = await createSlate({ title: t.boardTitle, workspaceId, thumbnailIcon: t.thumbnailIcon });
       router.push(`/canvas/${id}?template=${t.id}`);
     } catch (err) {
       showError(err, "Could not create the board");
@@ -357,7 +370,7 @@ export default function DashboardPage() {
         <div className="flex-1 overflow-y-auto px-8 py-6 [scrollbar-width:thin]">
           {activeTab === "recent" && (
             <div className="space-y-8">
-              <TemplateRail onPick={handleTemplate} busyId={templateBusy} disabled={!activeWorkspaceId} />
+              <TemplateRail onPick={handleTemplate} busyId={templateBusy} disabled={workspaces === undefined} />
 
               {slates === undefined && activeWorkspaceId ? (
                 <div className={grid} aria-label="Loading boards">

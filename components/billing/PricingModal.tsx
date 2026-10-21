@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { AlertTriangle, Check, Loader2, Minus, Plus, ShieldCheck, Sparkles } from "lucide-react";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/lib/client/api";
+import { useQuery } from "@/lib/client/query";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { CheckoutError, startCheckout } from "@/lib/billing/checkout-client";
 import type { BillingErrorCode } from "@/lib/billing/limits";
@@ -56,7 +56,7 @@ function priceLine(tier: PaidTier, interval: Interval, seats: number) {
   };
 }
 
-/** Connected pricing modal: reads the signed-in user's plan from Convex. */
+/** Connected pricing modal: reads the signed-in user's plan from the database. */
 export function PricingModal(props: PricingModalProps) {
   const { isSignedIn, isLoaded } = useUser();
   const billing = useQuery(api.billing.getMyBilling);

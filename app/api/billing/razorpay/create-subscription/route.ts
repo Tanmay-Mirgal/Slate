@@ -1,9 +1,8 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { fetchMutation } from "convex/nextjs";
 import { z } from "zod";
-import { api } from "@/convex/_generated/api";
 import { priceFor } from "@/lib/billing/plans";
 import { BillingConfigError, getRazorpay, planIdFor, razorpayKeys } from "@/lib/billing/razorpay";
+import { takeToken } from "@/lib/server/usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +31,7 @@ function describe(err: unknown): string {
  * the client only says which plan it wants.
  */
 export async function POST(req: Request) {
-  const { userId, getToken } = await auth();
+  const { userId } = await auth();
   if (!userId) return json(401, "unauthenticated", "Sign in to upgrade your plan.");
 
   let body: z.infer<typeof Body>;
@@ -51,11 +50,8 @@ export async function POST(req: Request) {
 
   // A checkout creates objects at Razorpay, so cap how fast one account can open them.
   try {
-    const token = await getToken({ template: "convex" });
-    if (token) {
-      const limit = await fetchMutation(api.usage.consume, { bucket: "billing-create", limit: 12, windowMs: 3_600_000 }, { token });
-      if (!limit.allowed) return json(429, "rate_limited", "Too many checkout attempts. Try again in a little while.");
-    }
+    const limit = await takeToken(userId, "billing-create", 12, 3_600_000);
+    if (!limit.allowed) return json(429, "rate_limited", "Too many checkout attempts. Try again in a little while.");
   } catch {
     /* the limiter is best-effort; Razorpay applies its own limits */
   }

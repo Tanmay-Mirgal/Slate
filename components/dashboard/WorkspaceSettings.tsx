@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useMutation, useQuery } from "convex/react";
 import { Crown, Mail, Pencil, Sparkles, UserPlus } from "lucide-react";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/client/api";
+import { useMutation, useQuery } from "@/lib/client/query";
 import { PLANS } from "@/lib/billing/plans";
 import { timeAgo } from "@/lib/comments/format";
 import { PlanBadge, UsageBar, WorkspaceAvatar } from "./bits";
@@ -34,7 +33,7 @@ function Section({ title, description, action, children }: { title: string; desc
 }
 
 export function WorkspaceSettings({ workspace, billing, onInvite, onUpgrade }: WorkspaceSettingsProps) {
-  const id = workspace?._id as Id<"workspaces"> | undefined;
+  const id = workspace?._id;
   const members = useQuery(api.workspaces.listMembers, id ? { workspaceId: id } : "skip");
   const invites = useQuery(api.workspaces.listPendingInvites, id ? { workspaceId: id } : "skip");
   const rename = useMutation(api.workspaces.renameWorkspace);
@@ -59,7 +58,7 @@ export function WorkspaceSettings({ workspace, billing, onInvite, onUpgrade }: W
       await rename({ id, name: value.trim() });
       setName(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message.replace(/^.*Uncaught Error:\s*/, "") : "Could not rename the workspace");
+      setError(err instanceof Error ? err.message : "Could not rename the workspace");
     } finally {
       setSaving(false);
     }

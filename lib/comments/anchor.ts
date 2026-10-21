@@ -1,4 +1,4 @@
-import type { Anchor } from "@/convex/commentLogic";
+import type { Anchor } from "@/lib/comments/logic";
 import type { El, Point } from "@/lib/canvas/types";
 
 /**

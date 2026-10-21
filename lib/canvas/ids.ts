@@ -10,4 +10,3 @@ export function newId(prefix = ""): string {
   return prefix ? `${prefix}${s}` : s;
 }
 
-export { SHARD_COUNT, shardOf } from "@/convex/shards";

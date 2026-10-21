@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Check, CornerUpLeft, Loader2, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
-import { splitMentions } from "@/convex/commentLogic";
+import { splitMentions } from "@/lib/comments/logic";
 import { timeAgo } from "@/lib/comments/format";
 import type { CommentMessage, ThreadSummary } from "@/lib/comments/types";
 import { Avatar } from "./Avatar";

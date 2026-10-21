@@ -1,4 +1,4 @@
-import type { Anchor, MentionRef } from "@/convex/commentLogic";
+import type { Anchor, MentionRef } from "@/lib/comments/logic";
 
 export type { Anchor, MentionRef };
 

@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "ai:check": "tsx --env-file=.env.local scripts/check-nvidia.ts",
-    "icons:build": "node scripts/gen-brand-icons.mjs"
+    "icons:build": "node scripts/gen-brand-icons.mjs",
+    "db:migrate": "tsx --env-file=.env.local scripts/migrate-convex-to-mongo.ts",
+    "clerk:sync": "tsx --env-file=.env.local scripts/sync-clerk-users.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -41,13 +43,13 @@
     "@tiptap/suggestion": "^3.27.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "convex": "^1.42.1",
     "elkjs": "^0.11.1",
     "framer-motion": "^12.42.2",
     "lowlight": "^3.3.0",
     "lucide": "^1.23.0",
     "lucide-react": "^1.23.0",
     "markdown-it": "^14.3.0",
+    "mongodb": "^7.7.0",
     "next": "16.2.9",
     "nodemailer": "^9.0.3",
     "perfect-freehand": "^1.2.3",
@@ -63,16 +65,15 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@edge-runtime/vm": "^5.0.0",
     "@tailwindcss/postcss": "^4",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.20.5",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "convex-test": "^0.0.62",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "mongodb-memory-server": "^11.3.0",
     "simple-icons": "^16.35.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",

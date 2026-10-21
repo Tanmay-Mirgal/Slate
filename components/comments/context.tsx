@@ -4,13 +4,13 @@ import * as React from "react";
 import type { Anchor, CommentAuthor, CommentMessage, MentionCandidate, ThreadFilter, ThreadSummary } from "@/lib/comments/types";
 
 /**
- * Everything the comment UI needs, independent of where the data lives: `ConvexComments` backs it
+ * Everything the comment UI needs, independent of where the data lives: `RemoteComments` backs it
  * with the database, `LocalComments` (the public playground) with the browser's storage. The pins,
  * popover and side panel only ever talk to this interface.
  */
 export interface CommentsApi {
   me: CommentAuthor | null;
-  /** May start threads, reply and resolve (see the rules in convex/access.ts). */
+  /** May start threads, reply and resolve (see the rules in lib/server/access.ts). */
   canComment: boolean;
   /** May also delete other people's comments. */
   canModerate: boolean;

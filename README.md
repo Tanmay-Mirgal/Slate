@@ -4,7 +4,7 @@
   <p><strong>An infinite canvas for software teams: draw it, generate it with AI, or write it as code.</strong></p>
   <p>
     <a href="https://nextjs.org"><img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js" /></a>
-    <a href="https://convex.dev"><img src="https://img.shields.io/badge/Convex-Realtime-orange" alt="Convex" /></a>
+    <a href="https://www.mongodb.com/atlas"><img src="https://img.shields.io/badge/MongoDB-Atlas-47A248" alt="MongoDB" /></a>
     <a href="https://clerk.com"><img src="https://img.shields.io/badge/Auth-Clerk-6C47FF?logo=clerk" alt="Clerk" /></a>
     <a href="https://build.nvidia.com"><img src="https://img.shields.io/badge/AI-NVIDIA%20NIM-76b900?logo=nvidia" alt="NVIDIA NIM" /></a>
   </p>
@@ -37,15 +37,16 @@ A free, no-account board lives at **`/playground`** (stored in your browser).
 
 ```bash
 npm install
-cp .env.example .env.local     # fill in the values (see below)
-npx convex dev                 # terminal 1: deploys convex/ and watches it
-npm run dev                    # terminal 2: http://localhost:3000
+cp .env.example .env.local     # fill in the values (see below), at least MONGODB_URI and the Clerk keys
+npm run dev                    # http://localhost:3000
 ```
 
-> **After pulling this version you must run `npx convex dev` (or `npx convex deploy` for prod).**
-> It adds tables (`elements`, `liveSessions`, `rateLimits`), indexes, cron jobs and replaces the old
-> `slates.addElement/updateElement/...` functions. Existing boards are upgraded automatically the first
-> time an editor opens them (see *Upgrading existing boards* below).
+There is nothing to deploy besides the app: collections and indexes are created on first connection.
+
+> **Coming from the Convex version?** Export your data once with `npx convex export --path backups/convex.zip`,
+> unzip it into a folder, then `npm run db:migrate -- <folder> --dry-run` and `npm run db:migrate -- <folder>`.
+> Ids are kept, so existing `/canvas/<id>` links still work, and the copy is read back and compared with the
+> export. Then `npm run clerk:sync` makes sure every Clerk user exists in MongoDB and owns a workspace.
 
 ### Environment
 
@@ -53,13 +54,13 @@ See [`.env.example`](.env.example) for the full list. The ones that matter most:
 
 | Variable | Purpose |
 | :-- | :-- |
-| `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_DEPLOYMENT` | Convex backend |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Clerk auth. A Clerk **JWT template named `convex`** is required (also used to authenticate the AI route to Convex). |
+| `MONGODB_URI` | MongoDB connection string (Atlas). The database name at the end of the URI is used. |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Clerk auth. |
+| `CLERK_WEBHOOK_SECRET` | Signing secret of the Clerk webhook `https://<your-domain>/api/webhooks/clerk` (events `user.created`, `user.updated`, `user.deleted`), which keeps MongoDB in step with Clerk. |
 | `NVIDIA_API_KEY` | **AI generation.** Free key from <https://build.nvidia.com> → profile → API Keys. Without it AI is disabled and the panel offers templates instead. |
 | `NVIDIA_MODELS` | Optional comma-separated model chain, first = preferred. |
 | `AI_RATE_LIMIT_PER_HOUR` | Optional per-user cap (default 40; plus 6/minute burst). |
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Razorpay checkout, payment verification and webhooks. |
-| `BILLING_SYNC_SECRET` | 16+ random characters, set **identically** in `.env.local` and in the Convex dashboard. Lets the server (and only the server) change a user's plan. |
 | `RAZORPAY_PLAN_{PRO,TEAM}_{MONTHLY,ANNUAL}` | Optional Razorpay plan ids for recurring billing. Without them checkout falls back to a one-time order for the first period. |
 
 ### AI models (NVIDIA)
@@ -84,9 +85,10 @@ npm run ai:check -- --full  # also runs a real end-to-end generation
 
 ```mermaid
 graph LR
-  B[Browser<br/>Canvas engine + React UI] -- "elements.apply (batched)" --> C[(Convex)]
-  C -- "4 sharded subscriptions" --> B
-  B -- "cursors (throttled)" --> C
+  B[Browser<br/>Canvas engine + React UI] -- "elements.apply (batched)" --> S[Next.js /api/rpc]
+  S --> C[(MongoDB)]
+  B -- "elements.sync (changes since last poll)" --> S
+  B -- "cursors (throttled)" --> S
   B -- "prompt" --> R[Next.js /api/ai/generate]
   R -- "auth + rate limit" --> C
   R -- "stream" --> N[NVIDIA NIM]
@@ -94,13 +96,16 @@ graph LR
   B -- "ELK layout (in-browser)" --> B
 ```
 
-* **One row per element**, split over 4 shards, instead of one JSON blob per board. A drag is *one* small
-  mutation, concurrent editors never overwrite each other, and a change re-sends ~1/4 of the board, not all of it.
+* **One row per element** instead of one JSON blob per board. A drag is *one* small write, concurrent editors never
+  overwrite each other, and clients poll for *what changed since their last poll* (a per-board change counter),
+  not for the whole board.
 * **Layout runs in the browser.** The server only proxies the model and validates JSON, so AI cost scales with
   model usage, not server CPU.
 * **Presence is throttled and coalesced**: at most one in-flight update per tab, with the send rate backing off
   as a room grows; remote cursors are interpolated client-side so low update rates still look smooth.
-* **Access control lives in one resolver** (`convex/access.ts`): workspace roles, legacy owners and link sharing.
+* **Access control lives in one resolver** (`lib/server/access.ts`): workspace roles, legacy owners and link sharing.
+* **One door to the database**: the browser only talks to `POST /api/rpc`, which checks the Clerk session, validates the
+  arguments with zod and runs a declared server function (`lib/server/*`). Nothing else is reachable.
 
 Details, trade-offs and the upgrade path to a dedicated realtime service are in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
@@ -137,14 +142,17 @@ lib/finops/          benchmark prices and the cost estimator
 lib/simulation/      dependency graph + single-point-of-failure detection
 lib/import/          docker-compose / SQL / folder-tree importers and the documentation they write
 lib/interview/       timer, checklist, scale calculator, review rubric
-convex/              schema, elements, presence, access control, uploads, cron sweepers
-tests/               vitest: engine, router, layout (overlap-free), DSL, AI plumbing, Convex backend
+lib/db/              MongoDB connection, document types, indexes
+lib/server/          server functions (the API): slates, elements, presence, comments, versions, billing, users
+lib/client/          browser side of the API: typed `api`, `useQuery` / `useMutation` (polling, shared cache)
+scripts/             db:migrate (Convex -> MongoDB), clerk:sync, AI check
+tests/               vitest: engine, router, layout (overlap-free), DSL, AI plumbing, database logic (in-memory MongoDB)
 ```
 
 ## Development
 
 ```bash
-npm test              # 250+ unit + backend tests (Convex logic runs in convex-test's in-memory runtime)
+npm test              # 280+ unit + backend tests (database logic runs against an in-memory MongoDB)
 npm run typecheck
 npm run lint
 npm run build
@@ -156,17 +164,18 @@ npm run icons:build   # regenerate the brand-logo set from simple-icons
 ## Status & known limitations
 
 Verified: typecheck, lint, production build, unit tests (including layout overlap checks on random 60-node
-graphs and the Convex access rules), and the canvas interactions in a real browser via `/playground`.
+graphs and the database access rules), and the canvas interactions in a real browser via `/playground`.
 
-Not verified in this environment (needs your credentials): signed-in flows against a live Convex/Clerk
-deployment, and real model output from NVIDIA (the NVIDIA plumbing is tested against a mocked streaming API).
+Not verified in this environment (needs your credentials): signed-in flows against live Clerk, and real model
+output from NVIDIA (the NVIDIA plumbing is tested against a mocked streaming API).
 
 Not built (compared with Eraser): comments / @mentions, version history, PDF export, Mermaid import, embeds,
-CRDT co-editing of the rich-text *Doc* view (it saves last-writer-wins). Cursor traffic goes through the database,
-which is great for typical team sizes (≲ 25 people per board); beyond that, plug a dedicated realtime transport
-into `PresenceChannel` (see ARCHITECTURE.md).
+CRDT co-editing of the rich-text *Doc* view (it saves last-writer-wins). Live updates are **polled over HTTP**
+(about once a second while others are on the board, every couple of seconds when you are alone), not pushed, and cursor
+traffic goes through the database. That is fine for typical team sizes (≲ 25 people per board); for more, or for
+push-speed updates, plug a dedicated realtime transport into `PresenceChannel` (see ARCHITECTURE.md).
 
 Billing: payments are verified server-side (HMAC-SHA256 signature, then the order or subscription is fetched
-from Razorpay) and plans are written to Convex only with `BILLING_SYNC_SECRET`. Verified here with unit tests and
-Convex backend tests; a real payment needs your Razorpay test keys. Cancelling a subscription is done from the
+from Razorpay) and plans are written by server-only code that is not reachable from the browser. Verified here with unit
+tests and database tests; a real payment needs your Razorpay test keys. Cancelling a subscription is done from the
 Razorpay dashboard for now (the webhook keeps access until the paid period ends).

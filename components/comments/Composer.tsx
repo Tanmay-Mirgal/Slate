@@ -3,7 +3,7 @@
 import * as React from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { Loader2, SendHorizontal } from "lucide-react";
-import { activeMentionQuery, MAX_BODY, mentionedIn, searchPeople } from "@/convex/commentLogic";
+import { activeMentionQuery, MAX_BODY, mentionedIn, searchPeople } from "@/lib/comments/logic";
 import type { MentionCandidate } from "@/lib/comments/types";
 import { Avatar } from "./Avatar";
 

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { BillingConfigError, parseNotes, periodMs, syncToConvex, tierForPlanId } from "@/lib/billing/razorpay";
+import { BillingConfigError, parseNotes, periodMs, syncToDatabase, tierForPlanId } from "@/lib/billing/razorpay";
 import { verifyWebhookSignature } from "@/lib/billing/signature";
 
 export const runtime = "nodejs";
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
       case "subscription.activated":
       case "subscription.charged": {
         if (!tier) return ok("unknown plan");
-        result = await syncToConvex({
+        result = await syncToDatabase({
           ...common,
           tier,
           status: "active",
@@ -100,12 +100,12 @@ export async function POST(req: Request) {
       case "subscription.cancelled":
       case "subscription.completed": {
         if (!tier) return ok("unknown plan");
-        result = await syncToConvex({ ...common, tier, status: "cancelled", currentPeriodEnd: periodEnd });
+        result = await syncToDatabase({ ...common, tier, status: "cancelled", currentPeriodEnd: periodEnd });
         break;
       }
       case "subscription.halted": {
         if (!tier) return ok("unknown plan");
-        result = await syncToConvex({ ...common, tier, status: "halted", currentPeriodEnd: periodEnd });
+        result = await syncToDatabase({ ...common, tier, status: "halted", currentPeriodEnd: periodEnd });
         break;
       }
       default:
