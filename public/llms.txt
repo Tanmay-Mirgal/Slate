@@ -1,0 +1,27 @@
+# Slate
+
+> Slate is an online whiteboard and diagramming workspace for software teams. Draw architecture diagrams on an infinite canvas, generate them from a text prompt with AI, or write them as code, and keep the documentation in a markdown editor beside the board. Boards are collaborative in real time.
+
+Website: https://slate.tanmaymirgal.dev
+
+## Pages
+
+- [Home](https://slate.tanmaymirgal.dev/): product overview, features, pricing and FAQ
+- [Playground](https://slate.tanmaymirgal.dev/playground): a free whiteboard that runs in the browser with no account
+- [How-to video](https://slate.tanmaymirgal.dev/slate-how-to.mp4): 25-second walkthrough, from a template to a shared board
+
+## What Slate does
+
+- AI diagram generator: describe a system in plain language and get an editable, auto-laid-out diagram (architecture, flowchart, ER, mind map, sequence).
+- Diagram as code: a text syntax that round-trips with the canvas, plus 10 built-in templates.
+- Import code: paste a docker-compose.yml, SQL schema or folder tree and get a diagram and matching documentation.
+- Real-time collaboration: live cursors, shared selections, "anyone with the link" sharing and workspace roles.
+- Markdown documentation beside the canvas, with export to PNG, SVG and JSON.
+- Cloud cost (FinOps) estimate for AWS, GCP and Azure services on the board, and a traffic simulator that flags single points of failure.
+- System design interview mode with a timer, requirement checklist and architecture review.
+
+## Pricing (INR)
+
+- Free: 3 boards, 15 AI diagram credits per month.
+- Pro: 999 per month, unlimited boards, 300 AI credits per month, 4K export.
+- Team: 1,999 per seat per month, 1,000 AI credits per month, unlimited workspaces, roles.
