@@ -1,0 +1,44 @@
+<template>
+  <style>
+    
+@font-face{font-family:'Geist';font-weight:400;src:url('assets/fonts/geist-400.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:500;src:url('assets/fonts/geist-500.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:600;src:url('assets/fonts/geist-600.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:700;src:url('assets/fonts/geist-700.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:800;src:url('assets/fonts/geist-800.woff2') format('woff2');}
+@font-face{font-family:'Geist Mono';font-weight:400;src:url('assets/fonts/geist-mono-400.woff2') format('woff2');}
+@font-face{font-family:'Geist Mono';font-weight:500;src:url('assets/fonts/geist-mono-500.woff2') format('woff2');}
+
+    #root { position:absolute; inset:0; font-family:'Geist',sans-serif; color:#fff; }
+    #lockup { position:absolute; left:0; top:0; width:1920px; height:1080px; background:#0A0A0A; }
+    #lk-row { position:absolute; left:0; top:150px; width:1920px; display:flex; justify-content:center; align-items:center; gap:30px; }
+    #lk-logo { width:132px; height:132px; }
+    #lk-logo img { width:132px; height:132px; border-radius:30px; display:block; box-shadow:0 10px 40px rgba(0,0,0,0.6); }
+    #lk-word { height:108px; line-height:108px; font-size:92px; font-weight:800; letter-spacing:0.04em; white-space:nowrap; }
+    #lk-word .lw { display:inline-block; }
+    #lk-tag { position:absolute; left:0; top:340px; width:1920px; text-align:center; font-size:118px; font-weight:800; letter-spacing:-0.045em; line-height:1.05; white-space:nowrap; }
+    #lk-tag .tw { display:inline-block; }
+    #lk-chips { position:absolute; left:0; top:560px; width:1920px; display:flex; justify-content:center; gap:20px; }
+    .oc { padding:12px 26px; border-radius:99px; border:1px solid rgba(255,255,255,0.16); background:rgba(255,255,255,0.05); font-size:30px; font-weight:600; color:#e4e4e7; }
+    #lk-cta { position:absolute; left:960px; top:700px; margin-left:-250px; width:500px; height:92px; border-radius:46px; background:#fff; color:#000; display:flex; align-items:center; justify-content:center; gap:14px; font-size:36px; font-weight:600; box-shadow:0 0 44px rgba(255,255,255,0.22); }
+    #lk-cta svg { width:32px; height:32px; }
+  </style>
+  <div id="root" data-composition-id="outro" data-width="1920" data-height="1080">
+    <div id="lockup" class="clip" data-start="0" data-duration="2.63">
+      <div id="lk-row"><div id="lk-logo"><img src="assets/img/logo.png" alt="Slate logo" /></div><div id="lk-word"><span class="lw">SLATE</span></div></div>
+      <div id="lk-tag"><span class="tw">Think.</span> <span class="tw">Draw.</span> <span class="tw">Collaborate.</span></div>
+      <div id="lk-chips"><span class="oc">Cloud cost estimate</span><span class="oc">Traffic simulator</span><span class="oc">Interview mode</span></div>
+      <div id="lk-cta"><span>Start Free Workspace</span><svg class="ic " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#lockup", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 0.03);
+    tl.fromTo("#lk-logo", { opacity: 0, scale: 0.9, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 0.08);
+    tl.fromTo("#lk-word .lw", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power3.out", stagger: 0.1 }, 0.18);
+    tl.fromTo("#lk-tag .tw", { opacity: 0, filter: "blur(12px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.26, ease: "power3.out", stagger: 0.1 }, 0.25);
+    tl.fromTo("#lk-chips .oc", { opacity: 0, y: 12, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.35, ease: "power3.out", stagger: 0.08 }, 0.41);
+    tl.fromTo("#lk-cta", { opacity: 0, y: 14, filter: "blur(8px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out" }, 0.53);
+    window.__timelines["outro"] = tl;
+  </script>
+</template>

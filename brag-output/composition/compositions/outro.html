@@ -1,0 +1,64 @@
+<template>
+  <style>
+    
+@font-face{font-family:'Geist';font-weight:400;src:url('assets/fonts/geist-400.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:500;src:url('assets/fonts/geist-500.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:600;src:url('assets/fonts/geist-600.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:700;src:url('assets/fonts/geist-700.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:800;src:url('assets/fonts/geist-800.woff2') format('woff2');}
+@font-face{font-family:'Geist Mono';font-weight:400;src:url('assets/fonts/geist-mono-400.woff2') format('woff2');}
+@font-face{font-family:'Geist Mono';font-weight:500;src:url('assets/fonts/geist-mono-500.woff2') format('woff2');}
+
+    #root { position:absolute; inset:0; font-family:'Geist',sans-serif; color:#fff; }
+    #o-card { position:absolute; left:930px; top:48px; width:880px; height:984px; }
+    #o-card-in { position:absolute; inset:0; border-radius:26px; border:1px solid rgba(255,255,255,0.14); background:#0D0D0D; overflow:hidden; box-shadow:0 30px 90px rgba(0,0,0,0.8); }
+    #o-view { position:absolute; left:8px; top:8px; width:864px; height:968px; overflow:hidden; border-radius:18px; }
+    #o-img { position:absolute; left:0; top:0; width:864px; height:947px; transform-origin:50% 34%; }
+    #o-img img { display:block; width:864px; height:947px; }
+    #o-lines { position:absolute; left:110px; top:392px; width:790px; }
+    .ol { font-size:96px; font-weight:800; letter-spacing:-0.045em; line-height:1.08; white-space:nowrap; color:#fff; }
+    .ol .ow { display:inline-block; }
+    #lockup { position:absolute; left:0; top:0; width:1920px; height:1080px; }
+    #lk-row { position:absolute; left:0; top:258px; width:1920px; display:flex; justify-content:center; align-items:center; gap:30px; }
+    #lk-logo { width:132px; height:132px; }
+    #lk-logo img { width:132px; height:132px; border-radius:30px; display:block; box-shadow:0 10px 40px rgba(0,0,0,0.6); }
+    #lk-word { height:108px; line-height:108px; font-size:92px; font-weight:800; letter-spacing:0.04em; white-space:nowrap; }
+    #lk-word .lw { display:inline-block; }
+    #lk-tag { position:absolute; left:0; top:430px; width:1920px; text-align:center; font-size:122px; font-weight:800; letter-spacing:-0.045em; line-height:1.05; white-space:nowrap; }
+    #lk-tag .tw { display:inline-block; }
+    #lk-cta { position:absolute; left:960px; top:660px; margin-left:-250px; width:500px; height:92px; border-radius:46px; background:#fff; color:#000; display:flex; align-items:center; justify-content:center; gap:14px; font-size:36px; font-weight:600; box-shadow:0 0 44px rgba(255,255,255,0.22); }
+    #lk-cta svg { width:32px; height:32px; }
+  </style>
+  <div id="root" data-composition-id="outro" data-width="1920" data-height="1080">
+    <div id="o-card" class="clip" data-start="0" data-duration="6.30">
+      <div id="o-card-in"><div id="o-view"><div id="o-img"><img src="assets/img/demo.png" alt="Slate AI-generated architecture diagram" /></div></div></div>
+    </div>
+    <div id="o-lines" class="clip" data-start="0.4" data-duration="3.5">
+        <div class="ol" id="ol1"><span class="ow">Draw</span> <span class="ow">it.</span></div>
+        <div class="ol" id="ol2"><span class="ow">Generate</span> <span class="ow">it.</span></div>
+        <div class="ol" id="ol3"><span class="ow">Write</span> <span class="ow">it</span> <span class="ow">as</span> <span class="ow">code.</span></div>
+    </div>
+    <div id="lockup" class="clip" data-start="3.4" data-duration="2.90">
+      <div id="lk-row"><div id="lk-logo"><img src="assets/img/logo.png" alt="Slate logo" /></div>
+      <div id="lk-word"><span class="lw">SLATE</span></div></div>
+      <div id="lk-tag"><span class="tw">Think.</span> <span class="tw">Draw.</span> <span class="tw">Collaborate.</span></div>
+      <div id="lk-cta"><span>Start Free Workspace</span><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#o-card-in", { opacity: 0, scale: 1.05, filter: "blur(14px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 0.4);
+    tl.fromTo("#o-img", { scale: 2.6 }, { scale: 1, duration: 1.7, ease: "power2.inOut" }, 0.9);
+    tl.fromTo("#ol1 .ow", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.24, ease: "power3.out", stagger: 0.08 }, 0.57);
+    tl.fromTo("#ol2 .ow", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.24, ease: "power3.out", stagger: 0.08 }, 1.12);
+    tl.fromTo("#ol3 .ow", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.24, ease: "power3.out", stagger: 0.08 }, 1.66);
+    tl.to([".ol .ow"], { opacity: 0, filter: "blur(12px)", duration: 0.22, ease: "power2.in", stagger: 0.04 }, 3.3);
+    tl.to("#o-card-in", { opacity: 0.14, filter: "blur(16px)", scale: 0.96, duration: 0.5, ease: "power2.inOut" }, 3.3);
+    tl.fromTo("#lk-logo", { opacity: 0, scale: 0.9, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 3.45);
+    tl.fromTo("#lk-word .lw", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power3.out", stagger: 0.1 }, 3.6);
+    tl.fromTo("#lk-tag .tw", { opacity: 0, filter: "blur(12px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.26, ease: "power3.out", stagger: 0.14 }, 3.72);
+    tl.fromTo("#lk-cta", { opacity: 0, y: 14, filter: "blur(8px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out" }, 4.25);
+    
+    window.__timelines["outro"] = tl;
+  </script>
+</template>

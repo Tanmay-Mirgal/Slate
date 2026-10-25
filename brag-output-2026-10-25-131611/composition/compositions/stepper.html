@@ -1,0 +1,59 @@
+<template>
+  <style>
+    
+@font-face{font-family:'Geist';font-weight:400;src:url('assets/fonts/geist-400.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:500;src:url('assets/fonts/geist-500.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:600;src:url('assets/fonts/geist-600.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:700;src:url('assets/fonts/geist-700.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:800;src:url('assets/fonts/geist-800.woff2') format('woff2');}
+@font-face{font-family:'Geist Mono';font-weight:400;src:url('assets/fonts/geist-mono-400.woff2') format('woff2');}
+@font-face{font-family:'Geist Mono';font-weight:500;src:url('assets/fonts/geist-mono-500.woff2') format('woff2');}
+
+    #root { position:absolute; inset:0; font-family:'Geist',sans-serif; color:#fff; }
+    #band { position:absolute; left:0; top:996px; width:1920px; height:84px; box-sizing:border-box; background:#0A0A0A; border-top:1px solid rgba(255,255,255,0.1); }
+    .cap { position:absolute; left:48px; top:0; height:83px; display:flex; align-items:center; font-size:36px; font-weight:600; letter-spacing:-0.02em; white-space:nowrap; }
+    .cap .cw { display:inline-block; opacity:0; margin-right:0.28em; }
+    #chips { position:absolute; right:40px; top:0; height:83px; display:flex; align-items:center; gap:26px; }
+    .chip { display:flex; align-items:center; gap:10px; }
+    .chip .num { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.1); color:#a1a1aa; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700; }
+    .chip .lab { font-size:28px; font-weight:600; color:#a1a1aa; }
+  </style>
+  <div id="root" data-composition-id="stepper" data-width="1920" data-height="1080">
+    <div id="band" class="clip" data-start="0" data-duration="22.7">
+      <div class="cap" id="cap0"><span class="cw">Start</span> <span class="cw">from</span> <span class="cw">a</span> <span class="cw">template</span> <span class="cw">or</span> <span class="cw">a</span> <span class="cw">blank</span> <span class="cw">board.</span></div><div class="cap" id="cap1"><span class="cw">Describe</span> <span class="cw">the</span> <span class="cw">diagram</span> <span class="cw">you</span> <span class="cw">want.</span></div><div class="cap" id="cap2"><span class="cw">Follow</span> <span class="cw">up</span> <span class="cw">in</span> <span class="cw">plain</span> <span class="cw">words.</span> <span class="cw">Drag</span> <span class="cw">in</span> <span class="cw">any</span> <span class="cw">logo.</span></div><div class="cap" id="cap3"><span class="cw">Import</span> <span class="cw">code.</span> <span class="cw">The</span> <span class="cw">docs</span> <span class="cw">write</span> <span class="cw">themselves</span> <span class="cw">beside</span> <span class="cw">it.</span></div><div class="cap" id="cap4"><span class="cw">Share</span> <span class="cw">with</span> <span class="cw">one</span> <span class="cw">link.</span></div>
+      <div id="chips"><div class="chip" id="chip0"><span class="num">1</span><span class="lab">Start</span></div><div class="chip" id="chip1"><span class="num">2</span><span class="lab">Describe</span></div><div class="chip" id="chip2"><span class="num">3</span><span class="lab">Refine</span></div><div class="chip" id="chip3"><span class="num">4</span><span class="lab">Document</span></div><div class="chip" id="chip4"><span class="num">5</span><span class="lab">Share</span></div></div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.set("#cap0 .cw", { opacity: 1 }, 0);
+    tl.set("#chip0 .num", { backgroundColor: "#ffffff", color: "#0a0a0a" }, 0);
+    tl.set("#chip0 .lab", { color: "#ffffff" }, 0);
+    tl.to("#cap0 .cw", { opacity: 0, filter: "blur(10px)", duration: 0.18, ease: "power2.in", stagger: 0.02 }, 3.70);
+    tl.to("#chip0 .num", { backgroundColor: "rgba(255,255,255,0.1)", color: "#a1a1aa", duration: 0.2 }, 3.82);
+    tl.to("#chip0 .lab", { color: "#a1a1aa", duration: 0.2 }, 3.82);
+    tl.fromTo("#cap1 .cw", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.22, ease: "power3.out", stagger: 0.05 }, 3.87);
+    tl.to("#chip1 .num", { backgroundColor: "#ffffff", color: "#0a0a0a", duration: 0.2, ease: "power2.out" }, 3.82);
+    tl.to("#chip1 .lab", { color: "#ffffff", duration: 0.2 }, 3.82);
+    tl.to("#cap1 .cw", { opacity: 0, filter: "blur(10px)", duration: 0.18, ease: "power2.in", stagger: 0.02 }, 8.07);
+    tl.to("#chip1 .num", { backgroundColor: "rgba(255,255,255,0.1)", color: "#a1a1aa", duration: 0.2 }, 8.19);
+    tl.to("#chip1 .lab", { color: "#a1a1aa", duration: 0.2 }, 8.19);
+    tl.fromTo("#cap2 .cw", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.22, ease: "power3.out", stagger: 0.05 }, 8.24);
+    tl.to("#chip2 .num", { backgroundColor: "#ffffff", color: "#0a0a0a", duration: 0.2, ease: "power2.out" }, 8.19);
+    tl.to("#chip2 .lab", { color: "#ffffff", duration: 0.2 }, 8.19);
+    tl.to("#cap2 .cw", { opacity: 0, filter: "blur(10px)", duration: 0.18, ease: "power2.in", stagger: 0.02 }, 15.72);
+    tl.to("#chip2 .num", { backgroundColor: "rgba(255,255,255,0.1)", color: "#a1a1aa", duration: 0.2 }, 15.84);
+    tl.to("#chip2 .lab", { color: "#a1a1aa", duration: 0.2 }, 15.84);
+    tl.fromTo("#cap3 .cw", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.22, ease: "power3.out", stagger: 0.05 }, 15.89);
+    tl.to("#chip3 .num", { backgroundColor: "#ffffff", color: "#0a0a0a", duration: 0.2, ease: "power2.out" }, 15.84);
+    tl.to("#chip3 .lab", { color: "#ffffff", duration: 0.2 }, 15.84);
+    tl.to("#cap3 .cw", { opacity: 0, filter: "blur(10px)", duration: 0.18, ease: "power2.in", stagger: 0.02 }, 20.07);
+    tl.to("#chip3 .num", { backgroundColor: "rgba(255,255,255,0.1)", color: "#a1a1aa", duration: 0.2 }, 20.19);
+    tl.to("#chip3 .lab", { color: "#a1a1aa", duration: 0.2 }, 20.19);
+    tl.fromTo("#cap4 .cw", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.22, ease: "power3.out", stagger: 0.05 }, 20.24);
+    tl.to("#chip4 .num", { backgroundColor: "#ffffff", color: "#0a0a0a", duration: 0.2, ease: "power2.out" }, 20.19);
+    tl.to("#chip4 .lab", { color: "#ffffff", duration: 0.2 }, 20.19);
+    tl.to("#band", { opacity: 0, duration: 0.3, ease: "power2.in" }, 22.3);
+    window.__timelines["stepper"] = tl;
+  </script>
+</template>

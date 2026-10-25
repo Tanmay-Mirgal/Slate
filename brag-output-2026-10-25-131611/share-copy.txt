@@ -1,0 +1,2 @@
+How to use Slate in 5 steps: pick a template, describe a system in plain words, follow up to edit it in place, import a docker-compose file and get the docs beside the diagram, then share one link.
+Think. Draw. Collaborate.

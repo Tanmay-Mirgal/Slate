@@ -40,6 +40,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PricingModal } from "@/components/billing/PricingModal";
+import { ShowcaseVideo } from "@/components/landing/ShowcaseVideo";
 import { PLANS, formatInr } from "@/lib/billing/plans";
 
 
@@ -93,8 +94,8 @@ export default function LandingPage() {
         <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl p-4 sm:p-8 flex flex-col items-center justify-center animate-in fade-in duration-200">
           <div className="w-full max-w-7xl flex items-center justify-between mb-4 px-2">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-white">Slate AI Architecture Diagram</span>
-              <span className="text-xs text-[#808080] font-mono px-2 py-0.5 rounded border border-[#2B2B2B] bg-[#141414]">100% Crystal Clear High-Res View</span>
+              <span className="text-sm font-bold text-white">How to use Slate in five steps</span>
+              <span className="text-xs text-[#808080] font-mono px-2 py-0.5 rounded border border-[#2B2B2B] bg-[#141414]">1080p · with sound</span>
             </div>
             <button
               onClick={() => setIsLightboxOpen(false)}
@@ -105,17 +106,7 @@ export default function LandingPage() {
             </button>
           </div>
           <div className="relative w-full max-w-7xl max-h-[85vh] overflow-auto rounded-2xl border border-[#2B2B2B] bg-[#0D0D0D] p-2 shadow-2xl">
-            <Image
-              src="/demo.png"
-              alt="Slate Architecture High Resolution Fullscreen Preview"
-              width={2500}
-              height={1400}
-              quality={100}
-              priority
-              unoptimized
-              className="w-full h-auto block rounded-xl object-contain"
-              style={{ imageRendering: "crisp-edges" }}
-            />
+            <ShowcaseVideo expanded className="w-full aspect-video block rounded-xl bg-black" />
           </div>
         </div>
       )}
@@ -288,33 +279,18 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* PREVIEW IMAGE (User's workspace screenshot placeholder) */}
+          {/* HOW-TO VIDEO: five steps, from a template to a shared board (silent loop; click for sound) */}
           <div
             onClick={() => setIsLightboxOpen(true)}
             className="relative w-full rounded-b-xl overflow-hidden bg-[#050505] cursor-pointer group/img"
           >
-            {/* Glossy overlay effect */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/[0.02] to-white/0 pointer-events-none" />
-            
-            <Image
-              src="/demo.png"
-              alt="Slate Canvas Crystal Clear AI Architecture Diagram Preview"
-              width={2500}
-              height={1400}
-              quality={100}
-              priority
-              unoptimized
-              className="w-full h-auto block rounded-b-xl object-contain transition-transform duration-300 group-hover/img:scale-[1.005]"
-              style={{
-                imageRendering: "crisp-edges",
-              }}
-            />
+            <ShowcaseVideo className="w-full aspect-video block rounded-b-xl object-cover" />
 
             {/* Hover overlay hint */}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
               <div className="px-4 py-2 rounded-xl border border-white/20 bg-black/80 text-white text-xs font-semibold flex items-center gap-2 shadow-2xl backdrop-blur-md">
                 <ZoomIn className="w-4 h-4 text-white" />
-                Click to View Crystal Clear Fullscreen
+                Click to watch fullscreen with sound
               </div>
             </div>
           </div>

@@ -1,0 +1,2 @@
+Introducing Slate: an infinite canvas for software teams. Type "E-Commerce Microservices", get the architecture, then watch teammates join live and catch single points of failure with the traffic simulator.
+Think. Draw. Collaborate. Built with Next.js, MongoDB and NVIDIA NIM.

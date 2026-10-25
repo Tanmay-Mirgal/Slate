@@ -1,0 +1,92 @@
+<template>
+  <style>
+    
+@font-face{font-family:'Geist';font-weight:400;src:url('assets/fonts/geist-400.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:500;src:url('assets/fonts/geist-500.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:600;src:url('assets/fonts/geist-600.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:700;src:url('assets/fonts/geist-700.woff2') format('woff2');}
+@font-face{font-family:'Geist';font-weight:800;src:url('assets/fonts/geist-800.woff2') format('woff2');}
+@font-face{font-family:'Geist Mono';font-weight:400;src:url('assets/fonts/geist-mono-400.woff2') format('woff2');}
+@font-face{font-family:'Geist Mono';font-weight:500;src:url('assets/fonts/geist-mono-500.woff2') format('woff2');}
+
+    #root { position:absolute; inset:0; font-family:'Geist',sans-serif; color:#fff; }
+    #intro-head-wrap { position:absolute; left:0; top:318px; width:1920px; text-align:center; }
+    #intro-head { font-size:136px; font-weight:800; letter-spacing:-0.045em; line-height:1.05; color:#fff; white-space:nowrap; }
+    #intro-head .w { display:inline-block; }
+    #pill-wrap { position:absolute; left:460px; top:608px; width:1000px; height:84px; }
+    #pill { position:absolute; inset:0; border-radius:42px; background:#050505; border:1px solid rgba(255,255,255,0.16); box-shadow:0 12px 44px rgba(0,0,0,0.7); }
+    #spark { position:absolute; left:28px; top:24px; width:36px; height:36px; color:#C084FC; opacity:0.8; }
+    #field { position:absolute; left:92px; top:0; width:672px; height:84px; line-height:84px; white-space:nowrap; overflow:hidden; font-size:29px; }
+    #ph { position:absolute; left:0; top:0; color:#707070; font-weight:400; }
+    #typed { position:absolute; left:0; top:0; color:#fff; font-weight:500; font-size:31px; white-space:pre; }
+    .ch { position:relative; opacity:0; }
+    .ch::after { content:''; position:absolute; right:-3px; top:24px; bottom:24px; width:3px; background:#fff; border-radius:2px; opacity:var(--caret,0); }
+    #gen { position:absolute; right:12px; top:12px; width:206px; height:60px; border-radius:30px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.10); display:flex; align-items:center; justify-content:center; gap:10px; font-size:28px; font-weight:600; color:#fff; }
+    #gen svg { width:24px; height:24px; color:#FBBF24; fill:#FBBF24; }
+    #cur-wrap { position:absolute; left:0; top:0; width:1920px; height:1080px; }
+    #cur-in { position:absolute; left:0; top:0; width:40px; height:48px; }
+    #cur { position:absolute; left:0; top:0; width:40px; height:48px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6)); }
+  </style>
+  <div id="root" data-composition-id="intro" data-width="1920" data-height="1080">
+    <div id="intro-head-wrap" class="clip" data-start="0" data-duration="3.7">
+      <h1 id="intro-head" aria-label="Describe anything."><span class="w">Describe</span> <span class="w">anything.</span></h1>
+    </div>
+    <div id="pill-wrap" class="clip" data-start="0" data-duration="3.9">
+      <div id="pill-in" style="position:absolute;inset:0">
+        <div id="pill"></div>
+        <svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="spark"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg>
+        <div id="field" data-layout-allow-overflow data-layout-allow-overlap>
+          <span id="ph" data-layout-ignore>Describe architecture (e.g. 'Uber LLD' or 'E-Commerce Microservices')...</span>
+          <span id="typed" data-layout-ignore><span class="ch" id="ch0">E</span><span class="ch" id="ch1">-</span><span class="ch" id="ch2">C</span><span class="ch" id="ch3">o</span><span class="ch" id="ch4">m</span><span class="ch" id="ch5">m</span><span class="ch" id="ch6">e</span><span class="ch" id="ch7">r</span><span class="ch" id="ch8">c</span><span class="ch" id="ch9">e</span><span class="ch" id="ch10">&nbsp;</span><span class="ch" id="ch11">M</span><span class="ch" id="ch12">i</span><span class="ch" id="ch13">c</span><span class="ch" id="ch14">r</span><span class="ch" id="ch15">o</span><span class="ch" id="ch16">s</span><span class="ch" id="ch17">e</span><span class="ch" id="ch18">r</span><span class="ch" id="ch19">v</span><span class="ch" id="ch20">i</span><span class="ch" id="ch21">c</span><span class="ch" id="ch22">e</span><span class="ch" id="ch23">s</span></span>
+        </div>
+        <div id="gen"><span>Generate</span><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></div>
+      </div>
+    </div>
+    <div id="cur-wrap" class="clip" data-start="1.9" data-duration="1.95">
+      <div id="cur-in"><svg id="cur" viewBox="0 0 18 22"><path d="M2 1.5 L2 17.5 L6.2 13.6 L9 20 L11.6 18.9 L8.9 12.6 L14.5 12.4 Z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // hook: per-word blur-in (no translate), then dead still until the morph
+    tl.fromTo("#intro-head .w", { opacity: 0, filter: "blur(12px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.24, ease: "power3.out", stagger: 0.1 }, 0.2);
+    tl.fromTo("#pill-in", { opacity: 0, scale: 0.94, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.6, ease: "expo.out" }, 0.45);
+    // typing: placeholder gives way, characters land one by one (monospaced rhythm), caret follows
+    tl.set("#ph", { opacity: 0 }, 0.95);
+    tl.set("#ch0", { opacity: 1, "--caret": 1 }, 0.95);
+      tl.set("#ch1", { opacity: 1, "--caret": 1 }, 1.01);tl.set("#ch0", { "--caret": 0 }, 1.01);
+      tl.set("#ch2", { opacity: 1, "--caret": 1 }, 1.07);tl.set("#ch1", { "--caret": 0 }, 1.07);
+      tl.set("#ch3", { opacity: 1, "--caret": 1 }, 1.13);tl.set("#ch2", { "--caret": 0 }, 1.13);
+      tl.set("#ch4", { opacity: 1, "--caret": 1 }, 1.19);tl.set("#ch3", { "--caret": 0 }, 1.19);
+      tl.set("#ch5", { opacity: 1, "--caret": 1 }, 1.25);tl.set("#ch4", { "--caret": 0 }, 1.25);
+      tl.set("#ch6", { opacity: 1, "--caret": 1 }, 1.31);tl.set("#ch5", { "--caret": 0 }, 1.31);
+      tl.set("#ch7", { opacity: 1, "--caret": 1 }, 1.37);tl.set("#ch6", { "--caret": 0 }, 1.37);
+      tl.set("#ch8", { opacity: 1, "--caret": 1 }, 1.43);tl.set("#ch7", { "--caret": 0 }, 1.43);
+      tl.set("#ch9", { opacity: 1, "--caret": 1 }, 1.49);tl.set("#ch8", { "--caret": 0 }, 1.49);
+      tl.set("#ch10", { opacity: 1, "--caret": 1 }, 1.55);tl.set("#ch9", { "--caret": 0 }, 1.55);
+      tl.set("#ch11", { opacity: 1, "--caret": 1 }, 1.61);tl.set("#ch10", { "--caret": 0 }, 1.61);
+      tl.set("#ch12", { opacity: 1, "--caret": 1 }, 1.67);tl.set("#ch11", { "--caret": 0 }, 1.67);
+      tl.set("#ch13", { opacity: 1, "--caret": 1 }, 1.73);tl.set("#ch12", { "--caret": 0 }, 1.73);
+      tl.set("#ch14", { opacity: 1, "--caret": 1 }, 1.79);tl.set("#ch13", { "--caret": 0 }, 1.79);
+      tl.set("#ch15", { opacity: 1, "--caret": 1 }, 1.85);tl.set("#ch14", { "--caret": 0 }, 1.85);
+      tl.set("#ch16", { opacity: 1, "--caret": 1 }, 1.91);tl.set("#ch15", { "--caret": 0 }, 1.91);
+      tl.set("#ch17", { opacity: 1, "--caret": 1 }, 1.97);tl.set("#ch16", { "--caret": 0 }, 1.97);
+      tl.set("#ch18", { opacity: 1, "--caret": 1 }, 2.03);tl.set("#ch17", { "--caret": 0 }, 2.03);
+      tl.set("#ch19", { opacity: 1, "--caret": 1 }, 2.09);tl.set("#ch18", { "--caret": 0 }, 2.09);
+      tl.set("#ch20", { opacity: 1, "--caret": 1 }, 2.15);tl.set("#ch19", { "--caret": 0 }, 2.15);
+      tl.set("#ch21", { opacity: 1, "--caret": 1 }, 2.21);tl.set("#ch20", { "--caret": 0 }, 2.21);
+      tl.set("#ch22", { opacity: 1, "--caret": 1 }, 2.27);tl.set("#ch21", { "--caret": 0 }, 2.27);
+      tl.set("#ch23", { opacity: 1, "--caret": 1 }, 2.33);tl.set("#ch22", { "--caret": 0 }, 2.33);
+    // cursor glides to Generate, hovers, presses on the 3.27s beat
+    tl.fromTo("#cur-in", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power2.out" }, 1.9);
+    tl.fromTo("#cur-in", { x: 1600, y: 880 }, { x: 1338, y: 640, duration: 1.1, ease: "power2.inOut" }, 1.95);
+    tl.to("#gen", { backgroundColor: "rgba(255,255,255,0.22)", duration: 0.15, ease: "power2.out" }, 3.05);
+    tl.to("#gen", { scale: 0.95, duration: 0.08, ease: "power2.in" }, 3.27);
+    tl.to("#gen", { scale: 1, duration: 0.14, ease: "power2.out" }, 3.35);
+    // hand-off: the prompt bar becomes the canvas window (canvas scene opens from this exact shape)
+    tl.to("#intro-head .w", { opacity: 0, filter: "blur(12px)", duration: 0.2, ease: "power2.in", stagger: 0.04 }, 3.3);
+    tl.to("#cur-in", { opacity: 0, duration: 0.2, ease: "power2.in" }, 3.45);
+    tl.to("#pill-in", { opacity: 0, duration: 0.3, ease: "power2.in" }, 3.5);
+    window.__timelines["intro"] = tl;
+  </script>
+</template>
