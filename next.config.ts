@@ -10,8 +10,17 @@ const securityHeaders = [
 
 // Signed-in screens, shared boards and the API must never show up in search results. A header (rather than a meta tag)
 // covers client-rendered pages too; robots.txt leaves these URLs crawlable so Google can actually read this header.
+// /auth itself is public and indexed (people search "slate login"); only Clerk's steps below it (sso-callback,
+// verify-email-address...) are private, and the share-image routes next to the page stay indexable.
 const noindexHeaders = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
-const PRIVATE_ROUTES = ["/dashboard", "/canvas", "/auth", "/sign-in", "/sign-up", "/api"];
+const NOINDEX_SOURCES = [
+  "/dashboard/:path*",
+  "/canvas/:path*",
+  "/auth/:path((?!opengraph-image|twitter-image).+)",
+  "/sign-in/:path*",
+  "/sign-up/:path*",
+  "/api/:path*",
+];
 
 const nextConfig: NextConfig = {
   // Dev-only badge: keep it clear of the canvas controls in the bottom-left.
@@ -21,7 +30,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
-      ...PRIVATE_ROUTES.map((route) => ({ source: `${route}/:path*`, headers: noindexHeaders })),
+      ...NOINDEX_SOURCES.map((source) => ({ source, headers: noindexHeaders })),
       // public/ files are served with max-age=0 by default, which re-downloads the 3.5 MB demo video on every visit.
       {
         source: "/:all*(svg|jpg|jpeg|png|webp|mp4)",

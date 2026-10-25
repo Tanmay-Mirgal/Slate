@@ -29,21 +29,26 @@ export const SITE_KEYWORDS = [
   "real-time collaboration",
 ];
 
-/** The share card (app/opengraph-image.tsx). Pages that define their own openGraph must reference it, or they lose the image. */
+/**
+ * Share cards are drawn per page (lib/og.tsx) from an opengraph-image file next to each page. A segment that defines its
+ * own openGraph replaces the parent's wholesale, including the inherited image, so every public page has its own file.
+ */
 export const OG_SIZE = { width: 1200, height: 630 } as const;
 export const OG_ALT = "Slate: AI architecture diagrams, an infinite whiteboard and markdown docs in one workspace";
-export const OG_IMAGE = { url: "/opengraph-image", ...OG_SIZE, alt: OG_ALT };
-export const TWITTER_IMAGE = { url: "/twitter-image", ...OG_SIZE, alt: OG_ALT };
 
 /** Profiles that prove the brand is one entity (schema.org `sameAs`). Add Product Hunt, X, LinkedIn... as they exist. */
 export const SAME_AS = ["https://github.com/Tanmay-Mirgal/Slate"];
 
 export const absoluteUrl = (path = "/") => `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
-/** Pages Google may index, shared by sitemap.ts so the sitemap can never drift from the real routes. */
+/**
+ * Fixed public pages Google may index; sitemap.ts adds the keyword pages from lib/marketing-pages.ts.
+ * Left out on purpose: /dashboard (behind sign-in) and /canvas/<id> (a user's private board).
+ */
 export const INDEXABLE_ROUTES = [
   { path: "/", changeFrequency: "weekly", priority: 1 },
   { path: "/playground", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/auth", changeFrequency: "yearly", priority: 0.3 },
 ] as const;
 
 /** The 25 s how-to on the landing page. Dates are ISO 8601; the duration is PT<seconds>S. */
@@ -106,6 +111,40 @@ const ORG_ID = `${SITE_URL}/#organization`;
 const SITE_ID = `${SITE_URL}/#website`;
 const APP_ID = `${SITE_URL}/#software`;
 const PAGE_ID = `${SITE_URL}/#webpage`;
+
+/** Schema.org graph for a keyword page (app/[slug]): the page itself, its breadcrumb trail and its FAQ. */
+export function pageJsonLd({ path, title, description, breadcrumb, faqs }: { path: string; title: string; description: string; breadcrumb: string; faqs: Faq[] }) {
+  const url = absoluteUrl(path);
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": `${url}#webpage`,
+        url,
+        name: title,
+        description,
+        isPartOf: { "@id": SITE_ID },
+        about: { "@id": APP_ID },
+        breadcrumb: { "@id": `${url}#breadcrumb` },
+        primaryImageOfPage: { "@type": "ImageObject", url: `${url}/opengraph-image` },
+        inLanguage: "en",
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${url}#breadcrumb`,
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
+          { "@type": "ListItem", position: 2, name: breadcrumb, item: url },
+        ],
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.question, acceptedAnswer: { "@type": "Answer", text: f.answer } })),
+      },
+    ],
+  };
+}
 
 /** Schema.org graph for the home page: who we are, the site, the product + prices, the demo video and the FAQ. */
 export function homeJsonLd() {

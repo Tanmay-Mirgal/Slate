@@ -43,6 +43,7 @@ import { PricingModal } from "@/components/billing/PricingModal";
 import { FaqSection } from "@/components/landing/FaqSection";
 import { ShowcaseVideo } from "@/components/landing/ShowcaseVideo";
 import { PLANS, formatInr } from "@/lib/billing/plans";
+import { MARKETING_PAGES } from "@/lib/marketing-pages";
 
 export function LandingPage() {
   const router = useRouter();
@@ -397,6 +398,33 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* SOLUTIONS: internal links to the keyword pages */}
+      <section id="solutions" className="py-20 px-6 max-w-5xl mx-auto border-t border-[#2B2B2B]">
+        <div className="text-center max-w-xl mx-auto mb-12">
+          <h2 className="text-2xl font-bold tracking-tight text-white mb-3">
+            Pick the way you want to diagram
+          </h2>
+          <p className="text-[#808080] text-xs">
+            Generate it with AI, import it from code, or sketch it for a system design session.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {MARKETING_PAGES.map((p) => (
+            <Link
+              key={p.slug}
+              href={`/${p.slug}`}
+              className="group p-5 rounded-2xl border border-[#2B2B2B] bg-[#141414] space-y-3 transition-colors hover:border-[#3A3A3A]"
+            >
+              <h3 className="text-sm font-bold text-white">{p.h1}</h3>
+              <p className="text-xs text-[#808080] leading-relaxed">{p.description}</p>
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#C5C5C5] group-hover:text-white">
+                Learn more <ArrowRight className="w-3.5 h-3.5" />
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       {/* RAZORPAY BILLING & 3 SUBSCRIPTION PLANS SECTION */}
       <section id="pricing" className="py-20 px-6 border-t border-[#2B2B2B] bg-[#101010]/40">
         <div className="max-w-5xl mx-auto text-center">
@@ -495,6 +523,11 @@ export function LandingPage() {
             <Link href="/dashboard" className="hover:text-white">Dashboard</Link>
           </div>
         </div>
+        <nav aria-label="Solutions" className="max-w-5xl mx-auto mt-6 pt-6 border-t border-[#1F1F1F] flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+          {MARKETING_PAGES.map((p) => (
+            <Link key={p.slug} href={`/${p.slug}`} className="hover:text-white">{p.breadcrumb}</Link>
+          ))}
+        </nav>
       </footer>
 
     </div>

@@ -1,17 +1,23 @@
-import { FAQS } from "@/lib/seo";
+import { FAQS, type Faq } from "@/lib/seo";
+
+interface FaqSectionProps {
+  faqs?: Faq[];
+  heading?: string;
+  subheading?: string;
+}
 
 /** Server-rendered, native <details> so every answer is in the HTML for crawlers and works without JavaScript. */
-export function FaqSection() {
+export function FaqSection({ faqs = FAQS, heading = "Frequently Asked Questions", subheading = "Everything about Slate, the AI diagram generator and pricing." }: FaqSectionProps) {
   return (
     <section id="faq" className="py-20 px-6 border-t border-[#2B2B2B]">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-10">
-          <h2 className="text-2xl font-bold tracking-tight text-white mb-3">Frequently Asked Questions</h2>
-          <p className="text-[#808080] text-xs">Everything about Slate, the AI diagram generator and pricing.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-white mb-3">{heading}</h2>
+          <p className="text-[#808080] text-xs">{subheading}</p>
         </div>
 
         <div className="space-y-3">
-          {FAQS.map((faq) => (
+          {faqs.map((faq) => (
             <details key={faq.question} className="group rounded-2xl border border-[#2B2B2B] bg-[#141414] px-5 py-4 open:bg-[#161616]">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
                 <h3 className="text-sm font-semibold text-white">{faq.question}</h3>

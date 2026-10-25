@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { OG_IMAGE, SITE_NAME, TWITTER_IMAGE, absoluteUrl } from "@/lib/seo";
+import { SITE_NAME, absoluteUrl } from "@/lib/seo";
 
 const TITLE = "Free Online Whiteboard & Architecture Diagram Maker";
 const DESCRIPTION =
-  "Try Slate in your browser with no account. Draw architecture diagrams, flowcharts and sticky notes on an infinite canvas, then sign up to sync, share and generate diagrams with AI.";
+  "Try Slate in your browser with no account. Draw architecture diagrams and flowcharts on an infinite canvas, then sign up to sync, share and use AI.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: "/playground" },
-  // A segment's openGraph / twitter replaces the parent's wholesale, so the share image is repeated here.
-  openGraph: { type: "website", siteName: SITE_NAME, url: absoluteUrl("/playground"), title: `${TITLE} | ${SITE_NAME}`, description: DESCRIPTION, images: [OG_IMAGE] },
-  twitter: { card: "summary_large_image", title: `${TITLE} | ${SITE_NAME}`, description: DESCRIPTION, images: [TWITTER_IMAGE] },
+  // The share image comes from this segment's opengraph-image / twitter-image files.
+  openGraph: { type: "website", siteName: SITE_NAME, url: absoluteUrl("/playground"), title: `${TITLE} | ${SITE_NAME}`, description: DESCRIPTION },
+  twitter: { card: "summary_large_image", title: `${TITLE} | ${SITE_NAME}`, description: DESCRIPTION },
 };
 
 export default function PlaygroundLayout({ children }: Readonly<{ children: React.ReactNode }>) {
