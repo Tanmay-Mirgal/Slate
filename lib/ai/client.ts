@@ -1,6 +1,7 @@
 import type { DiagramKind, Graph } from "../diagram/graph";
 import type { Review, ReviewInput } from "../interview/review";
 import type { Complexity } from "./prompt";
+import type { StreamItem } from "./stream-parse";
 
 export interface DiagramRequest {
   prompt: string;
@@ -31,6 +32,8 @@ export interface RequestHandlers {
   signal?: AbortSignal;
   onStatus?: (s: { phase: "thinking" | "retry" | "fallback"; model: string; attempt: number }) => void;
   onProgress?: (chars: number) => void;
+  /** A component / connection the model has finished writing; draw it now. Resets on every `onStatus`. */
+  onItem?: (item: StreamItem) => void;
 }
 
 /** Calls /api/ai/generate and reads its newline-delimited JSON event stream. */
@@ -89,6 +92,7 @@ export async function requestDiagram(req: DiagramRequest, h: RequestHandlers = {
         }
         if (evt.type === "status") h.onStatus?.(evt as never);
         else if (evt.type === "progress") h.onProgress?.(Number(evt.chars) || 0);
+        else if (evt.type === "item" && evt.item) h.onItem?.(evt.item as StreamItem);
         else if (evt.type === "result") result = evt as unknown as DiagramResponse;
         else if (evt.type === "error") throw new ClientAiError(String(evt.code ?? "upstream"), String(evt.message ?? "Generation failed"), typeof evt.retryAfterSeconds === "number" ? evt.retryAfterSeconds : undefined);
       }

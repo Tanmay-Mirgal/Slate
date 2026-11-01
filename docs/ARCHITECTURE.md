@@ -142,6 +142,17 @@ prompt ──► /api/ai/generate ──► NVIDIA NIM (streamed) ──► JSON
 ```
 
 * The model returns **semantics only** (nodes, groups, edges, icons), never coordinates. Layout is computed.
+* **The diagram is drawn while the model is still writing it.** `GraphStreamParser` (`lib/ai/stream-parse.ts`)
+  reads the token stream and emits every group / node / edge object the moment its closing brace arrives; the route
+  forwards them as `item` events. In the browser `StreamingGraph` turns them into a valid `Graph` (a connection waits
+  until both ends are declared) and `LiveDiagram` (`lib/diagram/live.ts`) lays it out again every ~0.5 s and glides
+  the components to their new places. Until enough connections exist ELK would only produce one long row, so cards
+  first drop into a hidden-scaffold grid (a star for mind maps) and re-organise once the connections arrive.
+  The preview lives in `engine.live`, a separate scene painted above the board: it is not in the document, so there
+  is no sync traffic, no undo noise, and collaborators never see half a diagram. When the final `result` arrives the
+  preview settles on the exact final layout and is swapped for the real elements in one undoable step. A retry or
+  fallback model (`status` event with a higher attempt) wipes the preview; Stop or an error removes it. The complete
+  reply is still parsed and validated at the end, so the streamed items are only ever a preview.
 * **Why diagrams no longer overlap.** The old pipeline bucketed nodes by substring matches (`"ai"`, `"app"`,
   `"user"` matched almost everything), placed rows by hand while ignoring the edges, and drew frames around
   nodes scattered across zones. Now `layout.ts` runs ELK's layered algorithm over the real hierarchy: groups are

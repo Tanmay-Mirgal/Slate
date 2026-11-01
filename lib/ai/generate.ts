@@ -3,10 +3,16 @@ import { normalizeGraph, type DiagramKind, type Graph } from "../diagram/graph";
 import { extractJson } from "./json";
 import { AiError, streamChat, type ChatMessage, type NvidiaConfig } from "./nvidia";
 import { buildMessages, COMPLEXITY, repairMessages, type PromptInput } from "./prompt";
+import { GraphStreamParser, type StreamItem } from "./stream-parse";
 
 export interface GenerateEvents {
   onStatus?: (s: { phase: "thinking" | "retry" | "fallback"; model: string; attempt: number }) => void;
   onProgress?: (chars: number) => void;
+  /**
+   * A group / node / edge / message the model has just finished writing, so it can be drawn right away.
+   * Items belong to the attempt announced by the last `onStatus`; a new status means start over.
+   */
+  onItem?: (item: StreamItem) => void;
 }
 
 export interface GenerateResult {
@@ -56,7 +62,13 @@ async function attempt(
   ev: GenerateEvents,
   signal?: AbortSignal
 ): Promise<{ graph: Graph; warnings: string[]; reply: string }> {
-  const { text, finishReason } = await streamChat({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, model, messages, maxTokens, signal, onProgress: ev.onProgress });
+  const parser = ev.onItem ? new GraphStreamParser() : null;
+  const onDelta = parser
+    ? (chunk: string) => {
+        for (const item of parser.push(chunk)) ev.onItem!(item);
+      }
+    : undefined;
+  const { text, finishReason } = await streamChat({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, model, messages, maxTokens, signal, onProgress: ev.onProgress, onDelta });
   if (!text.trim()) throw new AiError("invalid_output", "The model returned an empty reply.");
   let value: unknown;
   try {

@@ -1,6 +1,6 @@
 import { clamp, unionRects, type Box } from "./geometry";
 import { DEFAULT_STYLE, textSize, type StyleDefaults } from "./create";
-import { renderScene, type Guide, type RenderState } from "./render";
+import { renderScene, type Guide, type LiveScene, type RenderState } from "./render";
 import { elementsInRect, expandGroups, GeometryCache, selectionBounds } from "./scene";
 import { cameraAfterResize } from "./split";
 import { ensureFonts } from "./text";
@@ -204,6 +204,8 @@ export class Engine {
   fading = new Set<string>();
   connectorHandles: Point[] = [];
   anim = new Map<string, number>();
+  /** A diagram being streamed in by the AI: painted on top of the board but not part of the document. */
+  live: LiveScene | null = null;
   spaceDown = false;
   cursor = "default";
   contextMenu: UiState["contextMenu"] = null;
@@ -632,6 +634,10 @@ export class Engine {
 
     for (const [id, started] of this.anim) if (now - started > 320) this.anim.delete(id);
     if (this.anim.size) more = true;
+    if (this.live) {
+      for (const [id, started] of this.live.anim) if (now - started > 320) this.live.anim.delete(id);
+      if (this.live.anim.size) more = true;
+    }
 
     const { box, handles, connectorPts } = this.computeSelectionVisuals();
     const state: RenderState = {
@@ -654,6 +660,7 @@ export class Engine {
       quickAdd: this.quickAddBox(),
       quickAddHover: this.quickAddHover,
       anim: this.anim,
+      live: this.live,
       now,
       chrome: true,
       background: true,

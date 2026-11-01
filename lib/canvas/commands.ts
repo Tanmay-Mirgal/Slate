@@ -418,6 +418,8 @@ export interface InsertOptions {
   at?: "free" | "center" | Point;
   select?: boolean;
   fit?: boolean;
+  /** Fade the new elements in (default). Off when they replace an identical live preview. */
+  animate?: boolean;
 }
 
 /** Inserts pre-built elements (AI output, templates, imports) as a single undoable step. */
@@ -455,8 +457,10 @@ export function insertElements(e: Engine, src: El[], opts: InsertOptions = {}): 
     return { ...el, x: el.x + dx, y: el.y + dy, z: zOf.get(el.id)! };
   });
   e.store.putMany(placed);
-  const now = performance.now();
-  for (const el of placed) e.anim.set(el.id, now);
+  if (opts.animate !== false) {
+    const now = performance.now();
+    for (const el of placed) e.anim.set(el.id, now);
+  }
   const rect = { x: target.x, y: target.y, w: b.w, h: b.h };
   if (opts.select !== false) e.select(placed.map((x) => x.id), { expandGroup: false });
   if (opts.fit !== false) {

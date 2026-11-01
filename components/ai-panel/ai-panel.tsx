@@ -37,6 +37,7 @@ import { graphToDsl, parseDsl } from "@/lib/diagram/dsl";
 import { commonDiagramId, graphFromElements } from "@/lib/diagram/extract";
 import type { DiagramKind, Graph } from "@/lib/diagram/graph";
 import { placeGraph } from "@/lib/diagram/insert";
+import { LiveDiagram, type LiveStats } from "@/lib/diagram/live";
 import { matchTemplate, TEMPLATES, type Template } from "@/lib/diagram/templates";
 import { useUi } from "@/components/canvas/hooks";
 import type { DocBridge } from "@/components/editor/doc-bridge";
@@ -75,7 +76,7 @@ const COMPLEXITIES: { id: Complexity; label: string }[] = [
 
 type Msg =
   | { id: number; role: "user"; text: string }
-  | { id: number; role: "assistant"; kind: "working"; phase: string; model?: string; chars: number }
+  | { id: number; role: "assistant"; kind: "working"; phase: string; model?: string; chars: number; drawn?: LiveStats }
   | { id: number; role: "assistant"; kind: "result"; title: string; summary: string; dsl: string; model?: string; warnings: string[]; diagramId: string; source: "ai" | "template" | "import" }
   | { id: number; role: "assistant"; kind: "error"; code: string; message: string; retry?: number; template?: Template | null; prompt?: string };
 
@@ -167,17 +168,29 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode, docBrid
     const workingId = push({ role: "assistant", kind: "working", phase: "Thinking", chars: 0 });
     const controller = new AbortController();
     abortRef.current = controller;
+    // Components and connections are drawn on the canvas as the model writes them; commit() makes it real.
+    const live = new LiveDiagram(engine, {
+      replaceDiagramId: replace,
+      fallbackKind: kind === "auto" ? undefined : kind,
+      onStats: (drawn) => setMessages((list) => list.map((m) => (m.id === workingId && m.role === "assistant" && m.kind === "working" ? { ...m, phase: "Drawing", drawn } : m))),
+    });
     try {
       const res = await requestDiagram(
         { prompt, kind, complexity, currentDsl },
         {
           signal: controller.signal,
-          onStatus: (s) => patch(workingId, { id: workingId, role: "assistant", kind: "working", phase: s.phase === "retry" ? "Refining the diagram" : s.phase === "fallback" ? "Trying another model" : "Thinking", model: s.model, chars: 0 }),
+          onStatus: (s) => {
+            // A new attempt rewrites the whole diagram, so whatever was half drawn goes.
+            if (s.attempt > 1) live.reset();
+            patch(workingId, { id: workingId, role: "assistant", kind: "working", phase: s.phase === "retry" ? "Refining the diagram" : s.phase === "fallback" ? "Trying another model" : "Thinking", model: s.model, chars: 0 });
+          },
           onProgress: (chars) => setMessages((list) => list.map((m) => (m.id === workingId && m.role === "assistant" && m.kind === "working" ? { ...m, chars } : m))),
+          onItem: (item) => live.push(item),
         }
       );
-      patch(workingId, { id: workingId, role: "assistant", kind: "working", phase: "Laying out", model: res.model, chars: 0 });
-      const placed = await insertGraph(res.graph, replace);
+      patch(workingId, { id: workingId, role: "assistant", kind: "working", phase: "Finishing", model: res.model, chars: 0 });
+      const placed = await live.commit(res.graph);
+      setLastDiagram(placed.diagramId);
       patch(workingId, {
         id: workingId,
         role: "assistant",
@@ -195,6 +208,7 @@ export function AiPanel({ engine, isOpen, onClose, signedIn, onOpenCode, docBrid
       if (err.code === "aborted") patch(workingId, { id: workingId, role: "assistant", kind: "error", code: "aborted", message: "Stopped." });
       else patch(workingId, { id: workingId, role: "assistant", kind: "error", code: err.code, message: err.message, retry: err.retryAfterSeconds, template: err.code === "not_configured" || err.code === "upstream" || err.code === "rate_limited" ? matchTemplate(prompt) : null, prompt });
     } finally {
+      live.dispose();
       abortRef.current = null;
       setBusy(false);
     }
@@ -402,7 +416,14 @@ function MessageView({ m, engine, onOpenCode, onUseTemplate, onRetry, onUpgrade 
         <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-indigo-300" />
         <div className="text-[13px] text-zinc-300">
           <span>{m.phase}…</span>
-          {m.chars > 0 && <span className="ml-2 text-[11px] text-zinc-600">{m.chars.toLocaleString()} chars</span>}
+          {m.drawn ? (
+            <span className="ml-2 text-[11px] text-zinc-500">
+              {m.drawn.nodes} {m.drawn.nodes === 1 ? "component" : "components"}
+              {m.drawn.edges > 0 && ` · ${m.drawn.edges} ${m.drawn.edges === 1 ? "connection" : "connections"}`}
+            </span>
+          ) : (
+            m.chars > 0 && <span className="ml-2 text-[11px] text-zinc-600">{m.chars.toLocaleString()} chars</span>
+          )}
           {m.model && <div className="mt-0.5 text-[10.5px] text-zinc-600">{m.model}</div>}
         </div>
       </motion.div>

@@ -76,6 +76,8 @@ export interface StreamOptions {
   signal?: AbortSignal;
   /** Called with the running character count (content + reasoning) as tokens arrive. */
   onProgress?: (chars: number) => void;
+  /** Called with every piece of the answer itself (not the reasoning) the moment it arrives. */
+  onDelta?: (text: string) => void;
   /** Abort if nothing at all arrives for this long. */
   idleMs?: number;
   /** Hard ceiling for the whole completion. */
@@ -158,7 +160,10 @@ export async function streamChat(o: StreamOptions): Promise<StreamResult> {
           const evt = JSON.parse(payload) as { choices?: { delta?: { content?: string; reasoning_content?: string; reasoning?: string }; finish_reason?: string | null }[] };
           const choice = evt.choices?.[0];
           const d = choice?.delta;
-          if (d?.content) text += d.content;
+          if (d?.content) {
+            text += d.content;
+            o.onDelta?.(d.content);
+          }
           const r = d?.reasoning_content ?? d?.reasoning;
           if (r) reasoning += r.length;
           if (choice?.finish_reason) finish = choice.finish_reason;

@@ -89,6 +89,7 @@ export async function POST(req: Request) {
           cfg,
           {
             onStatus: (s) => send({ type: "status", ...s }),
+            onItem: (item) => send({ type: "item", item }),
             onProgress: (chars) => {
               const now = Date.now();
               if (now - lastProgress > 250) {

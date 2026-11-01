@@ -20,6 +20,11 @@ async function getElk(): Promise<ElkInstance> {
   return elk;
 }
 
+/** Starts loading ELK in the background (e.g. while a model is still thinking) so the first layout isn't the slow one. */
+export function warmLayout(): void {
+  getElk().catch(() => undefined);
+}
+
 export interface LayoutOptions {
   /** Prefix for generated element ids and the `diagramId` tag. */
   diagramId?: string;

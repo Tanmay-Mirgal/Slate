@@ -47,6 +47,17 @@ export interface SelectionBox {
   rotatable: boolean;
 }
 
+/**
+ * Elements that are drawn but are not part of the document: no sync, no undo, invisible to
+ * collaborators. Used to stream an AI diagram onto the canvas while it is still being written.
+ */
+export interface LiveScene {
+  store: DocStore;
+  geom: GeometryCache;
+  /** element id -> start time of its fade-in (same contract as RenderState.anim). */
+  anim: Map<string, number>;
+}
+
 export interface RenderState {
   camera: Camera;
   width: number;
@@ -69,6 +80,7 @@ export interface RenderState {
   quickAdd: Box | null;
   quickAddHover: Side | null;
   anim: ReadonlyMap<string, number>;
+  live?: LiveScene | null;
   now: number;
   /** false for exports: no background fill, grid or editing chrome. */
   chrome: boolean;
@@ -104,6 +116,20 @@ function applyDash(ctx: CanvasRenderingContext2D, dash: Dash | undefined, sw: nu
     ctx.setLineDash([]);
     ctx.lineCap = "round";
   }
+}
+
+/** Fade + slight scale-up for an element that was just added (`started` = when, undefined = settled). */
+function popIn(ctx: CanvasRenderingContext2D, started: number | undefined, now: number, b: Rect) {
+  if (started === undefined) return;
+  const p = clamp((now - started) / 280, 0, 1);
+  const e = 1 - Math.pow(1 - p, 3);
+  ctx.globalAlpha *= e;
+  const cx = b.x + b.w / 2;
+  const cy = b.y + b.h / 2;
+  const s = 0.94 + 0.06 * e;
+  ctx.translate(cx, cy);
+  ctx.scale(s, s);
+  ctx.translate(-cx, -cy);
 }
 
 function withBox(ctx: CanvasRenderingContext2D, b: { x: number; y: number; w: number; h: number; angle?: number }, fn: () => void) {
@@ -878,18 +904,7 @@ export function renderScene(ctx: CanvasRenderingContext2D, store: DocStore, geom
     ctx.save();
     ctx.globalAlpha = el.opacity ?? 1;
     if (state.fading.has(el.id)) ctx.globalAlpha *= 0.22;
-    const started = state.anim.get(el.id);
-    if (started !== undefined) {
-      const p = clamp((state.now - started) / 280, 0, 1);
-      const e = 1 - Math.pow(1 - p, 3);
-      ctx.globalAlpha *= e;
-      const cx = b.x + b.w / 2;
-      const cy = b.y + b.h / 2;
-      const s = 0.94 + 0.06 * e;
-      ctx.translate(cx, cy);
-      ctx.scale(s, s);
-      ctx.translate(-cx, -cy);
-    }
+    popIn(ctx, state.anim.get(el.id), state.now, b);
     drawElement(env, el, selected);
     ctx.restore();
     if (state.chrome && !selected && state.hoverId === el.id && !state.fading.size) {
@@ -902,6 +917,21 @@ export function renderScene(ctx: CanvasRenderingContext2D, store: DocStore, geom
       } else if (el.type !== "pen") {
         drawBoxOutline(ctx, el, withAlpha(c.selection, 0.7), 1.5 / z);
       }
+      ctx.restore();
+    }
+  }
+
+  // A diagram that is still being streamed in: drawn from its own scene, above everything saved.
+  if (state.live) {
+    const live = state.live;
+    const liveEnv: Env = { ...env, geom: live.geom, store: live.store };
+    for (const el of live.store.list()) {
+      const b = live.geom.bounds(el);
+      if (b.x > vis.x + vis.w || b.x + b.w < vis.x || b.y > vis.y + vis.h || b.y + b.h < vis.y) continue;
+      ctx.save();
+      ctx.globalAlpha = el.opacity ?? 1;
+      popIn(ctx, live.anim.get(el.id), state.now, b);
+      drawElement(liveEnv, el, false);
       ctx.restore();
     }
   }
