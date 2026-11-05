@@ -1,13 +1,19 @@
 import { z } from "zod";
 import { getCollections, newDocId } from "@/lib/db/mongo";
-import type { Id, SlateDoc } from "@/lib/db/types";
+import type { BoardStatus, ExternalRef, Id, LinkAccess, SlateDoc } from "@/lib/db/types";
 import { canComment, canModerate, canViewHistory, loadSlate, membershipOf, requireEdit, requireManage, requireView, resolveAccess } from "./access";
 import { assertBoardCapacity, boardLimitFailure, countOwnedBoards, tierOf } from "./billing";
 import { AppError, mutation, query, zId, zLinkAccess, type Ctx } from "./fn";
 import { limitsFor } from "@/lib/billing/limits";
 import { ensureDefaultWorkspace } from "./users";
+import { connectorConfig, connectorEnabled } from "@/lib/connector/config";
+import { loadBoardElements, namesFor } from "@/lib/connector/data";
+import { actorOf, emitBoardEvent, retractCreated } from "@/lib/connector/events/board-events";
+import { inOutbox } from "@/lib/connector/events/outbox";
+import { graphFromElements } from "@/lib/diagram/extract";
+import { graphToDsl } from "@/lib/diagram/dsl";
 
-const MAX_DOC_CHARS = 900_000;
+export const MAX_DOC_CHARS = 900_000;
 const MAX_TITLE = 120;
 
 /** Lightweight shape for lists: never ship canvas / document bodies to the dashboard. */
@@ -21,6 +27,9 @@ function summary(s: SlateDoc) {
     lastEdited: s.lastEdited,
     thumbnailIcon: s.thumbnailIcon,
     linkAccess: s.linkAccess ?? "none",
+    // only boards the connected Hub has touched carry these, so every other board's summary is exactly as before
+    ...(s.status ? { status: s.status } : {}),
+    ...(s.createdVia === "connector" ? { createdVia: s.createdVia } : {}),
   };
 }
 
@@ -69,6 +78,75 @@ export const list = query({
   },
 });
 
+export interface CreateBoardInput {
+  title: string;
+  /** Omit to use the caller's own workspace (created on the spot for a brand-new account). */
+  workspaceId?: string;
+  thumbnailIcon: string;
+  /** Set by the ecosystem connector; boards made in the app carry nothing extra. */
+  createdVia?: "ui" | "connector";
+  metadata?: Record<string, unknown>;
+  externalRef?: ExternalRef;
+}
+
+/**
+ * Creates a board for the caller: role check, the workspace owner's plan limit, and the settle step that keeps a
+ * burst of simultaneous creations from overshooting it. The `create` mutation below and the ecosystem connector
+ * both go through here, so a board made either way obeys the same rules (and sends the same `board.created`).
+ */
+export async function createBoard(ctx: Ctx, args: CreateBoardInput): Promise<SlateDoc> {
+  const userId = requireUser(ctx);
+  const c = await getCollections();
+
+  let workspaceId = args.workspaceId;
+  if (!workspaceId) workspaceId = (await ensureDefaultWorkspace(userId, await ctx.profile()))._id;
+  const membership = await membershipOf(workspaceId, userId);
+  if (!membership || membership.role === "Viewer") throw new AppError("Unauthorized to create slates in this workspace");
+
+  // The workspace owner's plan decides how many boards fit (throws { code: "board_limit" }).
+  const workspace = await c.workspaces.findOne({ _id: workspaceId });
+  if (!workspace) throw new AppError("Workspace not found");
+  await assertBoardCapacity(workspace.ownerId);
+
+  const now = Date.now();
+  const doc: SlateDoc = {
+    _id: newDocId(),
+    title: args.title.trim().slice(0, MAX_TITLE) || "Untitled",
+    workspaceId,
+    isArchived: false,
+    createdAt: now,
+    lastEdited: now,
+    thumbnailIcon: args.thumbnailIcon,
+    linkAccess: "none",
+    schemaVersion: 2,
+    elementSeq: 0,
+    ...(args.createdVia === "connector" ? { createdVia: "connector" as const } : {}),
+    ...(args.metadata ? { metadata: args.metadata } : {}),
+    ...(args.externalRef ? { externalRef: args.externalRef } : {}),
+  };
+  if (connectorEnabled()) {
+    // the board and its `board.created` event commit together or not at all
+    const actor = await actorOf(ctx, args.createdVia ?? "ui");
+    await inOutbox(async (session) => {
+      await c.slates.insertOne(doc, { session });
+      await emitBoardEvent("board.created", doc, actor, undefined, session);
+    });
+  } else {
+    await c.slates.insertOne(doc);
+  }
+
+  // Boards created at the same moment could all have passed the check above: settle it afterwards.
+  // If that over-filled the plan, this board is taken back (so at worst a burst creates fewer than allowed, never more).
+  const tier = await tierOf(workspace.ownerId);
+  const limit = limitsFor(tier).maxBoards;
+  if (limit !== null && (await countOwnedBoards(workspace.ownerId, limit + 1)) > limit) {
+    await c.slates.deleteOne({ _id: doc._id });
+    if (connectorEnabled()) await retractCreated(doc._id);
+    throw boardLimitFailure(tier, limit);
+  }
+  return doc;
+}
+
 export const create = mutation({
   args: z.object({
     title: z.string().max(400),
@@ -76,45 +154,7 @@ export const create = mutation({
     workspaceId: zId.optional(),
     thumbnailIcon: z.string().max(40),
   }),
-  handler: async (ctx, args) => {
-    const userId = requireUser(ctx);
-    const c = await getCollections();
-
-    let workspaceId = args.workspaceId;
-    if (!workspaceId) workspaceId = (await ensureDefaultWorkspace(userId, await ctx.profile()))._id;
-    const membership = await membershipOf(workspaceId, userId);
-    if (!membership || membership.role === "Viewer") throw new AppError("Unauthorized to create slates in this workspace");
-
-    // The workspace owner's plan decides how many boards fit (throws { code: "board_limit" }).
-    const workspace = await c.workspaces.findOne({ _id: workspaceId });
-    if (!workspace) throw new AppError("Workspace not found");
-    await assertBoardCapacity(workspace.ownerId);
-
-    const now = Date.now();
-    const doc: SlateDoc = {
-      _id: newDocId(),
-      title: args.title.trim().slice(0, MAX_TITLE) || "Untitled",
-      workspaceId,
-      isArchived: false,
-      createdAt: now,
-      lastEdited: now,
-      thumbnailIcon: args.thumbnailIcon,
-      linkAccess: "none",
-      schemaVersion: 2,
-      elementSeq: 0,
-    };
-    await c.slates.insertOne(doc);
-
-    // Boards created at the same moment could all have passed the check above: settle it afterwards.
-    // If that over-filled the plan, this board is taken back (so at worst a burst creates fewer than allowed, never more).
-    const tier = await tierOf(workspace.ownerId);
-    const limit = limitsFor(tier).maxBoards;
-    if (limit !== null && (await countOwnedBoards(workspace.ownerId, limit + 1)) > limit) {
-      await c.slates.deleteOne({ _id: doc._id });
-      throw boardLimitFailure(tier, limit);
-    }
-    return doc._id;
-  },
+  handler: async (ctx, args) => (await createBoard(ctx, args))._id,
 });
 
 export const rename = mutation({
@@ -127,13 +167,26 @@ export const rename = mutation({
   },
 });
 
-// Soft delete (archive)
+/** Soft delete (archive). Shared by the `remove` mutation and the ecosystem connector. */
+export async function archiveBoard(ctx: Ctx, id: Id<"slates">, via: "ui" | "connector"): Promise<void> {
+  const { slate } = await requireManage(ctx, id);
+  const c = await getCollections();
+  const patch = { $set: { isArchived: true, lastEdited: Date.now() } };
+  if (!connectorEnabled()) {
+    await c.slates.updateOne({ _id: slate._id }, patch);
+    return;
+  }
+  const actor = await actorOf(ctx, via);
+  await inOutbox(async (session) => {
+    await c.slates.updateOne({ _id: slate._id }, patch, { session });
+    await emitBoardEvent("board.archived", { ...slate, isArchived: true }, actor, undefined, session);
+  });
+}
+
 export const remove = mutation({
   args: z.object({ id: zId }),
   handler: async (ctx, args) => {
-    const { slate } = await requireManage(ctx, args.id);
-    const c = await getCollections();
-    await c.slates.updateOne({ _id: slate._id }, { $set: { isArchived: true, lastEdited: Date.now() } });
+    await archiveBoard(ctx, args.id, "ui");
     return args.id;
   },
 });
@@ -172,9 +225,28 @@ export const getById = query({
       canModerate: canModerate(access),
       canViewHistory: canViewHistory(access),
       stats: stats ? { nodes: stats.nodes, connectors: stats.connectors } : null,
+      // review status and "created via the Hub": only present while the ecosystem connector is switched on
+      ...(connectorEnabled() ? { connector: await connectorView(slate) } : {}),
     };
   },
 });
+
+async function connectorView(slate: SlateDoc) {
+  let hubName: string | null = null;
+  try {
+    hubName = connectorConfig().hubName;
+  } catch {
+    /* misconfigured: the boot check says so; the board page just shows no Hub name */
+  }
+  const names = slate.statusChangedBy ? await namesFor([slate.statusChangedBy]) : new Map<string, string>();
+  return {
+    hubName,
+    status: (slate.status ?? "draft") as BoardStatus,
+    statusChangedAt: slate.statusChangedAt ?? null,
+    statusChangedByName: slate.statusChangedBy ? names.get(slate.statusChangedBy) ?? null : null,
+    createdVia: slate.createdVia ?? ("ui" as const),
+  };
+}
 
 /** The rich-text document (and, for old boards, the legacy canvas) of a slate. Fetched once per visit. */
 export const getDocument = query({
@@ -236,15 +308,76 @@ export const reportStats = mutation({
   },
 });
 
-// "Anyone with the link" setting
+/** "Anyone with the link" setting. Shared by the `setLinkAccess` mutation and the ecosystem connector. */
+export async function applyLinkAccess(ctx: Ctx, id: Id<"slates">, linkAccess: LinkAccess, via: "ui" | "connector"): Promise<LinkAccess> {
+  const { slate } = await requireManage(ctx, id);
+  const c = await getCollections();
+  const patch = { $set: { linkAccess } };
+  if (!connectorEnabled() || (slate.linkAccess ?? "none") === linkAccess) {
+    await c.slates.updateOne({ _id: slate._id }, patch);
+    return linkAccess;
+  }
+  const actor = await actorOf(ctx, via);
+  await inOutbox(async (session) => {
+    await c.slates.updateOne({ _id: slate._id }, patch, { session });
+    await emitBoardEvent("board.shared", { ...slate, linkAccess }, actor, () => ({ linkAccess }), session);
+  });
+  return linkAccess;
+}
+
 export const setLinkAccess = mutation({
   args: z.object({ id: zId, linkAccess: zLinkAccess }),
-  handler: async (ctx, args) => {
-    const { slate } = await requireManage(ctx, args.id);
-    const c = await getCollections();
-    await c.slates.updateOne({ _id: slate._id }, { $set: { linkAccess: args.linkAccess } });
-    return args.linkAccess;
-  },
+  handler: async (ctx, args) => await applyLinkAccess(ctx, args.id, args.linkAccess, "ui"),
+});
+
+const zBoardStatus = z.enum(["draft", "in_review", "approved"]);
+
+/**
+ * Moves a board between draft, in review and approved (members who can edit). The change and the events it
+ * causes (`board.status_changed`, and `board.approved` when approving) commit together. Shared by the `setStatus`
+ * mutation behind the status pill and by the ecosystem connector's `boards.setStatus`.
+ */
+export async function applyBoardStatus(ctx: Ctx, id: Id<"slates">, to: BoardStatus, opts: { note?: string; via: "ui" | "connector" }): Promise<{ slate: SlateDoc; from: BoardStatus; to: BoardStatus; changed: boolean }> {
+  if (!connectorEnabled()) throw new AppError("Board status is not available");
+  const { slate, access } = await requireManage(ctx, id);
+  const userId = access.userId;
+  if (!userId) throw new AppError("Unauthenticated");
+  const from: BoardStatus = slate.status ?? "draft";
+  if (from === to) return { slate, from, to, changed: false };
+
+  const now = Date.now();
+  const actor = await actorOf(ctx, opts.via);
+  const by = { id: userId, name: actor.name };
+  const note = opts.note?.trim() || undefined;
+  const after: SlateDoc = { ...slate, status: to, statusChangedAt: now, statusChangedBy: userId, lastEdited: now };
+
+  // the approved diagram's size is read before the transaction so that it stays short
+  let dslBytes = 0;
+  if (to === "approved") {
+    const graph = graphFromElements(await loadBoardElements(slate._id));
+    dslBytes = graph.nodes.length ? Buffer.byteLength(graphToDsl(graph)) : 0;
+  }
+
+  const c = await getCollections();
+  await inOutbox(async (session) => {
+    // compare-and-set on the status we read: two people changing it at once cannot both claim the same "from"
+    const moved = await c.slates.updateOne(
+      { _id: slate._id, status: (from === "draft" ? { $in: [null, "draft"] } : from) as BoardStatus },
+      { $set: { status: to, statusChangedAt: now, statusChangedBy: userId, lastEdited: now } },
+      { session }
+    );
+    if (moved.matchedCount === 0) throw new AppError("The status was changed by someone else just now. Try again.");
+    await emitBoardEvent("board.status_changed", after, actor, () => ({ from, to, ...(note ? { note } : {}), by }), session);
+    if (to === "approved") {
+      await emitBoardEvent("board.approved", after, actor, (board) => ({ ...(note ? { note } : {}), by, stats: board.stats ?? { nodes: 0, connectors: 0 }, dslBytes }), session);
+    }
+  });
+  return { slate: after, from, to, changed: true };
+}
+
+export const setStatus = mutation({
+  args: z.object({ id: zId, status: zBoardStatus, note: z.string().trim().max(500).optional() }),
+  handler: async (ctx, args) => (await applyBoardStatus(ctx, args.id, args.status, { note: args.note, via: "ui" })).to,
 });
 
 // Rich-text document that lives next to the canvas

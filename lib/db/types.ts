@@ -131,6 +131,25 @@ export interface SlateDoc {
   /** Legacy fields from the pre-workspace schema. */
   userId?: string;
   isShared?: boolean;
+
+  /* ---- ecosystem connector (all optional: boards without them are exactly as before) ---- */
+  /** Review state used by the connected Hub: a design is drafted, reviewed, then approved. Missing == "draft". */
+  status?: BoardStatus;
+  statusChangedAt?: number;
+  statusChangedBy?: string;
+  /** Caller-defined data (<= 2 KB) set by a connected app, echoed back by the connector. */
+  metadata?: Record<string, unknown>;
+  /** Correlation ids from the Hub's workflow run, echoed in every event about this board. */
+  externalRef?: ExternalRef;
+  createdVia?: "ui" | "connector";
+}
+
+export type BoardStatus = "draft" | "in_review" | "approved";
+
+export interface ExternalRef {
+  hubProjectId?: string;
+  hubRunId?: string;
+  hubStepId?: string;
 }
 
 /** One row per canvas element (or a tombstone for a deleted one, so other clients learn about the delete). */
@@ -241,4 +260,180 @@ export interface RateLimitDoc {
   windowStart: number;
   count: number;
   expireAt: Date;
+}
+
+/* ------------------------------------------------------------------ ecosystem connector */
+
+/** One user's consent for one app, pinned to one workspace. Tokens are stored only as HMACs. */
+export interface ConnectorGrantDoc {
+  _id: Id<"connector_grants">;
+  clientId: string;
+  /** The Clerk user the app acts as. Their current role in the workspace caps every request. */
+  userId: string;
+  workspaceId: Id<"workspaces">;
+  scopes: string[];
+  accessHash: string;
+  /** ms since epoch */
+  accessExpiresAt: number;
+  refreshHash: string;
+  /** Every refresh token issued for this grant belongs to the same family (the grant itself). */
+  refreshFamilyId: string;
+  refreshExpiresAt: number;
+  createdAt: number;
+  lastUsedAt?: number;
+  revokedAt?: number;
+  revokedReason?: string;
+}
+
+export interface ConnectorCodeDoc {
+  /** HMAC of the authorization code. */
+  _id: string;
+  clientId: string;
+  userId: string;
+  workspaceId: Id<"workspaces">;
+  scopes: string[];
+  redirectUri: string;
+  codeChallenge: string;
+  /** ms since epoch; a code is only redeemable until then. */
+  expiresAt: number;
+  usedAt?: number;
+  /** The grant minted from this code; revoked when the code is presented a second time. */
+  grantId?: string;
+  /** Set when the code was presented again after it had been redeemed. */
+  reused?: boolean;
+  /** TTL: kept after use so a replay can still be recognised. */
+  expireAt: Date;
+}
+
+/** Refresh tokens that were already rotated away. Presenting one again means the family leaked. */
+export interface ConnectorUsedRefreshDoc {
+  /** HMAC of the retired refresh token. */
+  _id: string;
+  grantId: string;
+  expireAt: Date;
+}
+
+export interface ConnectorWebhookDoc {
+  _id: Id<"connector_webhooks">;
+  grantId: string;
+  workspaceId: Id<"workspaces">;
+  url: string;
+  /** Exact event types or `prefix.*` patterns. */
+  events: string[];
+  description?: string;
+  /** AES-256-GCM, see crypto.ts. Needed to sign, so it cannot be hashed. */
+  secretEnc: string;
+  status: "active" | "disabled";
+  disabledReason?: string;
+  disabledAt?: number;
+  consecutiveFailures: number;
+  firstFailureAt?: number;
+  lastDeliveryAt?: number;
+  lastDeliveryStatus?: "succeeded" | "failed";
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ConnectorEventDoc {
+  /** ULID: sorts by time. */
+  _id: string;
+  workspaceId: Id<"workspaces">;
+  type: string;
+  occurredAt: number;
+  /** Monotonic per workspace; what `GET /events?cursor=` pages by. */
+  cursor: number;
+  actor: { id: string; name: string; kind: "user" | "system" | "connector" };
+  externalRef?: ExternalRef;
+  data: Record<string, unknown>;
+  boardId?: Id<"slates">;
+  /** Set while the dispatcher has not created deliveries for the event yet (the outbox queue). */
+  pending?: true;
+  fannedOutAt?: number;
+  expireAt: Date;
+}
+
+export interface ConnectorDeliveryDoc {
+  _id: string;
+  eventId: string;
+  webhookId: Id<"connector_webhooks">;
+  grantId: string;
+  workspaceId: Id<"workspaces">;
+  eventType: string;
+  /** Sent as X-CP-Delivery; stable across retries. */
+  deliveryUuid: string;
+  status: "pending" | "succeeded" | "failed";
+  attempts: number;
+  nextAttemptAt: number;
+  /** Claimed by a worker until this time (prevents two dispatchers sending the same attempt). */
+  leaseUntil?: number;
+  lastStatusCode?: number;
+  lastError?: string;
+  lastBody?: string;
+  lastAttemptAt?: number;
+  createdAt: number;
+  expireAt: Date;
+}
+
+export interface ConnectorOperationDoc {
+  _id: string;
+  grantId: string;
+  workspaceId: Id<"workspaces">;
+  action: string;
+  status: "pending" | "running" | "succeeded" | "failed" | "canceled";
+  input: Record<string, unknown>;
+  /** What the action's `accept` step prepared for the worker (ids it created, credits it took...). */
+  state?: Record<string, unknown>;
+  requestId?: string;
+  output?: Record<string, unknown>;
+  error?: { code: string; message: string; retryable: boolean };
+  /** AI credits taken when the operation was accepted; handed back once if it fails. */
+  creditsReserved?: number;
+  creditsRefunded?: boolean;
+  /** A worker holds the operation until then; an expired lease means the worker died. */
+  leaseUntil?: number;
+  createdAt: number;
+  startedAt?: number;
+  finishedAt?: number;
+  expireAt: Date;
+}
+
+export interface ConnectorIdempotencyDoc {
+  /** `${grantId}:${key}` */
+  _id: string;
+  requestHash: string;
+  state: "in_progress" | "done";
+  status?: number;
+  body?: string;
+  createdAt: number;
+  expireAt: Date;
+}
+
+export interface ConnectorAuditDoc {
+  _id: string;
+  at: number;
+  grantId: string;
+  clientId: string;
+  workspaceId: Id<"workspaces">;
+  userId: string;
+  via: "connector";
+  method: string;
+  /** Route pattern or action name; never request payloads. */
+  route: string;
+  status: number;
+  requestId: string;
+  durationMs: number;
+  expireAt: Date;
+}
+
+export interface ConnectorRateLimitDoc {
+  _id: string;
+  windowStart: number;
+  count: number;
+  expireAt: Date;
+}
+
+/** Per-workspace counter behind `connector_events.cursor`. */
+export interface ConnectorCounterDoc {
+  _id: string;
+  seq: number;
 }

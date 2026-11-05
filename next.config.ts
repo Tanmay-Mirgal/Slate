@@ -19,6 +19,7 @@ const NOINDEX_SOURCES = [
   "/auth/:path((?!opengraph-image|twitter-image).+)",
   "/sign-in/:path*",
   "/sign-up/:path*",
+  "/connect/:path*",
   "/api/:path*",
 ];
 
@@ -37,7 +38,8 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
       },
       // Board state changes constantly; never let a CDN cache API responses (uploaded images, which never change, set their own caching).
-      { source: "/api/:path((?!files/).*)", headers: [{ key: "Cache-Control", value: "no-store" }] },
+      // The connector's manifest and OpenAPI document are static descriptions that set their own 5 minute caching.
+      { source: "/api/:path((?!files/|connect/v1/manifest$|connect/v1/openapi\\.json$).*)", headers: [{ key: "Cache-Control", value: "no-store" }] },
     ];
   },
 };

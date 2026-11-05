@@ -1,10 +1,22 @@
 import { randomBytes } from "node:crypto";
 import { GridFSBucket, MongoClient, ObjectId, type Collection, type Db } from "mongodb";
+import { connectorEnabled } from "@/lib/connector/config";
 import type {
   BillingEventDoc,
   CommentDoc,
   CommentReadDoc,
   CommentThreadDoc,
+  ConnectorAuditDoc,
+  ConnectorCodeDoc,
+  ConnectorCounterDoc,
+  ConnectorDeliveryDoc,
+  ConnectorEventDoc,
+  ConnectorGrantDoc,
+  ConnectorIdempotencyDoc,
+  ConnectorOperationDoc,
+  ConnectorRateLimitDoc,
+  ConnectorUsedRefreshDoc,
+  ConnectorWebhookDoc,
   ElementDoc,
   InviteDoc,
   LiveSessionDoc,
@@ -45,6 +57,19 @@ export interface Collections {
   rateLimits: Collection<RateLimitDoc>;
   /** Uploaded images (GridFS: `files.files` + `files.chunks`). */
   files: GridFSBucket;
+
+  /* ---- ecosystem connector (the collections exist as handles either way; their indexes are only built when it is enabled) ---- */
+  connectorCodes: Collection<ConnectorCodeDoc>;
+  connectorGrants: Collection<ConnectorGrantDoc>;
+  connectorUsedRefresh: Collection<ConnectorUsedRefreshDoc>;
+  connectorWebhooks: Collection<ConnectorWebhookDoc>;
+  connectorEvents: Collection<ConnectorEventDoc>;
+  connectorDeliveries: Collection<ConnectorDeliveryDoc>;
+  connectorOperations: Collection<ConnectorOperationDoc>;
+  connectorIdempotency: Collection<ConnectorIdempotencyDoc>;
+  connectorAudit: Collection<ConnectorAuditDoc>;
+  connectorRateLimits: Collection<ConnectorRateLimitDoc>;
+  connectorCounters: Collection<ConnectorCounterDoc>;
 }
 
 interface Cache {
@@ -91,6 +116,17 @@ function build(): Cache {
       liveSessions: db.collection("liveSessions"),
       rateLimits: db.collection("rateLimits"),
       files: new GridFSBucket(db, { bucketName: "files" }),
+      connectorCodes: db.collection("connector_codes"),
+      connectorGrants: db.collection("connector_grants"),
+      connectorUsedRefresh: db.collection("connector_used_refresh"),
+      connectorWebhooks: db.collection("connector_webhooks"),
+      connectorEvents: db.collection("connector_events"),
+      connectorDeliveries: db.collection("connector_deliveries"),
+      connectorOperations: db.collection("connector_operations"),
+      connectorIdempotency: db.collection("connector_idempotency"),
+      connectorAudit: db.collection("connector_audit"),
+      connectorRateLimits: db.collection("connector_ratelimits"),
+      connectorCounters: db.collection("connector_counters"),
     };
     await ensureIndexes(cols);
     return cols;
@@ -162,8 +198,51 @@ export async function ensureIndexes(c: Collections): Promise<void> {
 
     c.rateLimits.createIndex({ expireAt: 1 }, ttl),
   ];
+  // Only when the connector is on: with the flag off a cold start runs exactly the index jobs it always did.
+  if (connectorEnabled()) jobs.push(...connectorIndexJobs(c));
   const results = await Promise.allSettled(jobs);
   for (const r of results) {
     if (r.status === "rejected") console.error("[mongo] could not create an index:", r.reason instanceof Error ? r.reason.message : r.reason);
   }
+}
+
+/** Indexes of the connector collections (see lib/connector). TTL fields use `expireAt` like the rest of the schema. */
+function connectorIndexJobs(c: Collections): Promise<unknown>[] {
+  const expire = { expireAfterSeconds: 0 } as const;
+  return [
+    c.connectorCodes.createIndex({ expireAt: 1 }, expire),
+
+    c.connectorGrants.createIndex({ accessHash: 1 }, { unique: true }),
+    c.connectorGrants.createIndex({ refreshHash: 1 }, { unique: true }),
+    c.connectorGrants.createIndex({ workspaceId: 1, revokedAt: 1, createdAt: -1 }),
+    c.connectorGrants.createIndex({ userId: 1, revokedAt: 1 }),
+
+    c.connectorUsedRefresh.createIndex({ expireAt: 1 }, expire),
+
+    c.connectorWebhooks.createIndex({ grantId: 1, createdAt: 1 }),
+    c.connectorWebhooks.createIndex({ workspaceId: 1, status: 1 }),
+
+    // per-workspace log order, and exactly one event per cursor value
+    c.connectorEvents.createIndex({ workspaceId: 1, cursor: 1 }, { unique: true }),
+    // the outbox queue: only events nobody has fanned out yet are in this index
+    c.connectorEvents.createIndex({ pending: 1, _id: 1 }, { partialFilterExpression: { pending: true }, name: "outbox_pending" }),
+    c.connectorEvents.createIndex({ expireAt: 1 }, expire),
+
+    c.connectorDeliveries.createIndex({ eventId: 1, webhookId: 1 }, { unique: true }),
+    c.connectorDeliveries.createIndex({ status: 1, nextAttemptAt: 1 }, { partialFilterExpression: { status: "pending" }, name: "deliveries_due" }),
+    c.connectorDeliveries.createIndex({ webhookId: 1, createdAt: -1 }),
+    c.connectorDeliveries.createIndex({ expireAt: 1 }, expire),
+
+    c.connectorOperations.createIndex({ grantId: 1, createdAt: -1 }),
+    c.connectorOperations.createIndex({ status: 1, leaseUntil: 1 }),
+    c.connectorOperations.createIndex({ expireAt: 1 }, expire),
+
+    c.connectorIdempotency.createIndex({ expireAt: 1 }, expire),
+
+    c.connectorAudit.createIndex({ workspaceId: 1, at: -1 }),
+    c.connectorAudit.createIndex({ grantId: 1, at: -1 }),
+    c.connectorAudit.createIndex({ expireAt: 1 }, expire),
+
+    c.connectorRateLimits.createIndex({ expireAt: 1 }, expire),
+  ];
 }

@@ -12,6 +12,7 @@ import type { Id } from "@/lib/db/types";
 import { AiPanel } from "@/components/ai-panel/ai-panel";
 import { PricingModal } from "@/components/billing/PricingModal";
 import { BoardShell, useBoardEngine } from "@/components/canvas/BoardShell";
+import { BoardStatusPill } from "@/components/canvas/BoardStatusPill";
 import { ShareSlateDialog } from "@/components/canvas/ShareSlateDialog";
 import { useBoardPresence, useBoardSync } from "@/components/canvas/useBoardSync";
 import { useBoardSocket } from "@/components/canvas/useBoardSocket";
@@ -222,7 +223,12 @@ export default function CanvasPage() {
         onUpgrade={() => openPricing(null)}
         defaultInterview={interviewFromUrl}
         interviewKey={String(slate._id)}
-        actions={<ShareSlateDialog slateId={slateId} title={slate.title} workspaceId={slate.workspaceId} linkAccess={slate.linkAccess} canManage={slate.canManage} />}
+        actions={
+          <>
+            {slate.connector && <BoardStatusPill slateId={slateId} view={slate.connector} canChange={slate.canManage && !forceView} />}
+            <ShareSlateDialog slateId={slateId} title={slate.title} workspaceId={slate.workspaceId} linkAccess={slate.linkAccess} canManage={slate.canManage} />
+          </>
+        }
         docBridge={docBridge}
         docSlot={
           <RichDocumentEditor

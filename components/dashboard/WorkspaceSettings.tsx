@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@/lib/client/query";
 import { PLANS } from "@/lib/billing/plans";
 import { timeAgo } from "@/lib/comments/format";
 import { PlanBadge, UsageBar, WorkspaceAvatar } from "./bits";
+import { ConnectedApps } from "./ConnectedApps";
 import type { MeterBilling } from "./UsageMeter";
 import type { SwitcherWorkspace } from "./WorkspaceSwitcher";
 
@@ -36,6 +37,8 @@ export function WorkspaceSettings({ workspace, billing, onInvite, onUpgrade }: W
   const id = workspace?._id;
   const members = useQuery(api.workspaces.listMembers, id ? { workspaceId: id } : "skip");
   const invites = useQuery(api.workspaces.listPendingInvites, id ? { workspaceId: id } : "skip");
+  // null while the ecosystem connector is switched off: the section below then does not exist at all
+  const connected = useQuery(api.connector.overview, id ? { workspaceId: id } : "skip");
   const rename = useMutation(api.workspaces.renameWorkspace);
   const [name, setName] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -169,6 +172,12 @@ export function WorkspaceSettings({ workspace, billing, onInvite, onUpgrade }: W
           </div>
         )}
       </Section>
+
+      {connected && (
+        <Section title="Connected apps" description={connected.seesAll ? "Apps connected to this workspace by its members." : "Apps you connected to this workspace."}>
+          <ConnectedApps data={connected} />
+        </Section>
+      )}
     </div>
   );
 }

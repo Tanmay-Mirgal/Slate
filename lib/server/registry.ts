@@ -1,5 +1,6 @@
 import * as billing from "./billing";
 import * as comments from "./comments";
+import * as connector from "./connector";
 import * as elements from "./elements";
 import { isFn, type Fn, type FnKind } from "./fn";
 import * as presence from "./presence";
@@ -13,7 +14,7 @@ import * as workspaces from "./workspaces";
  * exports that is not a `query` / `mutation` (helpers, server-only operations) is invisible to the
  * network: only values created by `query()` / `mutation()` are looked up here.
  */
-export const functions = { billing, comments, elements, presence, slates, users, versions, workspaces };
+export const functions = { billing, comments, connector, elements, presence, slates, users, versions, workspaces };
 
 export type Functions = typeof functions;
 

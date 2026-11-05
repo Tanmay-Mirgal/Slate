@@ -18,6 +18,10 @@ function AuthContent() {
     Array.from(searchParams.keys()).some((k) => k.startsWith("sign_up_")) ||
     /\/(continue|verify-email-address|verify-phone-number)$/.test(pathname);
   const urlMode = isSignUpFlow ? "sign-up" : "sign-in";
+  // After signing in, a person who came from a connected app's consent screen goes back to it. Only that exact
+  // same-origin path is honoured (an open redirect here would be a phishing gift); everyone else lands on the dashboard.
+  const returnTo = searchParams.get("redirect_url");
+  const afterAuth = returnTo && returnTo.startsWith("/connect/authorize?") ? returnTo : "/dashboard";
   // The URL decides until the visitor clicks a tab; a later URL change resets their choice.
   const [choice, setChoice] = React.useState<{ forUrl: string; mode: "sign-in" | "sign-up" } | null>(null);
   const mode = choice && choice.forUrl === urlMode ? choice.mode : urlMode;
@@ -165,9 +169,9 @@ function AuthContent() {
         {/* Clerk Component */}
         <div className="w-full max-w-md">
           {mode === "sign-in" ? (
-            <SignIn routing="path" path="/auth" appearance={clerkAppearance} signUpUrl="/auth?mode=sign-up" forceRedirectUrl="/dashboard" />
+            <SignIn routing="path" path="/auth" appearance={clerkAppearance} signUpUrl="/auth?mode=sign-up" forceRedirectUrl={afterAuth} />
           ) : (
-            <SignUp routing="path" path="/auth" appearance={clerkAppearance} signInUrl="/auth?mode=sign-in" forceRedirectUrl="/dashboard" />
+            <SignUp routing="path" path="/auth" appearance={clerkAppearance} signInUrl="/auth?mode=sign-in" forceRedirectUrl={afterAuth} />
           )}
         </div>
 

@@ -1,9 +1,14 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-import { NextRequest, NextFetchEvent } from 'next/server';
+import { NextRequest, NextFetchEvent, NextResponse } from 'next/server';
 
 const isProtectedRoute = createRouteMatcher(['/dashboard(.*)']);
 
+// The ecosystem connector authenticates with its own bearer tokens. Clerk must not look at those requests at all:
+// it would try to read the Authorization header as a session token (and call out to verify it).
+const isConnectorApi = (pathname: string) => pathname.startsWith('/api/connect/') || pathname === '/.well-known/ecosystem-connector.json';
+
 export function proxy(request: NextRequest, event: NextFetchEvent) {
+  if (isConnectorApi(request.nextUrl.pathname)) return NextResponse.next();
   return clerkMiddleware(async (auth, req) => {
     if (isProtectedRoute(req)) {
       await auth.protect();

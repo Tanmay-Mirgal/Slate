@@ -17,7 +17,16 @@ export interface CardSlate {
   nodeCount: number | null;
   connectorCount: number | null;
   workspaceName?: string;
+  /** Review state; only boards a connected Hub has touched carry one. */
+  status?: "draft" | "in_review" | "approved";
+  createdVia?: "ui" | "connector";
 }
+
+const STATUS_PILL: Record<"draft" | "in_review" | "approved", { label: string; className: string }> = {
+  draft: { label: "Draft", className: "bg-white/[0.05] text-zinc-400" },
+  in_review: { label: "In review", className: "bg-amber-400/10 text-amber-300" },
+  approved: { label: "Approved", className: "bg-emerald-400/10 text-emerald-300" },
+};
 
 export interface CardPerson {
   name: string;
@@ -137,6 +146,11 @@ export function BoardCard({ slate, people = [], onToggleFavorite, onRename, onDe
             {slate.linkAccess && slate.linkAccess !== "none" && (
               <span className="ml-1 flex items-center gap-1 rounded bg-white/[0.05] px-1 py-px text-[9.5px] font-medium text-zinc-400" title="Anyone with the link can open this board">
                 <Link2 className="h-2.5 w-2.5" /> {slate.linkAccess === "edit" ? "Link: edit" : "Link: view"}
+              </span>
+            )}
+            {slate.status && (
+              <span className={`ml-1 rounded px-1 py-px text-[9.5px] font-medium ${STATUS_PILL[slate.status].className}`} title={slate.createdVia === "connector" ? "Created through a connected app" : undefined}>
+                {STATUS_PILL[slate.status].label}
               </span>
             )}
             {slate.workspaceName && <span className="truncate text-sky-400/80">· {slate.workspaceName}</span>}

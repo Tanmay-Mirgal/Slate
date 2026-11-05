@@ -1,4 +1,3 @@
-"use client";
 
 import MarkdownIt from "markdown-it";
 import type { JSONContent } from "@tiptap/core";
