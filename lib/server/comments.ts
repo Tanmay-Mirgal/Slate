@@ -12,6 +12,9 @@ import {
   uniqueIds,
   type MentionRef,
 } from "@/lib/comments/logic";
+import { connectorEnabled } from "@/lib/connector/config";
+import { emitCommentCreated } from "@/lib/connector/events/board-events";
+import { inOutbox } from "@/lib/connector/events/outbox";
 import { canComment, canModerate, loadSlate, requireComment, resolveAccess } from "./access";
 import { AppError, mutation, query, zId, type Ctx } from "./fn";
 import { toProfile, slateMembers } from "./profile";
@@ -48,6 +51,19 @@ async function resolveMentions(slate: SlateDoc, selfId: string, ids: readonly st
 /** Public identity (name + avatar) of the signed-in caller. */
 async function callerProfile(ctx: Ctx, userId: string) {
   return toProfile(userId, await ctx.profile());
+}
+
+/** Stores a comment and, when an app is connected to the workspace, its `comment.created` event in one transaction. */
+async function insertComment(slate: SlateDoc, doc: CommentDoc): Promise<void> {
+  const c = await getCollections();
+  if (!connectorEnabled()) {
+    await c.comments.insertOne(doc);
+    return;
+  }
+  await inOutbox(async (session) => {
+    await c.comments.insertOne(doc, { session });
+    await emitCommentCreated(slate, { id: doc.authorId, name: doc.authorName, kind: "user" }, { id: doc._id, authorName: doc.authorName, body: doc.body, createdAt: doc.createdAt }, session);
+  });
 }
 
 async function threadWithSlate(threadId: Id<"commentThreads">) {
@@ -174,7 +190,7 @@ export const createThread = mutation({
       snippet: snippetOf(body),
       mentionedIds: mentions.map((m) => m.userId),
     });
-    await c.comments.insertOne({
+    await insertComment(slate, {
       _id: newDocId(),
       threadId,
       slateId: args.slateId,
@@ -204,7 +220,7 @@ export const reply = mutation({
     const me = await callerProfile(ctx, access.userId);
     const mentions = await resolveMentions(slate, access.userId, args.mentions);
     const now = Date.now();
-    await c.comments.insertOne({
+    await insertComment(slate, {
       _id: newDocId(),
       threadId: args.threadId,
       slateId: thread.slateId,

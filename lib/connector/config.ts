@@ -171,3 +171,11 @@ export function assertConnectorEnv(env: Env = process.env): ConnectorConfig | nu
   if (!connectorEnabled(env)) return null;
   return connectorConfig(env);
 }
+
+/**
+ * Development and tests only: lets webhook endpoints point at localhost / private addresses (so a receiver on this
+ * machine can be tried). Ignored in production, where the SSRF rules always apply in full.
+ */
+export function allowPrivateWebhooks(env: Env = process.env): boolean {
+  return env.CONNECTOR_ALLOW_PRIVATE_WEBHOOKS === "true" && env.NODE_ENV !== "production";
+}

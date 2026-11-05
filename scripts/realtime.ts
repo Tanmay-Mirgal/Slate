@@ -16,6 +16,8 @@
  * The browsers find it through NEXT_PUBLIC_REALTIME_URL (e.g. wss://realtime.example.com).
  */
 import { verifyToken } from "@clerk/nextjs/server";
+import { assertConnectorEnv } from "@/lib/connector/config";
+import { startDispatcher } from "@/lib/connector/events/dispatcher";
 import { closeMongo } from "@/lib/db/mongo";
 import { startRealtimeServer } from "@/lib/realtime/server";
 
@@ -48,8 +50,13 @@ async function main() {
     },
   });
 
+  // ecosystem connector: with CONNECTOR_DISPATCHER=inline this process also delivers webhooks (no extra service needed)
+  const connector = assertConnectorEnv();
+  const dispatcher = connector?.dispatcher === "inline" ? startDispatcher({ log: console }) : null;
+
   const stop = async (signal: string) => {
     console.info(`[realtime] ${signal}: shutting down`);
+    await dispatcher?.stop().catch(() => undefined);
     await server.close().catch(() => undefined);
     await closeMongo().catch(() => undefined);
     process.exit(0);

@@ -6,6 +6,8 @@
     "dev": "node scripts/dev.mjs",
     "dev:web": "next dev",
     "realtime": "tsx --env-file-if-exists=.env.local scripts/realtime.ts",
+    "connector:smoke": "tsx --env-file-if-exists=.env.local scripts/connector-smoke.ts",
+    "connector:dispatcher": "tsx --env-file-if-exists=.env.local scripts/connector-dispatcher.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

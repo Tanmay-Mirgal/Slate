@@ -3,6 +3,8 @@ import type { AnyBulkWriteOperation } from "mongodb";
 import { getCollections, newDocId } from "@/lib/db/mongo";
 import type { ElementDoc, Id, SlateDoc } from "@/lib/db/types";
 import { shouldAutoSnapshot } from "@/lib/canvas/version-snapshot";
+import { connectorEnabled } from "@/lib/connector/config";
+import { emitBoardUpdated } from "@/lib/connector/events/board-events";
 import { loadSlate, requireEdit, resolveAccess } from "./access";
 import { AppError, mutation, query, zId } from "./fn";
 import { autoSnapshot } from "./versions";
@@ -158,6 +160,11 @@ export const apply = mutation({
     const wantsSnapshot = latest.size > 0 && shouldAutoSnapshot({ now, lastAutoAt: slate.lastAutoVersionAt, createdAt: slate.createdAt });
     if (wantsSnapshot) patch.lastAutoVersionAt = now;
     if (Object.keys(patch).length > 0) await c.slates.updateOne({ _id: slate._id }, { $set: patch });
+    // an app connected to the workspace hears about the edit, at most once a minute per board, after the response
+    if (patch.lastEdited !== undefined && connectorEnabled() && access.userId) {
+      const editor = access.userId;
+      ctx.defer(() => emitBoardUpdated(slate._id, editor));
+    }
     // its own task, after the response: a board too big to snapshot must never make editing fail
     if (wantsSnapshot) ctx.defer(() => autoSnapshot(args.slateId));
     if (hasDeletes && Math.random() < 0.1) ctx.defer(() => purgeTombstones(args.slateId));
