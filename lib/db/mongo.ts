@@ -156,7 +156,7 @@ export async function closeMongo(): Promise<void> {
  * Indexes the queries rely on. `createIndex` is idempotent, so this runs once per process on first
  * use; it replaces the schema-level indexes Convex used to declare.
  */
-export async function ensureIndexes(c: Collections): Promise<void> {
+export async function ensureIndexes(c: Collections, retried = false): Promise<void> {
   const ttl = { expireAfterSeconds: 0 } as const;
   const jobs: Promise<unknown>[] = [
     c.users.createIndex({ clerkId: 1 }, { unique: true }),
@@ -201,6 +201,10 @@ export async function ensureIndexes(c: Collections): Promise<void> {
   // Only when the connector is on: with the flag off a cold start runs exactly the index jobs it always did.
   if (connectorEnabled()) jobs.push(...connectorIndexJobs(c));
   const results = await Promise.allSettled(jobs);
+  // Index builds started together can collide (for example while two of them create the same new collection) and a
+  // heavily loaded database can time one out. createIndex is idempotent, so one more pass fills whatever is missing
+  // instead of leaving a unique or TTL index silently absent.
+  if (!retried && results.some((r) => r.status === "rejected")) return await ensureIndexes(c, true);
   for (const r of results) {
     if (r.status === "rejected") console.error("[mongo] could not create an index:", r.reason instanceof Error ? r.reason.message : r.reason);
   }

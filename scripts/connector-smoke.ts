@@ -8,7 +8,8 @@
  * running app; refused when NODE_ENV=production) so no browser consent is needed. With --token it uses a token you got
  * from the real OAuth flow. It creates a board, drives it through import, document, export, review, approval and
  * archive, polls the event log, and (with --webhook) receives and verifies a signed delivery on a local port; for
- * that the app needs CONNECTOR_ALLOW_PRIVATE_WEBHOOKS=true and a dispatcher running.
+ * that the app must run in development mode (`npm run dev`) with CONNECTOR_ALLOW_PRIVATE_WEBHOOKS=true and a
+ * dispatcher running. Webhook URLs on localhost are always refused in production.
  */
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -107,7 +108,7 @@ async function main() {
       await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
       process.once("exit", () => server.close());
       const r = await call("POST", "/webhooks", { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`, events: ["board.*"] });
-      expect(r.status === 201, `status ${r.status} ${r.text.slice(0, 160)} (needs CONNECTOR_ALLOW_PRIVATE_WEBHOOKS=true on the app)`);
+      expect(r.status === 201, `status ${r.status} ${r.text.slice(0, 160)} (--webhook needs an app in development mode with CONNECTOR_ALLOW_PRIVATE_WEBHOOKS=true: a production app, rightly, refuses a localhost receiver)`);
       hook = { secret: r.json.secret, id: r.json.id };
     });
   }
