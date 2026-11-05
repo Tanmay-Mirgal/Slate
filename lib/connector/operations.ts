@@ -110,6 +110,7 @@ export async function runOperation(operationId: string): Promise<void> {
     const ce = normalizeError(e);
     if (ce.status >= 500) console.error(`[connector] operation ${op._id} (${op.action}) failed:`, e instanceof Error ? `${e.name}: ${e.message}` : e);
     await failOperation(op, grant.userId, { code: ce.code, message: ce.message, retryable: ce.retryable });
+    await def.onFailure?.({ grant, operationId: op._id, requestId: op.requestId ?? op._id }, op.input, op.state ?? {}, ce).catch((hookError) => console.error(`[connector] onFailure of ${op.action} failed:`, hookError instanceof Error ? hookError.message : hookError));
   } finally {
     clearInterval(heartbeat);
   }

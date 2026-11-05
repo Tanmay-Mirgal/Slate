@@ -25,16 +25,16 @@ import { writeDiagram } from "./diagram";
 
 /* ------------------------------------------------------------------ shared input pieces */
 
-const boardIdSchema = z.string().min(1).max(120).meta({ title: "Board id", description: "Id of a board in the connected workspace (from boards.list or an earlier action)." });
-const titleSchema = z.string().trim().min(1).max(120).meta({ title: "Title", description: "Board title, up to 120 characters.", examples: ["Order platform architecture"] });
-const modeSchema = z
+export const boardIdSchema = z.string().min(1).max(120).meta({ title: "Board id", description: "Id of a board in the connected workspace (from boards.list or an earlier action)." });
+export const titleSchema = z.string().trim().min(1).max(120).meta({ title: "Title", description: "Board title, up to 120 characters.", examples: ["Order platform architecture"] });
+export const modeSchema = z
   .enum(["replace", "append"])
   .default("replace")
   .meta({ title: "Mode", description: "replace: what is on the board now is removed (a version is saved first, so it can be restored). append: the diagram is added to the right of what is there." });
-const documentModeSchema = z.enum(["replace", "append"]).default("append").meta({ title: "Document mode", description: "How the Markdown is written to the document pane." });
+export const documentModeSchema = z.enum(["replace", "append"]).default("append").meta({ title: "Document mode", description: "How the Markdown is written to the document pane." });
 
 const boardOutput = z.object({ board: boardSchema });
-const diagramOutput = z.object({ kind: z.string(), nodes: z.number(), edges: z.number(), groups: z.number() });
+export const diagramOutput = z.object({ kind: z.string(), nodes: z.number(), edges: z.number(), groups: z.number() });
 
 const randomThumbnail = () => String(Math.floor(Math.random() * 5) + 1);
 
@@ -48,7 +48,7 @@ interface Target {
 }
 
 /** The board an action works on: the one named, or a new one created for the occasion (plan limits apply). */
-async function targetBoard(grant: AuthedGrant, t: Target, fallbackTitle: string): Promise<{ slate: SlateDoc; created: boolean }> {
+export async function targetBoard(grant: AuthedGrant, t: Target, fallbackTitle: string): Promise<{ slate: SlateDoc; created: boolean }> {
   if (t.boardId) {
     const { slate } = await loadGrantBoard(grant, t.boardId, { need: "edit" });
     if (t.metadata || t.externalRef) {
@@ -69,7 +69,7 @@ async function targetBoard(grant: AuthedGrant, t: Target, fallbackTitle: string)
   return { slate, created: true };
 }
 
-async function freshBoard(id: string) {
+export async function freshBoard(id: string) {
   const c = await getCollections();
   const slate = await c.slates.findOne({ _id: id }, { projection: { documentText: 0, documentJson: 0, elements: 0 } });
   if (!slate) throw err.notFound("Board");
@@ -84,7 +84,7 @@ export async function writeMarkdown(grant: AuthedGrant, boardId: string, markdow
   return { bytes: Buffer.byteLength(fields.documentText) };
 }
 
-const summarise = (w: { kind: string; nodes: number; edges: number; groups: number }) => ({ kind: w.kind, nodes: w.nodes, edges: w.edges, groups: w.groups });
+export const summarise = (w: { kind: string; nodes: number; edges: number; groups: number }) => ({ kind: w.kind, nodes: w.nodes, edges: w.edges, groups: w.groups });
 
 /* ------------------------------------------------------------------ actions */
 

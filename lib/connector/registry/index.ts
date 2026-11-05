@@ -1,3 +1,4 @@
+import { AI_ACTIONS } from "../actions/ai";
 import { BOARD_ACTIONS } from "../actions/boards";
 import { EVENT_DEFINITIONS } from "../events/definitions";
 import { READ_RESOURCES } from "../resources/boards";
@@ -8,7 +9,7 @@ import type { Registry } from "./define";
  * lists, so adding an action, a resource or an event here is the only step needed to expose it.
  */
 export const registry: Registry = {
-  actions: [...BOARD_ACTIONS],
+  actions: [...BOARD_ACTIONS, ...AI_ACTIONS],
   resources: [...READ_RESOURCES],
   events: [...EVENT_DEFINITIONS],
 };

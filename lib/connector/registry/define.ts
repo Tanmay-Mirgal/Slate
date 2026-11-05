@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AuthedGrant } from "../auth/verify";
+import type { ConnectError } from "../errors";
 import type { Scope } from "../scopes";
 
 /**
@@ -45,6 +46,8 @@ export interface AsyncActionDef extends ActionBase {
   async: true;
   accept: (c: ActionContext, input: unknown) => Promise<{ state: Record<string, unknown>; creditsReserved?: number }>;
   run: (c: OperationRunContext, input: unknown, state: Record<string, unknown>) => Promise<unknown>;
+  /** Called once when `run` failed (after the credits were handed back), e.g. to send a `...failed` event. Never throws into the caller. */
+  onFailure?: (c: OperationRunContext, input: unknown, state: Record<string, unknown>, error: ConnectError) => Promise<void>;
 }
 
 export interface OperationRunContext {
@@ -79,13 +82,16 @@ export function defineAsyncAction<I extends z.ZodType, O extends z.ZodType, S ex
   output: O;
   accept: (c: ActionContext, input: z.output<I>) => Promise<{ state: S; creditsReserved?: number }>;
   run: (c: OperationRunContext, input: z.output<I>, state: S) => Promise<z.input<O>>;
+  onFailure?: (c: OperationRunContext, input: z.output<I>, state: S, error: ConnectError) => Promise<void>;
 }): AsyncActionDef {
+  const { onFailure, ...rest } = def;
   return {
-    ...def,
+    ...rest,
     async: true,
     idempotent: def.idempotent ?? true,
     accept: (c, input) => def.accept(c, input as z.output<I>),
     run: (c, input, state) => def.run(c, input as z.output<I>, state as S),
+    ...(onFailure ? { onFailure: (c: OperationRunContext, input: unknown, state: Record<string, unknown>, error: ConnectError) => onFailure(c, input as z.output<I>, state as S, error) } : {}),
   };
 }
 
