@@ -10,14 +10,18 @@ export const urlRules = (): UrlRules => ({ requireHttps: process.env.NODE_ENV ==
 
 const KNOWN_TYPES = EVENT_DEFINITIONS.map((e) => e.type) as string[];
 
-/** `board.approved`, or `board.*` for everything below `board.`. */
-export const matchesEvent = (patterns: readonly string[], type: string): boolean => patterns.some((p) => p === type || (p.endsWith(".*") && type.startsWith(p.slice(0, -1))));
+/** `board.approved`, or `board.*` for everything below `board.`, or `*` for all. */
+export const matchesEvent = (patterns: readonly string[], type: string): boolean =>
+  patterns.some((p) => p === "*" || p === type || (p.endsWith(".*") && type.startsWith(p.slice(0, -1))));
 
 /** Subscriptions must name something that exists, so a typo is an error now rather than silence later. */
 export function patternProblems(patterns: readonly string[]): ErrorDetail[] {
   const problems: ErrorDetail[] = [];
   patterns.forEach((p, i) => {
-    const known = KNOWN_TYPES.includes(p) || (/^[a-z_]+(\.[a-z_]+)*\.\*$/.test(p) && KNOWN_TYPES.some((t) => t.startsWith(p.slice(0, -1))));
+    const known =
+      p === "*" ||
+      KNOWN_TYPES.includes(p) ||
+      (/^[a-z_]+(\.[a-z_]+)*\.\*$/.test(p) && KNOWN_TYPES.some((t) => t.startsWith(p.slice(0, -1))));
     if (!known) problems.push({ path: `events.${i}`, message: `"${p}" is not an event type or a prefix pattern like board.* (see the manifest)` });
   });
   return problems;
