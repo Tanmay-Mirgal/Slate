@@ -69,11 +69,18 @@ function authenticateClient(req: Request, form: URLSearchParams): string {
     id = form.get("client_id") ?? "";
     secret = form.get("client_secret") ?? "";
   }
+  const cleanId = id.trim().replace(/^["']|["']$/g, "");
+  const cleanSecret = secret.trim().replace(/^["']|["']$/g, "");
+  const configId = config.clientId.trim().replace(/^["']|["']$/g, "");
+  const configSecret = config.clientSecret.trim().replace(/^["']|["']$/g, "");
+
   // both comparisons always run, so a wrong id and a wrong secret cost the same
-  const idOk = safeEqual(id, config.clientId);
-  const secretOk = safeEqual(secret, config.clientSecret);
+  const idOk = safeEqual(cleanId, configId);
+  const secretOk = safeEqual(cleanSecret, configSecret);
   if (!id || !secret || !idOk || !secretOk) {
-    throw new OAuthError("invalid_client", "Client authentication failed", { headers: basic ? { "WWW-Authenticate": 'Basic realm="slate-connector"' } : {} });
+    const detail = `id: ${idOk ? "OK" : `${cleanId.length}vs${configId.length}`}, secret: ${secretOk ? "OK" : `${cleanSecret.length}vs${configSecret.length} (prefix: ${cleanSecret.slice(0, 3)}... vs ${configSecret.slice(0, 3)}...)`}`;
+    console.error("[oauth client auth failure]", detail);
+    throw new OAuthError("invalid_client", `Client authentication failed (${detail})`, { headers: basic ? { "WWW-Authenticate": 'Basic realm="slate-connector"' } : {} });
   }
   return id;
 }

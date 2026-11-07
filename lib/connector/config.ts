@@ -93,10 +93,10 @@ export function parseConnectorEnv(env: Env = process.env): { ok: true; config: C
   const problems: string[] = [];
   const production = env.NODE_ENV === "production";
 
-  const clientId = (env.CONNECTOR_HUB_CLIENT_ID ?? "").trim();
+  const clientId = (env.CONNECTOR_HUB_CLIENT_ID ?? "").trim().replace(/^["']|["']$/g, "");
   if (!clientId) problems.push("CONNECTOR_HUB_CLIENT_ID is not set");
 
-  const clientSecret = env.CONNECTOR_HUB_CLIENT_SECRET ?? "";
+  const clientSecret = (env.CONNECTOR_HUB_CLIENT_SECRET ?? "").trim().replace(/^["']|["']$/g, "");
   if (clientSecret.length < 32) problems.push("CONNECTOR_HUB_CLIENT_SECRET must be at least 32 characters");
 
   const redirectUris = (env.CONNECTOR_HUB_REDIRECT_URIS ?? "")
